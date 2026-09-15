@@ -364,6 +364,42 @@ export async function materializeFixture(input: {
  * The private side is not rebuilt, but it is re-checked: a changed evaluator
  * means success no longer means what the trial records.
  */
+/**
+ * Rebuild a trial's recorded state from its manifests, without touching the
+ * workspace.
+ *
+ * Judging a trial is a separate act from creating it, and may happen after the
+ * agent has run on a different machine. It must not re-materialize: that would
+ * refuse an existing trial, and worse, could quietly rebuild a different one.
+ */
+export async function loadMaterializedTrial(
+  runsDir: string,
+  trialId: string,
+): Promise<MaterializedTrial> {
+  const layout = trialLayout(runsDir, trialId);
+  if (!(await pathExists(layout.manifests))) {
+    throw new Error(`no materialized trial ${trialId} under ${runsDir}`);
+  }
+  const raw = JSON.parse(await readFile(join(layout.manifests, "trial.json"), "utf8")) as {
+    trial_id: string;
+    fixture_id: string;
+    task_identity: string;
+    workspace_digest: string;
+    evaluator_digest: string;
+    trial_identity: string;
+  };
+  return {
+    trialId: raw.trial_id,
+    fixtureId: raw.fixture_id,
+    layout,
+    taskDigest: raw.task_identity,
+    workspaceDigest: raw.workspace_digest,
+    evaluatorDigest: raw.evaluator_digest,
+    trialIdentity: raw.trial_identity,
+    manifests: manifestPaths(layout.root),
+  };
+}
+
 export async function resetTrial(input: {
   fixture: LoadedFixture;
   layout: TrialLayout;
