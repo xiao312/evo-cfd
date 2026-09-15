@@ -1,0 +1,2 @@
+# Normalize line endings across agent, Linux solver, and Windows host environments.
+* text=auto eol=lf
