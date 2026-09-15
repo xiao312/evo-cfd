@@ -79,6 +79,8 @@ export interface EvaluationResult {
   episode_timed_out: boolean;
   /** The identity this result is attributable to. */
   trial_identity: string;
+  /** Name of the credential the agent used, never the credential itself. */
+  credential_ref: string | null;
   /** ISO timestamp of when the evaluation completed. */
   evaluated_at: string;
 }
@@ -209,6 +211,9 @@ export async function evaluateTrial(
     episode_id: episode?.id ?? null,
     episode_exit_code: episode?.exit_code ?? null,
     episode_timed_out: episode?.timed_out ?? false,
+    // Named, never a value: a verdict is attributable to the capability the
+    // agent was given without the secret entering the record.
+    credential_ref: trial.credentialRef,
     trial_identity: trial.trialIdentity,
     evaluated_at: new Date().toISOString(),
   };

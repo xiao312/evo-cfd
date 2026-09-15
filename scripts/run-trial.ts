@@ -86,7 +86,15 @@ if (!MODE_JUDGE) {
   const fixture = await loadFixture(join(FIXTURE_ROOT, FIXTURE_ID));
   const stateDir = join(RUNS_DIR, "agent-state", TRIAL_ID);
   await mkdir(stateDir, { recursive: true });
-  const trial = await materializeFixture({ fixture, trialId: TRIAL_ID, runsDir: RUNS_DIR });
+  // The credential is named, not copied: the result records which gateway
+  // token the agent authenticated with, so a verdict is attributable to a
+  // capability without the secret ever landing in a manifest or a result.
+  const trial = await materializeFixture({
+    fixture,
+    trialId: TRIAL_ID,
+    runsDir: RUNS_DIR,
+    environment: { credential_ref: "gateway-token:default" },
+  });
   console.log(`materialized ${TRIAL_ID} at ${trial.layout.root}`);
 
   const launch = buildAgentContainer(

@@ -82,6 +82,8 @@ export interface MaterializedTrial {
   evaluatorDigest: string;
   /** Digest over the trial contract: fixture, task, evaluator, limits, environment. */
   trialIdentity: string;
+  /** Name of the credential the agent authenticated with, never its value. */
+  readonly credentialRef: string | null;
   readonly manifests: Record<ManifestName, string>;
 }
 
@@ -387,6 +389,7 @@ export async function loadMaterializedTrial(
     workspace_digest: string;
     evaluator_digest: string;
     trial_identity: string;
+    environment: { credential_ref?: string | null } | null;
   };
   return {
     trialId: raw.trial_id,
@@ -396,6 +399,7 @@ export async function loadMaterializedTrial(
     workspaceDigest: raw.workspace_digest,
     evaluatorDigest: raw.evaluator_digest,
     trialIdentity: raw.trial_identity,
+    credentialRef: raw.environment?.credential_ref ?? null,
     manifests: manifestPaths(layout.root),
   };
 }
