@@ -54,6 +54,8 @@ NOW
 │
 │          ★ M1: experimental agent workbench   ✅
 │
+├─ PR 5    harness identity + candidates        ✅
+│
 ├─ PR 5     harness identity
 ├─ PR 6     bounded candidate generation
 ├─ PR 7     parent/candidate selection
@@ -222,12 +224,53 @@ as a prompt, so the agent opened a session and exited having done nothing; and
 results were staged in `/tmp` where `rename` cannot cross the bind-mounted runs
 tree (EXDEV).
 
-### PR 5 — harness identity and candidate representation
+### PR 5 — harness identity and candidate representation  ✅ done
 
-Define `HarnessSnapshot`, `HarnessIdentity`, `CandidateChange`,
-`CandidateLineage`. Identify Genome, skills, extensions, context/instruction
-files, and Pi/RSIH revision — not just `genome.json`. This is also where the
-`AGENTS.md` leakage problem gets solved.
+The harness is what the programme varies, so it now has an identity rather than
+an implication. `packages/controller/src/harness.ts` defines the four types the
+comparison machinery rests on.
+
+A **`HarnessSnapshot`** covers more than `genome.json`, because a bundle is a
+self-contained directory by RSI-Harness's own rule and its components, skills
+and extensions live in it:
+
+- the whole Genome bundle, digested over relative names and contents;
+- the agent configuration — provider, model, reasoning level — digested from
+  the repository copy, which carries no credential;
+- the runtime the Genome is driven through: RSI-Harness revision and vendored Pi
+  version;
+- the ambient context the agent is given, which for every EvoCFD harness is
+  *none*.
+
+**`harnessIdentity`** composes those into a versioned digest. The version tag is
+bumped when a field is added, so an old record can never be confused with a new
+one. The trial identity now includes it — bumped to `v2` — because a trial under
+one harness is not the same trial as under another, and a parent/candidate
+comparison that could compare a harness against itself would be worthless.
+
+A **`CandidateChange`** is bounded on purpose: only `skill_upsert` and
+`skill_modify`. A skill is file-based knowledge that loads on demand, so
+changing one cannot touch the model, the tools, the provider or the evaluator.
+Widening this set is a decision to make with evidence, not a convenience.
+
+A **`CandidateRecord`** links a candidate to its parent by *identity*, not by
+name — a name can be reused, a digest cannot — and records the episode whose
+evidence motivated it. `candidateLineage` walks that chain from a candidate back
+to its seed; a missing parent is a **`LineageBreakError`**, reported rather than
+silently truncated, because a candidate with no ancestry cannot be compared to
+anything.
+
+The `AGENTS.md` leakage problem is solved by making it structural. An EvoCFD
+harness reaches the agent *only* through its Genome, and `--no-context-files` is
+what makes that true — so a harness that wants to teach the agent something adds
+a skill to its bundle, where the teaching is digested, rather than dropping a
+file into the workspace where it is neither controlled nor recorded. The
+snapshot records `context_files: []` so a harness that silently gained an
+`AGENTS.md` could not hide it.
+
+A record is excluded from the digest of what it describes: `candidate.json` is
+not hashed, because a file containing its own identity cannot be written down
+without changing it.
 
 ### PR 6 — bounded candidate generation
 

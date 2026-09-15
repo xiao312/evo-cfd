@@ -1,7 +1,7 @@
 {
   "genome_schema_version": "3",
   "genome_id": "evocfd:m1-baseline",
-  "parent_id": "evocfd:m1-baseline",
+  "parent_id": null,
   "version": 1,
   "base": "default",
   "components": [

@@ -81,6 +81,8 @@ export interface EvaluationResult {
   trial_identity: string;
   /** Name of the credential the agent used, never the credential itself. */
   credential_ref: string | null;
+  /** Identity of the harness that produced the work being judged. */
+  harness_identity: string | null;
   /** ISO timestamp of when the evaluation completed. */
   evaluated_at: string;
 }
@@ -214,6 +216,7 @@ export async function evaluateTrial(
     // Named, never a value: a verdict is attributable to the capability the
     // agent was given without the secret entering the record.
     credential_ref: trial.credentialRef,
+    harness_identity: trial.harnessIdentity,
     trial_identity: trial.trialIdentity,
     evaluated_at: new Date().toISOString(),
   };

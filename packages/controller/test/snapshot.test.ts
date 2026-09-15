@@ -25,6 +25,7 @@ import {
   ResetDriftError,
   TrialAlreadyExistsError,
   digestTree,
+  loadMaterializedTrial,
   materializeFixture,
   resetTrial,
   trialIdentity,
@@ -37,6 +38,8 @@ const REAL_FIXTURE_DIR = join(REPO_ROOT, "fixtures", "control-plane-001");
 /** A secret sitting in the shell while a trial is materialized. */
 const LEAKED_SECRET_NAME = "EVOCFD_GATEWAY_TOKEN";
 const LEAKED_SECRET_VALUE = "do-not-record-me";
+/** A harness identity, as the trial runner would supply one. */
+const HARNESS = "a".repeat(64);
 
 let staging: string;
 let runsA: string;
@@ -366,6 +369,27 @@ test("trial identity ignores environment secrets entirely", async () => {
   assert.equal(a, b);
 });
 
+test("trial identity separates trials by harness", async () => {
+  // A trial under one harness is not the same trial as under another, so a
+  // parent/candidate comparison cannot accidentally compare a harness against
+  // itself.
+  const base = {
+    fixtureId: "x",
+    fixtureVersion: 1,
+    taskDigest: "d".repeat(64),
+    evaluatorDigest: "e".repeat(64),
+    networkProfile: "llm-only",
+    maxAgentTurns: 5,
+    maxWallSeconds: 60,
+  };
+  const parent = trialIdentity({ ...base, harnessIdentity: "p".repeat(64) });
+  const candidate = trialIdentity({ ...base, harnessIdentity: "c".repeat(64) });
+  const unspecified = trialIdentity({ ...base });
+  assert.notEqual(parent, candidate);
+  assert.notEqual(parent, unspecified);
+  assert.notEqual(candidate, unspecified);
+});
+
 test("no manifest or digest contains a secret value", async () => {
   const trial = await materializeFixture({
     fixture: realFixture,
@@ -374,6 +398,7 @@ test("no manifest or digest contains a secret value", async () => {
     environment: {
       environment_identity: "egress-identity-hash",
       credential_ref: "gateway-token:default",
+      harness_identity: HARNESS,
     },
   });
   for (const path of Object.values(trial.manifests)) {
@@ -383,8 +408,24 @@ test("no manifest or digest contains a secret value", async () => {
   // The credential is recorded by name only.
   const env = JSON.parse(await readFile(trial.manifests.environmentIdentity, "utf8")) as {
     credential_ref: string;
+    harness_identity: string;
   };
   assert.equal(env.credential_ref, "gateway-token:default");
+  assert.equal(env.harness_identity, HARNESS, "the manifest records the harness it was asked to run");
+  assert.equal(trial.harnessIdentity, HARNESS);
+});
+
+test("a trial read back carries the harness it was materialized with", async () => {
+  const t = await materializeFixture({
+    fixture: realFixture,
+    trialId: "harness-readback",
+    runsDir: runsA,
+    environment: { credential_ref: "gateway-token:default", harness_identity: HARNESS },
+  });
+  const read = await loadMaterializedTrial(runsA, "harness-readback");
+  assert.equal(read.harnessIdentity, HARNESS);
+  assert.equal(read.credentialRef, "gateway-token:default");
+  assert.equal(read.trialIdentity, t.trialIdentity);
 });
 
 test("an uncharacterized environment is recorded as such, not as a secret", async () => {

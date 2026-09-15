@@ -37,3 +37,7 @@ The Genome is mounted read-only at `/genome` and driven through
 trial recorded — never something the agent rebuilt. Its digest, the RSI-Harness
 revision and the vendored Pi version are written into `agent-launch.json` before
 anything executes.
+
+A candidate sets `parent_id` to the Genome it descends from. The seed sets it to
+`null`, because it has no ancestor: a bundle that points at itself is not a
+self-contained parent but a cycle, and the lineage walker treats it as one.

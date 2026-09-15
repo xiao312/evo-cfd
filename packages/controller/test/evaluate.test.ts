@@ -162,6 +162,10 @@ test("the result carries the identity of what judged what", async () => {
   // The workspace digest records what was judged — the agent's changed state —
   // not the pristine baseline the trial was materialized from.
   assert.equal(result.workspace_digest, (await digestTree(t.layout.agentWorkspace)).digest);
+  // A verdict is attributable to the capability an agent was given: which
+  // credential it used, and which harness produced the work. Names, not values.
+  assert.equal(result.credential_ref, null, "a trial with no credential named records none");
+  assert.equal(result.harness_identity, null, "a trial with no harness recorded says so");
 });
 
 test("a result is recorded once and can be read back", async () => {

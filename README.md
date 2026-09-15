@@ -230,6 +230,45 @@ it, and the trial dies with `Unknown provider` before its first turn.
 key — and `scripts/execute-trial.ts` merges the gateway token in at execution
 time.
 
+## Harness identity and candidates
+
+The harness is what this programme varies, so it has an identity rather than an
+implication. Every trial records which harness produced the work it judges.
+
+A harness is more than `genome.json`: it is the whole Genome bundle — the
+manifest plus every component, contract, skill and extension it reaches — the
+agent configuration that declares the provider, model and reasoning level, and
+the runtime the Genome is driven through, being the RSI-Harness revision and the
+Pi version it vendors.
+
+```text
+genomes/m1-baseline/
+  genome.json              ┐
+  components/*.json        ├─ digested together: the whole bundle is the harness
+  contracts/*.dev.md       │
+  skills/<skill>/SKILL.md  ┘
+config/agent-seed/         ─ digested; the repository copy carries no credential
+third_party/RSI-Harness/   ─ revision recorded, not digested: upstream, not ours
+```
+
+An EvoCFD harness reaches the agent *only* through its Genome. `--no-context-files`
+is part of the contract, so an `AGENTS.md` left in a workspace is never injected
+into the prompt. A harness that wants to teach the agent something adds a skill
+to its bundle — where the teaching is digested and compared — rather than
+dropping a file into the workspace, where it is neither controlled nor recorded.
+
+A candidate is a new Genome bundle plus a `candidate.json` that records its
+parent by identity, the bounded change it applies, and the episode whose
+evidence motivated it. Only skill changes are representable, on purpose: a
+skill is the least invasive thing a harness can change, and it cannot touch the
+model, the tools, the provider or the evaluator. `candidate.json` is excluded
+from its own bundle's digest, because a record that contained its own identity
+could not be written down without changing it.
+
+Lineage walks from a candidate back to its seed and reports a break rather than
+a truncated chain when an ancestor is missing, because a candidate with no
+ancestry cannot be compared to anything.
+
 ## Working in this repository
 
 There is nothing to install. EvoCFD has no external dependencies, so running

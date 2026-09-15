@@ -19,9 +19,8 @@
  *
  *   Identity covers what judges the task. The evaluation package has its own
  *   digest and enters trial identity, because changing the evaluator changes
- *   what "success" means. Until harness and model identity exist, what this
- *   module calls a trial identity is really a fixture-execution identity; do
- *   not mistake it for the final trial identifier.
+ *   what "success" means. The harness that ran the trial enters it too, by way
+ *   of `harness.ts`, since changing the harness changes what produced the work.
  *
  *   Reset is exact and non-destructive. The replacement agent view is built
  *   beside the old one and verified against the recorded baseline *before*
@@ -68,6 +67,11 @@ export interface TrialEnvironment {
   readonly environment_identity?: string;
   /** Credential reference by name, e.g. `gateway-token:default`. Never a value. */
   readonly credential_ref?: string;
+  /**
+   * Identity of the harness that runs the trial, from `harness.ts`. A trial
+   * under one harness is not the same trial as under another.
+   */
+  readonly harness_identity?: string;
 }
 
 export interface MaterializedTrial {
@@ -84,6 +88,8 @@ export interface MaterializedTrial {
   trialIdentity: string;
   /** Name of the credential the agent authenticated with, never its value. */
   readonly credentialRef: string | null;
+  /** Identity of the harness this trial runs under, if recorded. */
+  readonly harnessIdentity: string | null;
   readonly manifests: Record<ManifestName, string>;
 }
 
@@ -144,12 +150,19 @@ export function trialIdentity(input: {
   maxAgentTurns: number;
   maxWallSeconds: number;
   environmentIdentity?: string;
+  /**
+   * Identity of the harness that ran the trial. A trial under a different
+   * harness is a different trial, so this enters the identity; absent only
+   * while the harness layer is still being wired in.
+   */
+  harnessIdentity?: string;
 }): string {
   const material = [
-    "evocfd-trial-identity/v1",
+    "evocfd-trial-identity/v2",
     `fixture=${input.fixtureId}@${input.fixtureVersion}`,
     `task=${input.taskDigest}`,
     `evaluator=${input.evaluatorDigest}`,
+    `harness=${input.harnessIdentity ?? "unspecified"}`,
     `profile=${input.networkProfile}`,
     `turns=${input.maxAgentTurns}`,
     `wall=${input.maxWallSeconds}`,
@@ -170,12 +183,18 @@ export function trialIdentity(input: {
  *
  * Symbolic links are neither followed nor hashed — `loadFixture` refuses them,
  * and a link would make the digest depend on something outside the tree.
+ *
+ * An excluded name is skipped rather than hashed. The harness uses this to keep
+ * its own record out of the digest of the thing it records.
  */
-export async function digestTree(root: string): Promise<TreeDigest> {
+export async function digestTree(root: string, exclude: string[] = []): Promise<TreeDigest> {
+  const excluded = new Set(exclude);
   const files: string[] = [];
   const directories: string[] = [];
   await walk(root, "", {
-    onFile: (rel) => files.push(rel),
+    onFile: (rel) => {
+      if (!excluded.has(rel)) files.push(rel);
+    },
     onDirectory: (rel) => directories.push(rel),
   });
   files.sort();
@@ -267,6 +286,7 @@ export async function materializeFixture(input: {
       maxAgentTurns: def.trial.max_agent_turns,
       maxWallSeconds: def.trial.max_wall_seconds,
       environmentIdentity: input.environment?.environment_identity,
+      harnessIdentity: input.environment?.harness_identity,
     });
 
     const manifests = {
@@ -288,6 +308,7 @@ export async function materializeFixture(input: {
       environment: {
         environment_identity: input.environment?.environment_identity ?? null,
         credential_ref: input.environment?.credential_ref ?? null,
+        harness_identity: input.environment?.harness_identity ?? null,
       },
       // Absolute paths are operational, not identity. They are recorded so a run
       // can be located, and excluded from every digest above.
@@ -322,6 +343,7 @@ export async function materializeFixture(input: {
           upstream: null,
           credential_ref: input.environment?.credential_ref ?? null,
           note: "environment identity is computed by the egress package at run time; secrets are never recorded",
+          harness_identity: input.environment?.harness_identity ?? null,
         },
         null,
         2,
@@ -350,6 +372,8 @@ export async function materializeFixture(input: {
     workspaceDigest: await digestOf(join(finalRoot, "agent", "workspace")),
     evaluatorDigest: await digestOf(join(finalRoot, "private", "evaluator")),
     trialIdentity: await recordedTrialIdentity(finalRoot),
+    credentialRef: input.environment?.credential_ref ?? null,
+    harnessIdentity: input.environment?.harness_identity ?? null,
     manifests: manifestPaths(finalRoot),
   };
 }
@@ -389,7 +413,7 @@ export async function loadMaterializedTrial(
     workspace_digest: string;
     evaluator_digest: string;
     trial_identity: string;
-    environment: { credential_ref?: string | null } | null;
+    environment: { credential_ref?: string | null; harness_identity?: string | null } | null;
   };
   return {
     trialId: raw.trial_id,
@@ -400,6 +424,7 @@ export async function loadMaterializedTrial(
     evaluatorDigest: raw.evaluator_digest,
     trialIdentity: raw.trial_identity,
     credentialRef: raw.environment?.credential_ref ?? null,
+    harnessIdentity: raw.environment?.harness_identity ?? null,
     manifests: manifestPaths(layout.root),
   };
 }

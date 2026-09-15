@@ -25,7 +25,8 @@ import { fileURLToPath } from "node:url";
 
 import { buildAgentContainer } from "../packages/controller/src/isolate.ts";
 import { evaluateTrial } from "../packages/controller/src/evaluate.ts";
-import { loadMaterializedTrial, materializeFixture, digestTree } from "../packages/controller/src/snapshot.ts";
+import { buildHarnessSnapshot, harnessIdentity as harnessIdentityOf, type HarnessSnapshot } from "../packages/controller/src/harness.ts";
+import { loadMaterializedTrial, materializeFixture } from "../packages/controller/src/snapshot.ts";
 import { loadFixture } from "../packages/controller/src/fixtures.ts";
 import { buildLaunchPlan, resolveInstallation } from "../packages/rsih-adapter/src/index.ts";
 
@@ -53,30 +54,22 @@ function argValue(name: string): string | undefined {
  * The recorded identity of the harness that runs this trial.
  *
  * A trial's harness is what the programme varies, so it must be identifiable
- * rather than implicit: the genome bundle, the RSI-Harness revision it is driven
- * through, and the Pi version that revision vendors. Without this a trial record
- * says nothing about which agent loop produced the work.
+ * rather than implicit: the Genome bundle as a whole, the agent configuration
+ * that declares the provider and model, and the RSI-Harness revision with the
+ * Pi version it vendors. Without this a trial record says nothing about which
+ * agent loop produced the work.
  */
-async function harnessIdentity(): Promise<{
-  genome_id: string;
-  genome_digest: string;
-  rsih_root: string;
-  rsih_revision: string | null;
-  pi_version: string | null;
-}> {
+async function harnessSnapshot(): Promise<HarnessSnapshot> {
   const installation = resolveInstallation({
     rsihRoot: process.env.RSIH_ROOT,
     defaultRoot: join(REPO_ROOT, "third_party", "RSI-Harness"),
   });
-  const genomeDir = join(REPO_ROOT, "genomes", GENOME_ID);
-  const genome = await digestTree(genomeDir);
-  return {
-    genome_id: GENOME_ID,
-    genome_digest: genome.digest,
-    rsih_root: "/rsih",
-    rsih_revision: installation.revision,
-    pi_version: installation.piVersion,
-  };
+  return buildHarnessSnapshot({
+    genomeDir: join(REPO_ROOT, "genomes", GENOME_ID),
+    agentConfigDir: SEED_CONFIG_DIR,
+    rsihRevision: installation.revision,
+    piVersion: installation.piVersion,
+  });
 }
 
 /** Seed the agent's config directory with everything except the credential. */
@@ -89,11 +82,17 @@ if (!MODE_JUDGE) {
   // The credential is named, not copied: the result records which gateway
   // token the agent authenticated with, so a verdict is attributable to a
   // capability without the secret ever landing in a manifest or a result.
+  // The harness identity enters the trial identity, so a trial under one
+  // harness is never confused with a trial under another.
+  const snapshot = MODE_FAKE ? null : await harnessSnapshot();
   const trial = await materializeFixture({
     fixture,
     trialId: TRIAL_ID,
     runsDir: RUNS_DIR,
-    environment: { credential_ref: "gateway-token:default" },
+    environment: {
+      credential_ref: "gateway-token:default",
+      harness_identity: snapshot ? harnessIdentityOf(snapshot) : null,
+    },
   });
   console.log(`materialized ${TRIAL_ID} at ${trial.layout.root}`);
 
@@ -179,7 +178,10 @@ if (!MODE_JUDGE) {
     network_profile: limits.network_profile,
     max_agent_turns: limits.max_agent_turns,
     max_wall_seconds: limits.max_wall_seconds,
-    harness: MODE_FAKE ? null : await harnessIdentity(),
+    // Recorded verbatim and before anything runs; the episode runner executes
+    // this exact plan. `rsih_root` is operational — where the bundle is mounted
+    // — and is already in `args`; the identity fields are what the record is for.
+    harness: MODE_FAKE ? null : { ...snapshot, rsih_root: "/rsih" },
     // Recorded verbatim and before anything runs; the episode runner executes
     // this exact plan.
     command: "docker",
