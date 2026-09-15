@@ -123,7 +123,7 @@ if (!MODE_JUDGE) {
         },
         // The worker runs inside the container; its HOME and PATH are the
         // container's own.
-        { home: "/home/dfode", path: "/opt/node/bin:/usr/bin:/bin", agentDir: "/agent-state" },
+        { home: "/agent-state", path: "/opt/node/bin:/usr/bin:/bin", agentDir: "/agent-state" },
         {
           genome: `/genome/genome.json`,
           cwd: "/task/workspace",
