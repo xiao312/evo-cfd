@@ -133,6 +133,10 @@ if (!MODE_JUDGE) {
           maxTurns: limits.max_agent_turns,
           sessionDir: "/agent-state/sessions",
           noContextFiles: true,
+          // The task is a positional argument: Pi treats a bare token as the
+          // initial prompt, and without one the agent opens a session, emits a
+          // header and exits having done nothing at all.
+          extraArgs: [await readFile(join(trial.layout.agent, "TASK.md"), "utf8")],
         },
       );
 
