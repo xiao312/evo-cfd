@@ -99,10 +99,43 @@ A fixture is plain files and directories — symbolic links are refused at load,
 because a link would make the reachable content differ from the content a
 digest was recorded over. Fixture ids are flat identifiers, never paths.
 
-The `agent` and `private` split is a structural classification, not an enforced
-boundary. The agent process shares the container with the evaluator, and a
-current working directory is not a sandbox, so a capable agent may read outside
-its workspace. Enforcing that is a later change.
+The `agent` and `private` split used to be a structural classification: the
+evaluator was simply not copied into the agent view, which holds only for an
+agent that does not look. It is now an authority boundary.
+
+`packages/controller/src/isolate.ts` builds the launch arguments for an agent
+container that receives four mounts and nothing else — the read-only prompt,
+the one writable workspace, the read-only harness runtime, and a writable
+session directory outside the task. It does not receive the evaluation package,
+the manifests, any sibling trial, the controller source, or the host's Docker
+socket. The root filesystem is read-only, every capability is dropped,
+`no-new-privileges` is set, and the process runs as a non-root uid, so the
+container is a room with one desk on it rather than a machine the agent happens
+to be sitting at.
+
+Because that builder is a pure function, the boundary can be tested without
+Docker. `packages/controller/test/isolate.test.ts` asserts the mount list, the
+read-only and writable modes, that nothing named `private`, `manifests` or
+`evaluator` appears in any mount, the hardening flags, and that a sibling trial
+under the same runs root is not visible.
+
+The check that matters more than the unit suite is
+`scripts/verify-isolation.mjs`: it materializes a trial from the same fixture the
+loop will use, builds the command from that same tested function, and runs the
+container with a probe that looks for exactly what must be absent. It exits
+non-zero on any `BAD-` marker. Run it on the compute host:
+
+```sh
+EVOCFD_HOST_ROOT=/data2/kexiao/EvoCFD evocfd 'node scripts/verify-isolation.mjs'
+sh /data2/kexiao/EvoCFD/runs/isolation-probe/run-probe.sh
+```
+
+`EVOCFD_HOST_ROOT` is required: the controller runs inside a container where
+the repository is mounted at a path the host does not use, and mount sources
+must be host paths. Without it, Docker silently creates the missing source as an
+empty root-owned directory, and the probe reports a writable-less workspace and
+a missing prompt — a failure that looks like a broken boundary but is a broken
+path.
 
 ## Working in this repository
 

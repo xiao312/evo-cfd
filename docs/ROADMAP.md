@@ -104,10 +104,17 @@ No new capability. Small, then freeze fixtures.
 Also while there: include directory entries in `digestTree()`. An agent can
 observe that an empty directory exists, so identity should represent it.
 
-### PR 4A — enforced agent/evaluator isolation
+### PR 4A — enforced agent/evaluator isolation  ✅ done
 
 The most important architectural PR. Turn the current honest "structural
 classification only" into a real authority boundary.
+
+Delivered as `packages/controller/src/isolate.ts` (pure command builder) +
+`packages/controller/test/isolate.test.ts` (boundary contract, no Docker
+needed) + `scripts/verify-isolation.mjs` (real container probe, exits non-zero
+on any `BAD-` marker). Verified on the compute host: prompt read-only,
+workspace writable, evaluator and manifests unreachable, Docker socket absent,
+sibling trial invisible.
 
 The agent physically receives:
 
