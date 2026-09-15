@@ -506,7 +506,9 @@ async function runEvaluator(layout: {
 }> {
   const { spawn } = await import("node:child_process");
   const out = await new Promise<string>((resolve, reject) => {
-    const child = spawn(process.execPath, [join(layout.evaluator, "check.mjs"), layout.agentWorkspace]);
+    const child = spawn(process.execPath, [join(layout.evaluator, "check.mjs"), layout.agentWorkspace], {
+      windowsHide: true,
+    });
     let stdout = "";
     child.stdout.on("data", (chunk: Buffer) => {
       stdout += chunk;

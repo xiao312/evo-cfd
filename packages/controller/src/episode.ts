@@ -140,6 +140,10 @@ export async function runEpisode(input: EpisodeInput): Promise<EpisodeResult> {
     // Run in a new process group so a timeout can take down the agent and any
     // subprocesses it spawned together, rather than orphaning them.
     detached: process.platform !== "win32",
+    // On Windows a spawned console application otherwise allocates its own
+    // console, which appears as a window that opens and closes per launch —
+    // once per episode, per evaluation, per subprocess.
+    windowsHide: true,
   });
 
   const stdoutChunks: Buffer[] = [];

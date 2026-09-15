@@ -125,7 +125,7 @@ function validate(root: string): string[] {
 /** The checked-out revision, or null when the tree has no git metadata. */
 function revisionAt(root: string): string | null {
   try {
-    const git = spawnSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" });
+    const git = spawnSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8", windowsHide: true });
     return git.status === 0 && git.stdout ? git.stdout.trim() : null;
   } catch {
     return null;

@@ -436,6 +436,11 @@ export async function resetTrial(input: {
   }
   await rm(previous, { recursive: true, force: true });
 
+  // A recorded verdict belongs to the agent view that was just replaced, so it
+  // goes with it. The next evaluation writes a fresh one; until then a pristine
+  // workspace has no result, which is the honest state.
+  await rm(join(layout.privateDir, "result.json"), { force: true });
+
   return { taskDigest: built.task, workspaceDigest: built.workspace };
 }
 

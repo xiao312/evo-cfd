@@ -94,7 +94,7 @@ if (problems.length > 0) {
 // import or a subtree export may legitimately have no .git directory.
 let revision = "unknown (no git metadata)";
 try {
-  const git = spawnSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" });
+  const git = spawnSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8", windowsHide: true });
   if (git.status === 0 && git.stdout) revision = git.stdout.trim();
 } catch {
   /* non-fatal */
@@ -120,7 +120,7 @@ if (!runSuite) {
 }
 
 process.stdout.write("\nRunning RSI-Harness's own checks...\n");
-const suite = spawn("npm", ["run", "check"], { cwd: root, stdio: "inherit" });
+const suite = spawn("npm", ["run", "check"], { cwd: root, stdio: "inherit", windowsHide: true });
 suite.on("close", (code) => {
   if (code !== 0) fail(`RSI-Harness's 'npm run check' exited with status ${code}`);
   process.stdout.write("\nPASS — installation and its own checks are healthy.\n");

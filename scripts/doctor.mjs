@@ -22,7 +22,7 @@ const repoRoot = realpathSync(
 // surface and passing no args array avoids the shell-args deprecation warning.
 const npmVersion = (() => {
   try {
-    const result = spawnSync("npm --version", { shell: true, encoding: "utf8" });
+    const result = spawnSync("npm --version", { shell: true, encoding: "utf8", windowsHide: true });
     return result.status === 0 ? (result.stdout ?? "").trim() : null;
   } catch {
     return null;
@@ -139,7 +139,7 @@ process.stdout.write(lines.join("\n"));
 
 function run(command, args, cwd) {
   try {
-    const result = spawnSync(command, args, { cwd, encoding: "utf8" });
+    const result = spawnSync(command, args, { cwd, encoding: "utf8", windowsHide: true });
     if (result.status !== 0) return null;
     return (result.stdout ?? "").trim() || null;
   } catch {
@@ -151,7 +151,7 @@ function run(command, args, cwd) {
 // (git check-ignore -q) communicate by exit code and print nothing at all.
 function runOk(command, args, cwd) {
   try {
-    const result = spawnSync(command, args, { cwd, encoding: "utf8" });
+    const result = spawnSync(command, args, { cwd, encoding: "utf8", windowsHide: true });
     return result.status === 0;
   } catch {
     return false;

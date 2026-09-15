@@ -80,7 +80,7 @@ if (!(await exists(REFERENCE_PROGRAM))) {
         fail("output", "app.js is missing from the workspace");
       } else {
         const out = await new Promise((resolve) => {
-          const child = spawn(process.execPath, [app], { cwd: workspace });
+          const child = spawn(process.execPath, [app], { cwd: workspace, windowsHide: true });
           let stdout = "";
           child.stdout.on("data", (chunk) => {
             stdout += chunk;

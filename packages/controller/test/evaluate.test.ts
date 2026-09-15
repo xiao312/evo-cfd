@@ -1,0 +1,202 @@
+/**
+ * Evaluation tests.
+ *
+ * The tested property is that the loop never becomes optimistic: wherever a
+ * verdict cannot be obtained cleanly, the result says so and records a failure.
+ * A pass that survives an evaluator failure would not be evidence of anything.
+ *
+ * Run with: node --experimental-strip-types --test test/*.test.ts
+ */
+import test from "node:test";
+import assert from "node:assert/strict";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import {
+  EvaluationAlreadyRecordedError,
+  EvaluationError,
+  evaluateTrial,
+  recordedResult,
+  type EvaluationResult,
+} from "../src/evaluate.ts";
+import {
+  materializeFixture,
+  resetTrial,
+  digestTree,
+  type MaterializedTrial,
+} from "../src/snapshot.ts";
+import { loadFixture } from "../src/fixtures.ts";
+
+const REPO_ROOT = dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url)))));
+const REAL_FIXTURE_DIR = join(REPO_ROOT, "fixtures", "control-plane-001");
+
+const staging = await mkdtemp(join(tmpdir(), "evocfd-evaluate-"));
+const runsA = join(staging, "runs-a");
+const runsB = join(staging, "runs-b");
+await mkdir(runsA, { recursive: true });
+await mkdir(runsB, { recursive: true });
+
+const realFixture = await loadFixture(REAL_FIXTURE_DIR);
+
+async function trial(runsDir = runsA, id = "evaluate-001"): Promise<MaterializedTrial> {
+  return materializeFixture({ fixture: realFixture, trialId: id, runsDir });
+}
+
+/** Apply the intended fix: align the config key, leave the program, write the report. */
+async function correct(trial: MaterializedTrial): Promise<void> {
+  await writeFile(
+    join(trial.layout.agentWorkspace, "config.json"),
+    JSON.stringify({ units_per_kit: 12, site: "line-7" }, null, 2),
+  );
+  await writeFile(join(trial.layout.agentWorkspace, "REPORT.md"), "config key mismatch corrected\n");
+}
+
+/** Install a synthetic evaluator that prints `verdict` and exits `code`. */
+async function withEvaluator(trial: MaterializedTrial, body: string): Promise<void> {
+  await rm(trial.layout.evaluator, { recursive: true, force: true });
+  await mkdir(trial.layout.evaluator, { recursive: true });
+  await writeFile(join(trial.layout.evaluator, "check.mjs"), body);
+}
+
+function asObject(result: EvaluationResult): Record<string, unknown> {
+  return result as unknown as Record<string, unknown>;
+}
+
+test("the shipped evaluator fails the uncorrected workspace", async () => {
+  const t = await trial();
+  const result = await evaluateTrial(t);
+  assert.equal(result.pass, false);
+  assert.equal(result.criteria.length > 0, true);
+  assert.equal(result.error, undefined, "no evaluator error: this is a judgement, not a fault");
+  assert.deepEqual(
+    result.criteria.filter((c) => c.pass).map((c) => c.criterion),
+    ["structure"],
+  );
+});
+
+test("the shipped evaluator passes the corrected workspace", async () => {
+  const t = await trial(runsB);
+  await correct(t);
+  const result = await evaluateTrial(t);
+  assert.equal(result.pass, true, JSON.stringify(result.criteria, null, 2));
+  assert.equal(result.criteria.length, 4);
+  assert.equal(result.exit_code, 0);
+});
+
+test("the result carries the identity of what judged what", async () => {
+  const t = await trial(runsB, "evaluate-identity");
+  await correct(t);
+  const result = await evaluateTrial(t);
+  assert.equal(result.trial_id, "evaluate-identity");
+  assert.equal(result.fixture_id, "control-plane-001");
+  assert.equal(result.evaluator_digest, t.evaluatorDigest);
+  assert.equal(result.trial_identity, t.trialIdentity);
+  assert.match(result.evaluated_at, /^\d{4}-\d{2}-\d{2}T/);
+  // The workspace digest records what was judged — the agent's changed state —
+  // not the pristine baseline the trial was materialized from.
+  assert.equal(result.workspace_digest, (await digestTree(t.layout.agentWorkspace)).digest);
+});
+
+test("a result is recorded once and can be read back", async () => {
+  const t = await trial(runsB, "evaluate-recorded");
+  const result = await evaluateTrial(t);
+  const recorded = await recordedResult(t.layout);
+  assert.equal(recorded?.pass, result.pass);
+  assert.equal(recorded?.trial_identity, result.trial_identity);
+  assert.deepEqual(asObject(recorded!).criteria, asObject(result).criteria);
+});
+
+test("a trial is evaluated exactly once", async () => {
+  const t = await trial(runsB, "evaluate-once");
+  await evaluateTrial(t);
+  await assert.rejects(() => evaluateTrial(t), (error: unknown) => {
+    return error instanceof EvaluationAlreadyRecordedError;
+  });
+});
+
+test("an unparseable existing result is not overwritten", async () => {
+  const t = await trial(runsB, "evaluate-corrupt");
+  await mkdir(t.layout.privateDir, { recursive: true });
+  await writeFile(join(t.layout.privateDir, "result.json"), "{not json");
+  await assert.rejects(() => evaluateTrial(t), (error: unknown) => {
+    return error instanceof EvaluationAlreadyRecordedError;
+  });
+  assert.equal(await readFile(join(t.layout.privateDir, "result.json"), "utf8"), "{not json");
+});
+
+test("a missing evaluation package is a setup fault, not a judgement", async () => {
+  const t = await trial(runsB, "evaluate-no-judge");
+  await rm(t.layout.evaluator, { recursive: true, force: true });
+  await assert.rejects(() => evaluateTrial(t), (error: unknown) => {
+    return error instanceof EvaluationError && error.message.includes("not runnable");
+  });
+});
+
+test("an evaluator that prints no verdict fails closed", async () => {
+  const t = await trial(runsB, "evaluate-empty");
+  await withEvaluator(t, "console.log('working...');\n");
+  const result = await evaluateTrial(t);
+  assert.equal(result.pass, false);
+  assert.match(result.error ?? "", /printed nothing|no JSON object/);
+  assert.deepEqual(result.criteria, []);
+});
+
+test("an evaluator that prints unparseable output fails closed", async () => {
+  const t = await trial(runsB, "evaluate-garbage");
+  await withEvaluator(t, 'console.log("{almost");\n');
+  const result = await evaluateTrial(t);
+  assert.equal(result.pass, false);
+  assert.match(result.error ?? "", /unparseable|no JSON object/);
+});
+
+test("an evaluator whose exit code disagrees with its verdict is not trusted", async () => {
+  const t = await trial(runsB, "evaluate-disagreement");
+  await withEvaluator(
+    t,
+    'process.stdout.write(JSON.stringify({pass: true, criteria: []}));\nprocess.exitCode = 1;\n',
+  );
+  const result = await evaluateTrial(t);
+  assert.equal(result.pass, false);
+  assert.match(result.error ?? "", /exited 1/);
+});
+
+test("an evaluator that exceeds its budget is killed and fails closed", async () => {
+  const t = await trial(runsB, "evaluate-timeout");
+  await withEvaluator(t, "setTimeout(() => {}, 60000);\n");
+  const result = await evaluateTrial(t, { budgetSeconds: 1 });
+  assert.equal(result.pass, false);
+  assert.match(result.error ?? "", /exceeded its 1s budget/);
+  assert.equal(result.exit_code, null);
+  assert.ok(result.elapsed_seconds >= 1, "the elapsed time is recorded");
+});
+
+test("an evaluator that crashes records the crash rather than passing", async () => {
+  const t = await trial(runsB, "evaluate-crash");
+  await withEvaluator(t, "throw new Error('judge is broken');\n");
+  const result = await evaluateTrial(t);
+  assert.equal(result.pass, false);
+  assert.match(result.error ?? "", /printed nothing|no JSON object/);
+});
+
+test("reset clears the recorded verdict so the trial can be judged again", async () => {
+  const t = await trial(runsB, "evaluate-reset");
+  const first = await evaluateTrial(t);
+  assert.equal(first.pass, false);
+  assert.equal((await recordedResult(t.layout))?.pass, false);
+
+  await resetTrial({ fixture: realFixture, layout: t.layout });
+  assert.equal(await recordedResult(t.layout), null, "a pristine workspace has no verdict");
+
+  await correct(t);
+  const second = await evaluateTrial(t);
+  assert.equal(second.pass, true, "the re-judged corrected workspace passes");
+  assert.notEqual(second.evaluated_at, first.evaluated_at);
+});
+
+test("a budget is a property of the result, not of the evaluator", async () => {
+  const t = await trial(runsB, "evaluate-budget");
+  const result = await evaluateTrial(t, { budgetSeconds: 7 });
+  assert.equal(result.budget_seconds, 7);
+});

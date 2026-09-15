@@ -83,7 +83,7 @@ await writeFile(join(trial.layout.root, "run-probe.sh"), shellScript, { mode: 0o
 const PROBE_SCRIPT = join(HOST_ROOT, "runs", TRIAL_ID, "run-probe.sh");
 
 let output;
-const docker = spawnSync("docker", argv.slice(1), { encoding: "utf8" });
+const docker = spawnSync("docker", argv.slice(1), { encoding: "utf8", windowsHide: true });
 if (docker.error || docker.status === null) {
   if (ALWAYS_RUN) {
     console.error("docker is required for --run but could not be started");
