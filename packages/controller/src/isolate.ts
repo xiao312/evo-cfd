@@ -37,6 +37,12 @@ export interface IsolationSpec {
   rsihDir: string;
   /** Absolute host path of a writable directory for the agent's session. */
   agentStateDir: string;
+  /**
+   * Optional absolute host path of a read-only runtime the agent executes —
+   * the agent runtime itself, which is shared infrastructure rather than task
+   * state. Mounted at /agent-runtime.
+   */
+  agentRuntimeDir?: string;
   /** UID/GID the agent runs as. Never root. */
   uid: number;
   gid: number;
@@ -67,6 +73,7 @@ const TASK_PATH = "/task";
 const WORKSPACE_PATH = "/task/workspace";
 const RSIH_PATH = "/rsih";
 const AGENT_STATE_PATH = "/agent-state";
+const AGENT_RUNTIME_PATH = "/agent-runtime";
 
 /**
  * Build the launch arguments for an isolated agent container.
@@ -113,6 +120,14 @@ export function buildAgentContainer(spec: IsolationSpec, image: string): AgentCo
       reason: "the agent's session directory, writable, outside the task",
     },
   ];
+  if (spec.agentRuntimeDir) {
+    mounts.push({
+      host: spec.agentRuntimeDir,
+      container: AGENT_RUNTIME_PATH,
+      mode: "ro",
+      reason: "the agent runtime the worker executes",
+    });
+  }
 
   const args = [
     "--rm",
