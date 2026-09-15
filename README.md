@@ -33,6 +33,23 @@ fixtures/                Reviewed, resettable investigation tasks
 runs/                    Generated workspaces and results (not committed)
 ```
 
+## Working in this repository
+
+There is nothing to install. EvoCFD has no external dependencies, so running
+`npm install` is unnecessary and will only fail on filesystems that cannot
+link (exFAT has no reparse points). The workspace packages are wired into
+`node_modules` by a script instead:
+
+```sh
+npm run check        # link the workspace packages, then run the test suite
+npm run check:rsih   # additionally validate the local RSI-Harness checkout
+npm run doctor       # report the environment (informational, never fails)
+```
+
+`npm run check` links before testing, so a checkout is ready to go as it
+stands. On a filesystem that cannot link the package boundary cannot be
+built locally; run the suite on the compute host or in CI instead.
+
 ## Status
 
 Pre-alpha. Structure and contracts are being established; no complete

@@ -9,7 +9,7 @@
  * RSI-Harness installation, whether it is excluded from git, and Docker.
  */
 import { spawnSync } from "node:child_process";
-import { readFileSync, realpathSync, existsSync } from "node:fs";
+import { readFileSync, readdirSync, realpathSync, existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -48,6 +48,30 @@ if (gitState) {
   say(`  clean:  ${status ? "no" : "yes"}`);
 } else {
   say("  commit: not a git repository");
+}
+
+say("\n[workspace packages]");
+say("  EvoCFD's packages import each other under their package names;");
+say("  scripts/link-workspaces.mjs wires those into node_modules, and `npm run");
+say("  check` runs it first. Links are expected after any checkout.");
+const rootPkg = readJson(resolve(repoRoot, "package.json"));
+if (!rootPkg?.workspaces) {
+  say("  no workspaces field in package.json");
+} else {
+  for (const glob of rootPkg.workspaces) {
+    for (const relative of expandGlob(glob, repoRoot)) {
+      const target = resolve(repoRoot, relative);
+      const name = readJson(resolve(target, "package.json"))?.name;
+      if (!name) continue;
+      const linkPath = resolve(repoRoot, "node_modules", ...name.split("/"));
+      try {
+        const points = realpathSync(linkPath) === realpathSync(target);
+        say(`  ${name}: ${points ? "linked" : "present but not linked to " + relative}`);
+      } catch {
+        say(`  ${name}: MISSING (run npm run check to link)`);
+      }
+    }
+  }
 }
 
 say("\n[baseline record]");
@@ -140,6 +164,15 @@ function readJson(path) {
   } catch {
     return null;
   }
+}
+
+// Expand a "packages/*" workspaces glob relative to the repository root.
+function expandGlob(glob, root) {
+  if (!glob.includes("*")) return [glob];
+  const base = glob.slice(0, glob.indexOf("*"));
+  return readdirSync(resolve(root, base), { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => base + entry.name);
 }
 
 function resolveRsih(root) {

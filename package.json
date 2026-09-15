@@ -4,6 +4,7 @@
   "private": true,
   "description": "LLM-driven CFD operation and development workbench",
   "type": "module",
+  "workspaces": ["packages/*"],
   "engines": {
     "node": ">=22.19.0"
   },
@@ -11,7 +12,8 @@
     "test": "npm run test:controller && npm run test:adapter",
     "test:controller": "node --experimental-strip-types --test \"packages/controller/test/*.test.ts\"",
     "test:adapter": "node --experimental-strip-types --test \"packages/rsih-adapter/test/*.test.ts\"",
-    "check": "npm test",
+    "link": "node scripts/link-workspaces.mjs",
+    "check": "node scripts/link-workspaces.mjs && npm test",
     "check:rsih": "node scripts/check-rsih.mjs",
     "check:rsih:full": "node scripts/check-rsih.mjs --run-suite",
     "doctor": "node scripts/doctor.mjs"

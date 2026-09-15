@@ -3,7 +3,12 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Campaign, episode, fixture, evidence, and selection machinery",
+  "description": "Episode runner and campaign control",
+  "main": "./src/index.ts",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@evocfd/rsih-adapter": "0.0.0"
+  },
   "scripts": {
     "test": "node --experimental-strip-types --test \"test/*.test.ts\""
   }
