@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "comment": [
+    "External identities for the EvoCFD baseline. The campaign runtime must",
+    "match these; a change here is an explicit baseline revision, not a silent",
+    "background update. See docs/DESIGN.md.",
+    "rsih_revision and pi_version are the known-good bootstrap verified on the",
+    "campaign host (all 102 RSI-Harness tests, typecheck, and build pass).",
+    "pi_version is pinned by RSI-Harness itself, not by EvoCFD."
+  ],
+  "agent_runtime": {
+    "rsih_revision": "33c4f8dfac4359987f2e814e187de67c332498de",
+    "pi_version": "0.84.3",
+    "node_version": "22.23.2"
+  },
+  "execution_environment": {
+    "host": "air-gapped compute host, reached over ssh; no outbound registry access",
+    "container_image": "evocfd-dev:node22",
+    "workspace_mount": "/data2/kexiao/EvoCFD:/workspace",
+    "comment": [
+      "The host cannot pull from Docker Hub, so the image is built where the",
+      "network is reachable, exported as a tarball, and docker load'ed on the",
+      "host. Source trees are bind-mounted; the image holds only the toolchain."
+    ]
+  },
+  "solver_profiles": {
+    "of8-realfluid": {
+      "executable": "realFluidReactingFoam",
+      "status": "not yet installed"
+    },
+    "of7-deepflame": {
+      "executable": "dfLowMachFoam",
+      "status": "not yet installed"
+    }
+  }
+}

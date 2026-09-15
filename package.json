@@ -11,7 +11,9 @@
     "test": "npm run test:controller && npm run test:adapter",
     "test:controller": "node --experimental-strip-types --test \"packages/controller/test/*.test.ts\"",
     "test:adapter": "node --experimental-strip-types --test \"packages/rsih-adapter/test/*.test.ts\"",
-    "check:rsih": "cd third_party/RSI-Harness && npm run check",
-    "check": "npm run test && npm run check:rsih"
+    "check": "npm test",
+    "check:rsih": "node scripts/check-rsih.mjs",
+    "check:rsih:full": "node scripts/check-rsih.mjs --run-suite",
+    "doctor": "node scripts/doctor.mjs"
   }
 }

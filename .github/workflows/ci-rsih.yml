@@ -1,0 +1,45 @@
+# CI-rsih: nightly and on demand.
+#
+# Answers a different question from CI-fast: does the *external* baseline that
+# EvoCFD builds against still behave as recorded in cfd-baseline/baseline.json?
+# EvoCFD drives RSI-Harness as an external installation, so this clones it at
+# the pinned revision, installs its own dependencies, and runs its own checks.
+#
+# Not per-PR: it takes minutes and exercises a third-party tree. A failure here
+# means the pinned baseline changed under us, not that EvoCFD regressed.
+
+name: CI-rsih
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Clone RSI-Harness at the pinned revision
+        env:
+          # Must stay identical to cfd-baseline/baseline.json -> agent_runtime.rsih_revision
+          RSIH_REVISION: 33c4f8dfac4359987f2e814e187de67c332498de
+        run: |
+          git clone https://github.com/CosmosMind-ai/RSI-Harness third_party/RSI-Harness
+          git -C third_party/RSI-Harness checkout "$RSIH_REVISION"
+          git -C third_party/RSI-Harness rev-parse HEAD
+
+      - name: Install RSI-Harness dependencies
+        run: npm ci
+        working-directory: third_party/RSI-Harness
+
+      - name: Validate the installation against EvoCFD's resolver
+        run: npm run check:rsih
+
+      - name: Run RSI-Harness's own checks
+        run: npm run check:rsih:full
