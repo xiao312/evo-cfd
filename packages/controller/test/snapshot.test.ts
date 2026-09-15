@@ -13,7 +13,7 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -173,7 +173,7 @@ test("the shipped evaluator fails on the uncorrected workspace", async () => {
   const verdict = await runEvaluator(trial.layout);
   assert.equal(verdict.pass, false);
   const failed = verdict.criteria.filter((c) => c.pass === false).map((c) => c.criterion);
-  assert.deepEqual(failed.sort(), ["config", "output"]);
+  assert.deepEqual(failed.sort(), ["config", "output", "report"]);
   // The program is untouched, so the structure criterion passes as-is.
   assert.ok(verdict.criteria.some((c) => c.criterion === "structure" && c.pass));
 });
@@ -185,11 +185,12 @@ test("the shipped evaluator passes once the configuration is corrected", async (
     runsDir: runsA,
   });
   // The intended fix: align the configuration key with what the program reads,
-  // leaving the program alone.
+  // leaving the program alone, and write the report the task asks for.
   await writeFile(
     join(trial.layout.agentWorkspace, "config.json"),
     JSON.stringify({ units_per_kit: 12, site: "line-7" }, null, 2),
   );
+  await writeFile(join(trial.layout.agentWorkspace, "REPORT.md"), "config key mismatch; verified with node app.js\n");
   const verdict = await runEvaluator(trial.layout);
   assert.equal(verdict.pass, true, JSON.stringify(verdict.criteria, null, 2));
 });
@@ -347,6 +348,7 @@ test("trial identity ignores environment secrets entirely", async () => {
     fixtureId: "x",
     fixtureVersion: 1,
     taskDigest: "d".repeat(64),
+    evaluatorDigest: "e".repeat(64),
     networkProfile: "llm-only",
     maxAgentTurns: 5,
     maxWallSeconds: 60,
@@ -356,6 +358,7 @@ test("trial identity ignores environment secrets entirely", async () => {
     fixtureId: "x",
     fixtureVersion: 1,
     taskDigest: "d".repeat(64),
+    evaluatorDigest: "e".repeat(64),
     networkProfile: "llm-only",
     maxAgentTurns: 5,
     maxWallSeconds: 60,
@@ -397,6 +400,94 @@ test("an uncharacterized environment is recorded as such, not as a secret", asyn
   assert.notEqual(trial.trialIdentity, "");
 });
 
+test("the evaluator package is part of trial identity", async () => {
+  // Two fixtures with identical task inputs but a different judging package.
+  // Same task, same environment, different meaning of success.
+  const leftDir = join(staging, "fixtures", "judge-left", "control-plane-001");
+  const rightDir = join(staging, "fixtures", "judge-right", "control-plane-001");
+  await cp(REAL_FIXTURE_DIR, leftDir, { recursive: true });
+  await cp(REAL_FIXTURE_DIR, rightDir, { recursive: true });
+  await writeFile(join(rightDir, "evaluator", "check.mjs"), "process.exit(0);\n");
+
+  const left = await loadFixture(leftDir);
+  const right = await loadFixture(rightDir);
+  const a = await materializeFixture({ fixture: left, trialId: "judge", runsDir: runsA });
+  const b = await materializeFixture({ fixture: right, trialId: "judge", runsDir: runsB });
+
+  assert.equal(b.taskDigest, a.taskDigest, "the task inputs are identical");
+  assert.notEqual(b.evaluatorDigest, a.evaluatorDigest, "the evaluators differ");
+  assert.notEqual(b.trialIdentity, a.trialIdentity, "a different judge is a different trial");
+});
+
+test("the recorded trial identity is the full digest, not a display short form", async () => {
+  const trial = await materializeFixture({
+    fixture: realFixture,
+    trialId: "full-hash",
+    runsDir: runsA,
+  });
+  assert.equal(trial.trialIdentity.length, 64);
+  assert.match(trial.trialIdentity, /^[0-9a-f]{64}$/);
+  const manifest = JSON.parse(await readFile(trial.manifests.trial, "utf8")) as {
+    trial_identity: string;
+  };
+  assert.equal(manifest.trial_identity, trial.trialIdentity);
+});
+
+test("an empty directory is observable state and changes identity", async () => {
+  const plainDir = join(staging, "fixtures", "plain", "control-plane-001");
+  const nestedDir = join(staging, "fixtures", "nested", "control-plane-001");
+  await cp(REAL_FIXTURE_DIR, plainDir, { recursive: true });
+  await cp(REAL_FIXTURE_DIR, nestedDir, { recursive: true });
+  await mkdir(join(nestedDir, "workspace", "empty-dir"), { recursive: true });
+
+  const plain = await materializeFixture({
+    fixture: await loadFixture(plainDir),
+    trialId: "dirs",
+    runsDir: runsA,
+  });
+  const nested = await materializeFixture({
+    fixture: await loadFixture(nestedDir),
+    trialId: "dirs",
+    runsDir: runsB,
+  });
+  assert.deepEqual(plain.workspaceDigest === nested.workspaceDigest, false);
+});
+
+test("reset leaves the previous agent state intact when drift is detected", async () => {
+  const trial = await materializeFixture({
+    fixture: realFixture,
+    trialId: "preserved",
+    runsDir: runsA,
+  });
+  const note = join(trial.layout.agentWorkspace, "agent-note.md");
+  await writeFile(note, "work in progress that must survive a failed reset\n");
+
+  // A baseline the fixture cannot reproduce. The previous state is evidence
+  // too, so a failed reset must not have deleted it.
+  await assert.rejects(
+    () =>
+      resetTrial({
+        fixture: realFixture,
+        layout: trial.layout,
+        expected: { taskDigest: "0".repeat(64), workspaceDigest: "1".repeat(64) },
+      }),
+    (error: unknown) => error instanceof ResetDriftError,
+  );
+  assert.equal(await readFile(note, "utf8"), "work in progress that must survive a failed reset\n");
+  assert.equal(await readFile(join(trial.layout.agent, "TASK.md"), "utf8"),
+    await readFile(join(REAL_FIXTURE_DIR, "TASK.md"), "utf8"));
+});
+
+test("materialization leaves no staging directory behind", async () => {
+  await materializeFixture({
+    fixture: realFixture,
+    trialId: "clean-staging",
+    runsDir: runsA,
+  });
+  const leftovers = (await readdir(runsA)).filter((name) => name.startsWith(".materialize-"));
+  assert.deepEqual(leftovers, []);
+});
+
 async function assertFileExists(path: string): Promise<void> {
   try {
     await readFile(path);
@@ -415,11 +506,7 @@ async function runEvaluator(layout: {
 }> {
   const { spawn } = await import("node:child_process");
   const out = await new Promise<string>((resolve, reject) => {
-    const child = spawn(process.execPath, [
-      join(layout.evaluator, "check.mjs"),
-      layout.agentWorkspace,
-      join(REAL_FIXTURE_DIR, "workspace"),
-    ]);
+    const child = spawn(process.execPath, [join(layout.evaluator, "check.mjs"), layout.agentWorkspace]);
     let stdout = "";
     child.stdout.on("data", (chunk: Buffer) => {
       stdout += chunk;

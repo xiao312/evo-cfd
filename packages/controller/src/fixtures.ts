@@ -16,9 +16,13 @@
  * the same container as the evaluator for now — but it is what makes a fixture
  * relocatable: no manifest or identity may depend on where the fixture happens
  * to sit on disk.
+ *
+ * Fixture inputs are plain files and directories only. A symbolic link would
+ * make the content an agent can reach differ from the content a digest was
+ * computed over, which is exactly the invariant identity exists to hold.
  */
 import { basename, isAbsolute, relative, resolve } from "node:path";
-import { readFile, stat } from "node:fs/promises";
+import { lstat, readdir, readFile, stat } from "node:fs/promises";
 
 /** Schema versions this implementation understands. */
 export const FIXTURE_SCHEMA_VERSIONS = [1] as const;
@@ -27,6 +31,13 @@ export type FixtureSchemaVersion = (typeof FIXTURE_SCHEMA_VERSIONS)[number];
 export type NetworkProfile = "offline" | "llm-only" | "llm+web";
 
 export const NETWORK_PROFILES: readonly NetworkProfile[] = ["offline", "llm-only", "llm+web"];
+
+/**
+ * A fixture id names a directory, and nothing more. It is a flat identifier,
+ * never a path: allowing a slash or a `..` here would let a fixture id escape
+ * the fixtures root, and fixture ids do not need to be hierarchical.
+ */
+export const FIXTURE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 /**
  * The on-disk shape of `fixture.json`. Deliberately small: task, workspace,
@@ -89,16 +100,44 @@ export function resolveWithin(root: string, path: string): string {
   return resolved;
 }
 
-/**
- * True if `path` exists and is a file or directory. A missing fixture input is a
- * validation problem, not an exception at copy time.
- */
+/** True if `path` exists and is a file or directory. A missing fixture input
+ * is a validation problem, not an exception at copy time. */
 async function existsAs(path: string, kind: "file" | "directory"): Promise<boolean> {
   try {
     const stats = await stat(path);
     return kind === "file" ? stats.isFile() : stats.isDirectory();
   } catch {
     return false;
+  }
+}
+
+/**
+ * Walk a tree and reject any symbolic link found.
+ *
+ * Containment is checked lexically in `resolveWithin` and existence is checked
+ * with `stat`, which follows links; without this pass a fixture could name
+ * `workspace/data -> /somewhere/else` and the reachable content would not
+ * match the recorded digest. Refusing links outright is more honest than
+ * trying to define what a link ought to mean across filesystems.
+ */
+async function assertNoSymlinks(root: string, problems: string[], relDir = ""): Promise<void> {
+  // A source that is not a directory is reported by the existence checks; do
+  // not turn it into an fs exception here.
+  if (relDir === "") {
+    try {
+      if (!(await stat(root)).isDirectory()) return;
+    } catch {
+      return;
+    }
+  }
+  const dir = relDir === "" ? root : resolve(root, ...relDir.split("/"));
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const rel = relDir === "" ? entry.name : `${relDir}/${entry.name}`;
+    if (entry.isSymbolicLink()) {
+      problems.push(`${rel} is a symbolic link; fixture inputs must be plain files and directories`);
+    } else if (entry.isDirectory()) {
+      await assertNoSymlinks(root, problems, rel);
+    }
   }
 }
 
@@ -127,10 +166,17 @@ export async function loadFixture(dir: string): Promise<LoadedFixture> {
       `fixture.json is not valid JSON: ${(error as Error).message}`,
     ]);
   }
+  // A JSON document that is not an object — an array, a string, a number —
+  // parses fine and then fails every field check with confusing errors.
+  if (typeof definition !== "object" || definition === null || Array.isArray(definition)) {
+    throw new FixtureValidationError(["fixture.json must be a JSON object at the top level"]);
+  }
 
   const d = definition as Partial<FixtureDefinition>;
   if (typeof d.fixture_id !== "string" || d.fixture_id.length === 0) {
     problems.push("fixture_id is required and must be a non-empty string");
+  } else if (!FIXTURE_ID_PATTERN.test(d.fixture_id)) {
+    problems.push(`fixture_id ${JSON.stringify(d.fixture_id)} must be a flat identifier matching ${FIXTURE_ID_PATTERN}`);
   } else if (d.fixture_id !== basename(resolve(dir))) {
     problems.push(
       `fixture_id ${JSON.stringify(d.fixture_id)} must match the containing directory name ${JSON.stringify(
@@ -181,6 +227,12 @@ export async function loadFixture(dir: string): Promise<LoadedFixture> {
   if (!(await existsAs(evaluationSource, "directory"))) {
     problems.push(`evaluation.source ${JSON.stringify(def.evaluation.source)} is not a directory`);
   }
+  // The prompt is a single file, so a link in that position is checked directly.
+  if (await isSymlink(promptPath)) {
+    problems.push(`task.prompt ${JSON.stringify(def.task.prompt)} is a symbolic link`);
+  }
+  await assertNoSymlinks(workspaceSource, problems);
+  await assertNoSymlinks(evaluationSource, problems);
   if (problems.length > 0) throw new FixtureValidationError(problems);
 
   return {
@@ -194,7 +246,20 @@ export async function loadFixture(dir: string): Promise<LoadedFixture> {
   };
 }
 
-/** Load `fixtures/<id>/`. The directory name is the fixture identity. */
+async function isSymlink(path: string): Promise<boolean> {
+  try {
+    return (await lstat(path)).isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+
+/** Load `fixtures/<id>/`. The id is a flat identifier, never a path. */
 export async function loadFixtureById(fixturesRoot: string, id: string): Promise<LoadedFixture> {
-  return loadFixture(resolve(fixturesRoot, ...id.split("/")));
+  if (!FIXTURE_ID_PATTERN.test(id)) {
+    throw new FixtureValidationError([
+      `fixture id ${JSON.stringify(id)} must be a flat identifier matching ${FIXTURE_ID_PATTERN}`,
+    ]);
+  }
+  return loadFixture(resolve(fixturesRoot, id));
 }

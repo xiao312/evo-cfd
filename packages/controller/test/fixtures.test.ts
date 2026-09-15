@@ -8,9 +8,9 @@
  *
  * Run with: node --experimental-strip-types --test test/*.test.ts
  */
-import test from "node:test";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import test, { type TestContext } from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -253,3 +253,85 @@ test("loadFixtureById resolves a fixture by id", async () => {
   const fixture = await loadFixtureById(join(REPO_ROOT, "fixtures"), "control-plane-001");
   assert.equal(fixture.id, "control-plane-001");
 });
+
+test("loadFixtureById refuses an id that is not a flat identifier", async () => {
+  const root = join(REPO_ROOT, "fixtures");
+  for (const id of ["../RSI-Harness", "sub/dir", ".hidden", "has spaces"]) {
+    await assert.rejects(
+      () => loadFixtureById(root, id),
+      (error: unknown) =>
+        error instanceof FixtureValidationError && error.problems.some((p) => p.includes("flat identifier")),
+    );
+  }
+});
+
+test("a fixture_id containing a path separator is rejected", async () => {
+  const dir = join(staging, "path-separator");
+  await writeFixture(dir, goodDefinition({ fixture_id: "a/b" }));
+  await assert.rejects(
+    () => loadFixture(dir),
+    (error: unknown) =>
+      error instanceof FixtureValidationError && error.problems.some((p) => p.includes("flat identifier")),
+  );
+});
+
+test("a top-level JSON document that is not an object is rejected", async () => {
+  const dir = join(staging, "not-an-object");
+  await writeFixture(dir, goodDefinition(), { "fixture.json": "[1, 2, 3]" });
+  await assert.rejects(
+    () => loadFixture(dir),
+    (error: unknown) =>
+      error instanceof FixtureValidationError && error.problems[0].includes("JSON object at the top level"),
+  );
+});
+
+test("a symbolic link in the workspace is rejected", async (t: TestContext) => {
+  const dir = join(staging, "symlinked");
+  await writeFixture(dir, goodDefinition({ fixture_id: "symlinked" }));
+  // A link inside the workspace points outside the fixture. `stat` would follow
+  // it and the reachable content would not match any recorded digest.
+  await writeFile(join(staging, "outside-secret.txt"), "not part of the fixture\n");
+  if (!(await trySymlink(t, join(staging, "outside-secret.txt"), join(dir, "workspace", "leak.txt")))) return;
+  await assert.rejects(
+    () => loadFixture(dir),
+    (error: unknown) =>
+      error instanceof FixtureValidationError &&
+      error.problems.some((p) => p.includes("leak.txt") && p.includes("symbolic link")),
+  );
+});
+
+test("a symlinked directory in the evaluation package is rejected", async (t: TestContext) => {
+  const dir = join(staging, "symlinked-evaluator");
+  await mkdir(join(staging, "outside-evaluator"), { recursive: true });
+  await writeFile(join(staging, "outside-evaluator", "check.mjs"), "process.exit(0);\n");
+  await writeFixture(dir, goodDefinition({ fixture_id: "symlinked-evaluator" }));
+  await rm(join(dir, "evaluator"), { recursive: true, force: true });
+  if (!(await trySymlink(t, join(staging, "outside-evaluator"), join(dir, "evaluator")))) return;
+  await assert.rejects(
+    () => loadFixture(dir),
+    (error: unknown) => error instanceof FixtureValidationError && error.problems.some((p) => p.includes("symbolic link")),
+  );
+});
+
+test("a symlinked prompt file is rejected", async (t: TestContext) => {
+  const dir = join(staging, "symlinked-prompt");
+  await writeFixture(dir, goodDefinition({ fixture_id: "symlinked-prompt" }));
+  await rm(join(dir, "TASK.md"));
+  if (!(await trySymlink(t, join(dir, "workspace", "README.md"), join(dir, "TASK.md")))) return;
+  await assert.rejects(
+    () => loadFixture(dir),
+    (error: unknown) =>
+      error instanceof FixtureValidationError && error.problems.some((p) => p.includes("symbolic link")),
+  );
+});
+
+/** Create a link, or skip the test on volumes that cannot create one. */
+async function trySymlink(t: TestContext, target: string, path: string): Promise<boolean> {
+  try {
+    await symlink(target, path);
+    return true;
+  } catch (error) {
+    t.skip(`symbolic links are not supported on this volume (${(error as NodeJS.ErrnoException).code})`);
+    return false;
+  }
+}

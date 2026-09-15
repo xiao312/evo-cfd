@@ -140,6 +140,14 @@ controls do. Construct the worker environment explicitly rather than inheriting
 it — context leakage has been observed through prior transcripts, notes,
 candidate patches, git history, and shared memory stores.
 
+Identity composition is layered, and the layer implemented so far is partial.
+What `packages/controller` records today covers fixture, task, evaluator,
+network profile and resource limits; harness and model identity are still to
+come. Until they exist, the value called `trial_identity` is really a
+*fixture-execution identity* and must not be mistaken for the final trial
+identifier. See `docs/ROADMAP.md` for the target composition and the order in
+which the remaining layers arrive.
+
 ## Proposer
 
 The improvement agent is frozen **within a cycle**, not forever: cycle *k*'s

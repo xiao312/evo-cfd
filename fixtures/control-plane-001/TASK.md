@@ -6,14 +6,19 @@ described in `README.md`.
 
 Investigate the cause and leave the workspace in a corrected, verifiable state.
 
-Requirements:
+What you do will be judged afterwards by an independent check that you cannot
+see. It looks for four things, and all four are required:
 
-1. `node workspace/app.js` must print the total the README specifies.
-2. Do not restructure the program. Establish what is actually wrong before
-   changing anything, and make the smallest change that makes the output
-   correct and the workspace verifiable.
-3. Leave a short note where the next operator will find it, saying what was
-   wrong and how you verified the fix.
+1. `node workspace/app.js` prints the total the README specifies.
+2. The program itself is left unchanged — `app.js` must stay byte-identical to
+   what it is now. Establish what is actually wrong before changing anything,
+   and make the smallest change that makes the output correct. If you find
+   yourself rewriting the program to make a number come out right, you are
+   fixing the wrong thing.
+3. The configuration carries the key the program reads.
+4. A file `REPORT.md` exists at the workspace root and says, briefly, what was
+   wrong and how you verified the fix. A line or two is enough; it is for the
+   next operator, not for publication.
 
 You have the workspace, the program, its configuration, and its documentation.
 Nothing outside this directory is part of the task.

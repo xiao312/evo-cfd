@@ -84,9 +84,20 @@ What identifies a trial is its content: digests run over file names and
 contents only, never over where the fixture or the run directory happens to
 sit, and never over credentials. Identity is built from structured inputs, not
 from the process environment, so a token in the shell cannot reach a manifest.
+The evaluation package has its own digest and enters trial identity, because
+changing the evaluator changes what success means. The recorded identity is
+the full digest; short forms exist for display only.
+
 Reset discards the whole agent view and rebuilds it, then proves the rebuild by
 re-deriving the digests recorded at materialization — a reset that cannot
-reproduce the initial state fails loudly rather than drifting the baseline.
+reproduce the initial state fails loudly rather than drifting the baseline, and
+it fails *before* replacing anything, so a drifted fixture is detected with the
+previous state still intact. Materialization builds in a staging directory and
+renames into place, so a crash mid-copy cannot leave a half-built trial.
+
+A fixture is plain files and directories — symbolic links are refused at load,
+because a link would make the reachable content differ from the content a
+digest was recorded over. Fixture ids are flat identifiers, never paths.
 
 The `agent` and `private` split is a structural classification, not an enforced
 boundary. The agent process shares the container with the evaluator, and a
