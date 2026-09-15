@@ -162,6 +162,73 @@ harness manifest, preparing a controlled worker environment, validating and
 applying harness patches against the real schemas. Only changes genuinely
 required in RSI-Harness itself go under `third_party/RSI-Harness/`.
 
+`packages/egress/` — the network boundary described under *Topology*. Owns
+nothing else: no campaign orchestration, no RSIH launch logic, no CFD code.
+
+## Topology
+
+The runtime host owns the whole experiment — controller, harness, fixtures,
+evaluator, solver — but holds no provider credential and offers no
+unauthenticated internet access. This is not a convenience: an episode that
+could reach the model while another could not was not run under the same
+environment, so information access is part of the environment identity of every
+trial, not merely a campaign label.
+
+```text
+┌─────────────────────────────┐
+│ Windows development host    │
+│                             │
+│ source editing, git         │
+│ real provider credentials   │
+│ LLM relay            :18080 │
+│ authenticated proxy   :18081 │
+└──────────────┬──────────────┘
+               │ persistent SSH reverse forwarding
+               │ forwarding-only account, scoped to 172.17.0.1
+               ▼
+┌─────────────────────────────┐
+│ runtime host, docker bridge │
+│ 172.17.0.1                  │
+└──────────────┬──────────────┘
+               │ bridge network, host-gateway mapping
+               ▼
+┌─────────────────────────────┐
+│ EvoCFD runtime container    │
+│                             │
+│ controller, RSIH / Pi       │
+│ fixtures, evaluator         │
+│ solver source, CFD runs     │
+└─────────────────────────────┘
+```
+
+The two services have fixed identities: `18080` is the LLM relay, `18081` is
+the proxy, and only those two ports are forwarded. The relay accepts an
+OpenAI-completions request, injects the real provider key, and streams the
+response back; the host carries only a gateway token. The proxy speaks CONNECT
+only and demands its own credential, so plain http:// traffic is never relayed
+and unauthenticated egress does not exist.
+
+Three capability profiles are operational, not nominal. The profile decides
+which forwards exist at all:
+
+- **offline** — nothing forwarded. CFD, builds, and post-processing only.
+- **llm-only** — the relay only. The agent can reason but cannot browse.
+- **llm+web** — relay and authenticated proxy. Search and documentation
+  retrieval work.
+
+Container isolation is normal bridge networking with
+`--add-host=host.docker.internal:host-gateway`; `--network host` was a spike
+mechanism and is not the runtime. The forwarding account is a dedicated
+forwarding-only identity whose `sshd_config` match block pins `PermitListen`
+to exactly the two bridge addresses above and disables shell, tty, agent and
+X11 forwarding.
+
+Secrets never become evidence. Provider keys and both tokens are read from the
+environment at process start; recorded results carry a `credential_ref` name
+(`gateway-token:default`) rather than any value, and the environment identity
+is derived from profile, upstream hostname, service versions and container
+identity — never from the secrets themselves.
+
 ## Rollout
 
 1. Smoke-test the runtime and one solver environment.

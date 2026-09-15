@@ -15,9 +15,12 @@
  * episode id may never be run twice into the same evidence directory.
  *
  * The plan, environment included, is recorded in result.json so a run can be
- * reproduced. That is safe because credentials are supplied through the agent
- * directory, never as environment values: an episode's environment is
- * reproducible and publishable by construction.
+ * reproduced. That is no longer safe to record verbatim: the gateway design
+ * means the runtime host legitimately carries secret-valued variables such as
+ * EVOCFD_GATEWAY_TOKEN. Reproducible environment identity and process
+ * environment are therefore not the same artifact — secret values are redacted
+ * into named references before they are recorded, while the process still
+ * receives the real value.
  */
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -60,6 +63,8 @@ export interface EpisodeResult {
   malformed: { raw: string; error: string }[];
   /** The exact invocation, recorded so a run can be reproduced. */
   plan: LaunchPlan;
+  /** Environment as recorded: secret values replaced by named references. */
+  recordedEnv: Record<string, string>;
   /** Absolute path of the recorded raw event stream. */
   evidencePath: string;
   stderrPath: string;
@@ -67,6 +72,37 @@ export interface EpisodeResult {
 
 export class EpisodeAlreadyRunError extends Error {
   readonly code = "EALREADYRUN";
+}
+
+/**
+ * Names of environment variables whose values must never be written down.
+ * A value is treated as a secret if its name carries a credential-bearing
+ * suffix or is on this list; the process still receives the real value.
+ */
+const SECRET_ENV_NAMES = new Set([
+  "EVOCFD_GATEWAY_TOKEN",
+  "EVOCFD_PROXY_TOKEN",
+  "EVOCFD_PROVIDER_KEY",
+  "INTERN_AI_API_KEY",
+  "OPENAI_API_KEY",
+  "ANTHROPIC_API_KEY",
+]);
+
+const SECRET_ENV_SUFFIXES = ["_TOKEN", "_KEY", "_SECRET", "_PASSWORD"];
+
+/** True if a variable's value must be redacted rather than recorded. */
+export function isSecretEnvName(name: string): boolean {
+  if (SECRET_ENV_NAMES.has(name)) return true;
+  return SECRET_ENV_SUFFIXES.some((suffix) => name.endsWith(suffix));
+}
+
+/** Replace secret values with named references; leave everything else exact. */
+export function redactEnv(env: Record<string, string>): Record<string, string> {
+  const redacted: Record<string, string> = {};
+  for (const [name, value] of Object.entries(env)) {
+    redacted[name] = isSecretEnvName(name) ? `<redacted:${name}>` : value;
+  }
+  return redacted;
 }
 
 /**
@@ -176,10 +212,18 @@ export async function runEpisode(input: EpisodeInput): Promise<EpisodeResult> {
     events,
     malformed,
     plan: input.plan,
+    recordedEnv: redactEnv(input.plan.env),
     evidencePath,
     stderrPath,
   };
-  await writeFile(resultPath, JSON.stringify(result, null, 2));
+  // The recorded plan keeps its exact form for reproduction, but its
+  // environment is the redacted view: result.json must never contain a value
+  // the gateway injects.
+  const recordedPlan: LaunchPlan = {
+    ...input.plan,
+    env: redactEnv(input.plan.env),
+  };
+  await writeFile(resultPath, JSON.stringify({ ...result, plan: recordedPlan }, null, 2));
 
   return result;
 }

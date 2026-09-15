@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runEpisode, EpisodeAlreadyRunError } from "../src/episode.ts";
+import { runEpisode, EpisodeAlreadyRunError, redactEnv, isSecretEnvName } from "../src/episode.ts";
 
 /**
  * A stand-in for the RSI-Harness CLI. Emits a session header followed by a
@@ -244,3 +244,58 @@ test("relative paths are refused", async () => {
 function dirname(path: string): string {
   return path.slice(0, Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")));
 }
+
+test("result.json never contains a secret environment value", async () => {
+  const evidenceDir = await mkdtemp(join(tmpdir(), "evocfd-secret-"));
+  const planWithSecret = {
+    ...plan("dumpenv"),
+    env: {
+      ...CONTROLLED_ENV,
+      EVOCFD_GATEWAY_TOKEN: "gateway-secret-value",
+      INTERN_AI_API_KEY: "provider-secret-value",
+      OPENAI_API_KEY: "another-secret-value",
+      PATH: "/usr/bin:/bin",
+    },
+  } as const;
+  try {
+    const result = await runEpisode({
+      id: "secrets",
+      plan: planWithSecret as never,
+      evidenceDir,
+    });
+    assert.equal(result.exitCode, 0);
+
+    // The recorded view replaces secret values with named references.
+    assert.equal(result.recordedEnv["EVOCFD_GATEWAY_TOKEN"], "<redacted:EVOCFD_GATEWAY_TOKEN>");
+    assert.equal(result.recordedEnv["INTERN_AI_API_KEY"], "<redacted:INTERN_AI_API_KEY>");
+    assert.equal(result.recordedEnv["PATH"], "/usr/bin:/bin");
+
+    // The on-disk plan carries the same redacted view.
+    const onDisk = JSON.parse(
+      await readFile(join(evidenceDir, "secrets", "result.json"), "utf8"),
+    ) as { plan: { env: Record<string, string> } };
+    const values = JSON.stringify(onDisk.plan.env);
+    assert.equal(values.includes("gateway-secret-value"), false);
+    assert.equal(values.includes("provider-secret-value"), false);
+    assert.equal(values.includes("another-secret-value"), false);
+    assert.equal(onDisk.plan.env["PATH"], "/usr/bin:/bin");
+  } finally {
+    await rm(evidenceDir, { recursive: true, force: true });
+  }
+});
+
+test("secret detection covers credential-bearing names and ordinary ones", () => {
+  assert.equal(isSecretEnvName("EVOCFD_GATEWAY_TOKEN"), true);
+  assert.equal(isSecretEnvName("SOMETHING_API_KEY"), true);
+  assert.equal(isSecretEnvName("CUSTOM_PASSWORD"), true);
+  assert.equal(isSecretEnvName("CUSTOM_SECRET"), true);
+  assert.equal(isSecretEnvName("PATH"), false);
+  assert.equal(isSecretEnvName("HOME"), false);
+  assert.equal(isSecretEnvName("LANG"), false);
+});
+
+test("redaction leaves a non-secret environment untouched", () => {
+  const env = { PATH: "/usr/bin", LANG: "C", EVO_PROFILE: "llm-only" };
+  assert.deepEqual(redactEnv(env), env);
+});
+
