@@ -1,4 +1,5 @@
 {
   "defaultProvider": "evocfd-intern-ai",
-  "defaultModel": "Atria-Dawn-Preview"
+  "defaultModel": "Atria-Dawn-Preview",
+  "defaultThinkingLevel": "high"
 }
