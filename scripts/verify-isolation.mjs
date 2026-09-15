@@ -24,13 +24,17 @@ import { fileURLToPath } from "node:url";
 import { buildAgentContainer, loadFixture, materializeFixture } from "../packages/controller/src/index.ts";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+// The controller runs inside a container where the repository is mounted at a
+// different path than the host sees it. Mount sources must be host paths, or
+// the container we launch here would mount a directory that does not exist.
+const HOST_ROOT = process.env.EVOCFD_HOST_ROOT ?? REPO_ROOT;
 const FIXTURE_ROOT = process.argv[2] ?? join(REPO_ROOT, "fixtures");
 const ALWAYS_RUN = process.argv.includes("--run");
 const RUNS_DIR = join(REPO_ROOT, "runs");
 const FIXTURE_ID = "control-plane-001";
 const TRIAL_ID = "isolation-probe";
 const STATE_DIR = join(RUNS_DIR, "agent-state", TRIAL_ID);
-const RSIH_DIR = join(REPO_ROOT, "third_party", "RSI-Harness");
+const RSIH_DIR = join(HOST_ROOT, "third_party", "RSI-Harness");
 const IMAGE = "evocfd-dev:node22";
 const PROBE = [
   'set -u',
@@ -53,7 +57,13 @@ await mkdir(STATE_DIR, { recursive: true });
 const trial = await materializeFixture({ fixture, trialId: TRIAL_ID, runsDir: RUNS_DIR });
 
 const launch = buildAgentContainer(
-  { trialRoot: trial.layout.root, rsihDir: RSIH_DIR, agentStateDir: STATE_DIR, uid: 1001, gid: 1001 },
+  {
+    trialRoot: join(HOST_ROOT, "runs", TRIAL_ID),
+    rsihDir: RSIH_DIR,
+    agentStateDir: join(HOST_ROOT, "runs", "agent-state", TRIAL_ID),
+    uid: 1001,
+    gid: 1001,
+  },
   IMAGE,
 );
 
@@ -70,6 +80,7 @@ const shellScript = [
   "",
 ].join("\n");
 await writeFile(join(trial.layout.root, "run-probe.sh"), shellScript, { mode: 0o755 });
+const PROBE_SCRIPT = join(HOST_ROOT, "runs", TRIAL_ID, "run-probe.sh");
 
 let output;
 const docker = spawnSync("docker", argv.slice(1), { encoding: "utf8" });
@@ -80,7 +91,7 @@ if (docker.error || docker.status === null) {
   } else {
     console.log(`materialized ${TRIAL_ID} at ${trial.layout.root}`);
     console.log("docker client unavailable here — run the probe on the compute host:\n");
-    console.log(`  sh ${trial.layout.root}/run-probe.sh\n`);
+    console.log(`  sh ${PROBE_SCRIPT}\n`);
     console.log("or: node scripts/verify-isolation.mjs --run");
   }
 } else {
