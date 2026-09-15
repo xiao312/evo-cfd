@@ -229,6 +229,22 @@ environment at process start; recorded results carry a `credential_ref` name
 is derived from profile, upstream hostname, service versions and container
 identity — never from the secrets themselves.
 
+### Launcher placement
+
+The workstation-side launcher is a batch file, and it must live on an NTFS
+volume. `cmd.exe` reading a batch file from the exFAT `D:` drive hangs
+indefinitely on a hidden console: the identical script, run with the same
+arguments in the same hidden window from both volumes, reached its third
+command from `C:` in under three seconds and never reached its first from
+`D:`. The hang consumes CPU and produces no log at all, so it presents as a
+silent dead service rather than a readable failure.
+
+This is why the launcher lives in `C:\Users\<user>\.evocfd\bin\` while
+everything else — the repo, the tarballs, the helper scripts — stays on `D:`.
+Node and bash read from the exFAT volume without trouble; only the cmd
+batch-file reader is affected. Should the launcher ever need to move, this is
+the constraint, not disk space or tidiness.
+
 ## Rollout
 
 1. Smoke-test the runtime and one solver environment.
