@@ -125,7 +125,7 @@ if (!MODE_JUDGE) {
         // container's own.
         { home: "/home/dfode", path: "/opt/node/bin:/usr/bin:/bin", agentDir: "/agent-state" },
         {
-          genome: `/genome/${GENOME_ID}/genome.json`,
+          genome: `/genome/genome.json`,
           cwd: "/task/workspace",
           runId: TRIAL_ID,
           profile: "evocfd-intern-ai",
