@@ -177,28 +177,58 @@ carries a credential.
 
 ## Running a trial
 
-One trial, end to end, is `scripts/run-trial.ts`:
+One trial is three commands in two places, because the controller container has
+no Docker client by design: preparation and judging happen in the controller, and
+the agent is launched where Docker actually lives.
 
 ```sh
-# from the controller container
-node scripts/run-trial.ts control-plane-001 --fake --trial-id fake-trial-001
-# then, where Docker actually lives
-sh runs/fake-trial-001/run-agent.sh
-# and back in the controller container
-node scripts/run-trial.ts control-plane-001 --judge --trial-id fake-trial-001
+# 1. prepare, in the controller container
+node scripts/run-trial.ts control-plane-001 --prepare --trial-id m1-trial-001
+
+# 2. execute, where Docker lives (EVOCFD_GATEWAY_TOKEN is the LLM gateway token)
+node scripts/execute-trial.ts m1-trial-001
+
+# 3. judge, back in the controller container
+node scripts/run-trial.ts control-plane-001 --judge --trial-id m1-trial-001
 ```
 
+`--prepare` materializes the fixture and writes `private/agent-launch.json` — a
+complete description of how to run the agent, written before anything runs, so
+what executes is exactly what is recorded. `--judge` refuses to run until an
+episode has been recorded, because a verdict over a workspace no trajectory
+produced is unattributable.
+
+The launch plan drives RSI-Harness's own CLI rather than Pi directly, so the
+harness layer is where turns are capped and where the Genome is applied — which
+makes the harness the thing a trial varies. The executable is
+`/rsih/src/cli.ts`, Pi 0.84.3 as vendored by the RSI-Harness checkout that `/rsih`
+mounts; the Genome bundle is a separate read-only `/genome` mount, because an
+agent that could rewrite its own harness would invalidate the comparison the
+trial exists to make.
+
+The agent's credential is the one thing not written down in advance. The gateway
+token reaches the agent's config directory at execution time from
+`EVOCFD_GATEWAY_TOKEN` and never enters the repository or the recorded plan; the
+result records only `credential_ref: "gateway-token:default"`.
+
 `--fake` swaps the agent for a deterministic prober that applies the intended
-fix, which proves the pipeline without spending a model call. Dropping the flag
-runs the real agent runtime mounted read-only at `/agent-runtime`, with its
-session on `/agent-state` and the prompt read inside the container from the
-mounted task file, so the orchestrator never duplicates the task. The script
-generates the launch command rather than running it inline, because the
-controller container has no Docker client by design — and the same generated
-script is what actually ran.
+fix, which proves the pipeline without spending a model call.
 
 `EVOCFD_HOST_ROOT` must be set when the controller runs in a container, since
-mount sources have to be host paths.
+mount sources have to be host paths. Without it Docker silently creates the
+missing mount source as an empty root-owned directory, and the probe then reports
+a missing prompt and an unwritable workspace while the real boundary is intact.
+
+### Agent configuration the trial depends on
+
+The agent reads its providers, models and settings from a config directory that
+RSIH's CLI defaults to `$HOME/.rsih` — RSIH's vendored Pi resolves the agent
+directory from `RSIH_CODING_AGENT_DIR`, not from `PI_CODING_AGENT_DIR`. Seeding
+that directory one level too shallow leaves `models.json` where nothing reads
+it, and the trial dies with `Unknown provider` before its first turn.
+`config/agent-seed/` holds the repository copy — endpoints and model list, no
+key — and `scripts/execute-trial.ts` merges the gateway token in at execution
+time.
 
 ## Working in this repository
 

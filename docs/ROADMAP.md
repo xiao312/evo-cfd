@@ -32,7 +32,7 @@ no longer hypothetical.
 | Milestone | Meaning | Status |
 |---|---|---|
 | **M0 Runtime** | Real Pi/RSIH episode runs reproducibly on the server with controlled network and evidence capture | **Done** |
-| **M1 Experiment** | Resettable fixture → isolated real agent → protected external evaluator → authoritative evaluation record | ~3 PRs away |
+| **M1 Experiment** | Resettable fixture → isolated real agent → protected external evaluator → authoritative evaluation record | **Done** |
 | **M2 Harness improvement** | Evidence → candidate harness change → fresh parent/candidate trials → selection | Not yet |
 | **M3 CFD loop** | Real solver incident → diagnosis → solver/recipe change → regression/evaluation → reusable harness learning | Not yet |
 | **M4 MASCOTTE campaign** | Full CH₄/O₂ application with physical and experimental evaluation | Not yet |
@@ -50,9 +50,9 @@ NOW
 │
 ├─ PR 4A    real isolation
 ├─ PR 4B    authoritative evaluator
-├─ PR 4C    first real evaluated agent trial
+├─ PR 4C    first real evaluated agent trial   ✅
 │
-│          ★ M1: experimental agent workbench
+│          ★ M1: experimental agent workbench   ✅
 │
 ├─ PR 5     harness identity
 ├─ PR 6     bounded candidate generation
@@ -193,42 +193,34 @@ digest. Run the evaluator with no network, with the workspace read-only, under
 a wall-clock timeout, without model credentials, independently of the agent
 session. This is the actual Law-4 boundary.
 
-### PR 4C — first real controlled experiment  🚧 pipeline proven, real agent next
+### PR 4C — first real controlled experiment  ✅ done, M1 closed
 
-The pipeline is proven end to end on the compute host with a deterministic fake
-agent (`scripts/run-trial.ts --fake`): materialize, launch inside the isolation
-boundary, judge independently — verdict PASS on all four criteria. Three real
-bugs were caught only by that run and are fixed: results were staged in `/tmp`
-and `rename` cannot cross the bind-mounted runs tree (EXDEV); the fixture
-program used `require()` in a `.js` file that the repository's `type: module`
-made an ES module wherever it was materialized; and re-judging tried to
-re-materialize an existing trial.
+The pipeline is proven end to end on the compute host, first with a
+deterministic fake agent and then with a real one. `m1-trial-001` executed a
+genuine episode — the `evocfd:m1-baseline` Genome driving RSI-Harness's own CLI,
+which vendors Pi 0.84.3 — inside the isolation boundary: 7 turns, 11 tool calls,
+650 recorded events, zero malformed, exit 0. The agent renamed the mis-cased
+configuration field, ran the program, and wrote its report. An independent
+evaluator then judged it on all four criteria — output, structure, config,
+report — and recorded a PASS with the episode reference and the credential name.
 
-What remains is exactly one real Pi episode on the same path — same script,
-no `--fake`.
-
-```text
-control-plane-001
-        ↓
-materialize
-        ↓
-real Pi / Atria-Dawn-Preview
-        ↓
-agent edits workspace
-        ↓
-agent exits
-        ↓
-external evaluator
-        ↓
-evaluation.json
-```
-
-Once, initially. If it passes, the claim is exactly and only:
+The claim closed here is exactly and only:
 
 > EvoCFD can execute and independently evaluate a real agent trial.
 
 Not that the harness is good, not that the model is good, not that
-self-improvement works. That closes **M1**.
+self-improvement works.
+
+Bugs found only by running the real thing, all fixed: the agent's config
+was seeded one directory too shallow (RSIH's vendored Pi reads
+`RSIH_CODING_AGENT_DIR`, which RSIH defaults to `$HOME/.rsih`, so `models.json`
+was invisible and every provider was unknown); the trial's budgets and working
+directory were host paths inside a controller container that had no such paths;
+the agent container had no Docker client or docker group; the Genome bundle was
+mounted at `/genome` but referenced as `/genome/<id>`; the task was never passed
+as a prompt, so the agent opened a session and exited having done nothing; and
+results were staged in `/tmp` where `rename` cannot cross the bind-mounted runs
+tree (EXDEV).
 
 ### PR 5 — harness identity and candidate representation
 
