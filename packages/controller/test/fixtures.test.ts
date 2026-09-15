@@ -75,7 +75,7 @@ test.after(async () => {
 test("the shipped fixture loads and resolves every source", async () => {
   const fixture = await loadFixture(REAL_FIXTURE);
   assert.equal(fixture.id, "control-plane-001");
-  assert.equal(fixture.version, FIXTURE_SCHEMA_VERSIONS[0]);
+  assert.equal(FIXTURE_SCHEMA_VERSIONS.includes(fixture.version), true);
   assert.equal(fixture.definition.trial.network_profile, "llm-only");
   assert.equal(fixture.promptPath, join(REAL_FIXTURE, "TASK.md"));
   assert.equal(fixture.workspaceSource, join(REAL_FIXTURE, "workspace"));

@@ -30,7 +30,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const REFERENCE_PROGRAM = join(HERE, "reference", "app.js");
+const REFERENCE_PROGRAM = join(HERE, "reference", "app.cjs");
 const EXPECTED_TOTAL = 96;
 
 const verdict = {
@@ -75,9 +75,9 @@ if (!(await exists(REFERENCE_PROGRAM))) {
   } else {
     // 1. The program must run and print the total the README specifies.
     try {
-      const app = join(workspace, "app.js");
+      const app = join(workspace, "app.cjs");
       if (!(await exists(app))) {
-        fail("output", "app.js is missing from the workspace");
+        fail("output", "app.cjs is missing from the workspace");
       } else {
         const out = await new Promise((resolve) => {
           const child = spawn(process.execPath, [app], { cwd: workspace, windowsHide: true });
@@ -89,33 +89,33 @@ if (!(await exists(REFERENCE_PROGRAM))) {
           child.on("close", () => resolve(stdout));
         });
         if (out.trim() === `total=${EXPECTED_TOTAL}`) {
-          pass("output", `app.js printed ${out.trim()}`);
+          pass("output", `app.cjs printed ${out.trim()}`);
         } else {
-          fail("output", `app.js printed ${JSON.stringify(out.trim())}, expected total=${EXPECTED_TOTAL}`);
+          fail("output", `app.cjs printed ${JSON.stringify(out.trim())}, expected total=${EXPECTED_TOTAL}`);
         }
       }
     } catch (error) {
-      fail("output", `could not execute app.js: ${error.message}`);
+      fail("output", `could not execute app.cjs: ${error.message}`);
     }
 
     // 2. The program itself must be unchanged: the fix belongs in configuration.
     try {
-      const app = join(workspace, "app.js");
+      const app = join(workspace, "app.cjs");
       if (!(await exists(app))) {
-        fail("structure", "app.js is missing, so it cannot be compared to the reference");
+        fail("structure", "app.cjs is missing, so it cannot be compared to the reference");
       } else {
         const a = await digest(app);
         const b = await digest(REFERENCE_PROGRAM);
-        if (a === b) pass("structure", "app.js is byte-identical to the reference program");
+        if (a === b) pass("structure", "app.cjs is byte-identical to the reference program");
         else {
           fail(
             "structure",
-            "app.js was modified; the cause was in configuration, not in the program",
+            "app.cjs was modified; the cause was in configuration, not in the program",
           );
         }
       }
     } catch (error) {
-      fail("structure", `could not compare app.js: ${error.message}`);
+      fail("structure", `could not compare app.cjs: ${error.message}`);
     }
 
     // 3. The configuration must now carry the key the program reads.

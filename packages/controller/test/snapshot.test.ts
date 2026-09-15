@@ -100,7 +100,7 @@ test("materialization lays out the expected tree", async () => {
 
   // The agent view: prompt beside the workspace, not inside it.
   await assertFileExists(join(layout.agent, "TASK.md"));
-  await assertFileExists(join(layout.agentWorkspace, "app.js"));
+  await assertFileExists(join(layout.agentWorkspace, "app.cjs"));
   await assertFileExists(join(layout.agentWorkspace, "config.json"));
   await assertFileExists(join(layout.agentWorkspace, "README.md"));
 
@@ -190,7 +190,7 @@ test("the shipped evaluator passes once the configuration is corrected", async (
     join(trial.layout.agentWorkspace, "config.json"),
     JSON.stringify({ units_per_kit: 12, site: "line-7" }, null, 2),
   );
-  await writeFile(join(trial.layout.agentWorkspace, "REPORT.md"), "config key mismatch; verified with node app.js\n");
+  await writeFile(join(trial.layout.agentWorkspace, "REPORT.md"), "config key mismatch; verified with node app.cjs\n");
   const verdict = await runEvaluator(trial.layout);
   assert.equal(verdict.pass, true, JSON.stringify(verdict.criteria, null, 2));
 });
@@ -212,7 +212,7 @@ test("reset restores the exact initial state, twice", async () => {
   assert.equal(after1.workspaceDigest, initial);
   assert.deepEqual((await digestTree(trial.layout.agentWorkspace)).files.sort(), [
     "README.md",
-    "app.js",
+    "app.cjs",
     "config.json",
   ]);
 

@@ -14,8 +14,8 @@ judge independent of the thing being judged.
 
 | criterion | meaning |
 |---|---|
-| `output` | `node app.js` prints `total=96` |
-| `structure` | `app.js` is byte-identical to `reference/app.js` — the program was not rewritten to paper over a bad key |
+| `output` | `node app.cjs` prints `total=96` |
+| `structure` | `app.cjs` is byte-identical to `reference/app.cjs` — the program was not rewritten to paper over a bad key |
 | `config` | `config.json` sets `units_per_kit` to the value the program reads |
 | `report` | `REPORT.md` exists at the workspace root and is non-empty |
 

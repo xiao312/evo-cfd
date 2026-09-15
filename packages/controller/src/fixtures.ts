@@ -25,7 +25,7 @@ import { basename, isAbsolute, relative, resolve } from "node:path";
 import { lstat, readdir, readFile, stat } from "node:fs/promises";
 
 /** Schema versions this implementation understands. */
-export const FIXTURE_SCHEMA_VERSIONS = [1] as const;
+export const FIXTURE_SCHEMA_VERSIONS = [1, 2] as const;
 export type FixtureSchemaVersion = (typeof FIXTURE_SCHEMA_VERSIONS)[number];
 
 export type NetworkProfile = "offline" | "llm-only" | "llm+web";

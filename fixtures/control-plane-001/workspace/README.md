@@ -1,6 +1,6 @@
 # Batch total checker
 
-`app.js` computes the total number of units in one production batch and prints
+`app.cjs` computes the total number of units in one production batch and prints
 `total=<n>`.
 
 ## Contract
@@ -20,7 +20,7 @@ total=96
 
 | file | role |
 |---|---|
-| `app.js` | computes and prints the total |
+| `app.cjs` | computes and prints the total |
 | `config.json` | per-batch configuration; `units_per_kit` is the only key it reads |
 | `README.md` | this file, the contract the program and config must satisfy |
 

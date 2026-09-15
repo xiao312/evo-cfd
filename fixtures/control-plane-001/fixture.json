@@ -1,6 +1,6 @@
 {
   "fixture_id": "control-plane-001",
-  "version": 1,
+  "version": 2,
   "task": {
     "prompt": "TASK.md"
   },
