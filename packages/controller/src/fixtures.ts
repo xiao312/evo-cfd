@@ -121,11 +121,19 @@ async function existsAs(path: string, kind: "file" | "directory"): Promise<boole
  * trying to define what a link ought to mean across filesystems.
  */
 async function assertNoSymlinks(root: string, problems: string[], relDir = ""): Promise<void> {
-  // A source that is not a directory is reported by the existence checks; do
-  // not turn it into an fs exception here.
   if (relDir === "") {
+    // The root itself is never listed as an entry by readdir, and stat would
+    // follow it, so check the link in place. A source that is not a directory
+    // at all is reported by the existence checks, not here.
     try {
-      if (!(await stat(root)).isDirectory()) return;
+      const stats = await lstat(root);
+      if (stats.isSymbolicLink()) {
+        problems.push(
+          `${basename(root)} is a symbolic link; fixture inputs must be plain files and directories`,
+        );
+        return;
+      }
+      if (!stats.isDirectory()) return;
     } catch {
       return;
     }
