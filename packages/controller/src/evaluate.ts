@@ -31,7 +31,6 @@
 import { spawn } from "node:child_process";
 import { mkdir, mkdtemp, open, readFile, rename, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { tmpdir } from "node:os";
 
 import type { MaterializedTrial, TrialLayout } from "./snapshot.ts";
 import { digestTree } from "./snapshot.ts";
@@ -362,7 +361,9 @@ async function recordResult(layout: TrialLayout, result: EvaluationResult): Prom
     );
   }
   await mkdir(layout.privateDir, { recursive: true });
-  const staged = join(await mkdtemp(join(tmpdir(), "evocfd-result-")), "result.json");
+  // Staged on the same filesystem as the destination: rename cannot cross
+  // devices, and /tmp is a different mount than the bind-mounted runs tree.
+  const staged = join(await mkdtemp(join(dirname(target), ".result-")), "result.json");
   const handle = await open(staged, "wx");
   await handle.writeFile(JSON.stringify(result, null, 2) + "\n");
   await handle.close();
