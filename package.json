@@ -9,9 +9,11 @@
     "node": ">=22.19.0"
   },
   "scripts": {
-    "test": "npm run test:controller && npm run test:adapter",
+    "test": "npm run test:controller && npm run test:adapter && npm run test:egress",
     "test:controller": "node --experimental-strip-types --test \"packages/controller/test/*.test.ts\"",
     "test:adapter": "node --experimental-strip-types --test \"packages/rsih-adapter/test/*.test.ts\"",
+    "test:egress": "node --experimental-strip-types --test \"packages/egress/test/*.test.ts\",
+    "serve:egress": "node --experimental-strip-types packages/egress/src/serve.ts",
     "link": "node scripts/link-workspaces.mjs",
     "check": "node scripts/link-workspaces.mjs && npm test",
     "check:rsih": "node scripts/check-rsih.mjs",
