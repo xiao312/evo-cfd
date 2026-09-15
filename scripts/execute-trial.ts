@@ -57,9 +57,6 @@ await mkdir(stateDir, { recursive: true });
 // agent reads it. Nothing here is recorded into the episode plan.
 if (launch.seed_config_dir) {
   const seedDir = join(REPO_ROOT, "config", "agent-seed");
-  for (const name of ["settings.json", "models.json"]) {
-    await cp(join(seedDir, name), join(stateDir, name));
-  }
   const token = process.env.EVOCFD_GATEWAY_TOKEN;
   if (!token) {
     console.error(
@@ -67,6 +64,18 @@ if (launch.seed_config_dir) {
     );
     process.exit(2);
   }
+  await cp(join(seedDir, "settings.json"), join(stateDir, "settings.json"));
+  // Pi resolves a provider's key from its models entry, so the credential is
+  // merged into the seeded provider definition here. The repository copy carries
+  // no key at all; the runtime file is written from the environment and is never
+  // part of the recorded launch plan.
+  const models = JSON.parse(await readFile(join(seedDir, "models.json"), "utf8")) as Record<
+    string,
+    unknown
+  >;
+  const provider = models.providers["evocfd-intern-ai"] as Record<string, unknown>;
+  provider.apiKey = token;
+  await writeFile(join(stateDir, "models.json"), JSON.stringify(models, null, 2) + "\n");
   await writeFile(
     join(stateDir, "auth.json"),
     JSON.stringify({ "evocfd-intern-ai": { type: "api_key", key: token } }, null, 2) + "\n",
