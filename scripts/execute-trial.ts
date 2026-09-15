@@ -64,7 +64,13 @@ if (launch.seed_config_dir) {
     );
     process.exit(2);
   }
-  await cp(join(seedDir, "settings.json"), join(stateDir, "settings.json"));
+  // RSIH's vendored Pi resolves its agent directory from RSIH_CODING_AGENT_DIR,
+  // which RSIH's own CLI defaults to $HOME/.rsih. Seeding one level too shallow
+  // makes every provider invisible and the agent dies with Unknown provider
+  // before its first turn, so the seed lands where Pi actually looks.
+  const configDir = join(stateDir, ".rsih");
+  await mkdir(configDir, { recursive: true });
+  await cp(join(seedDir, "settings.json"), join(configDir, "settings.json"));
   // Pi resolves a provider's key from its models entry, so the credential is
   // merged into the seeded provider definition here. The repository copy carries
   // no key at all; the runtime file is written from the environment and is never
@@ -75,12 +81,12 @@ if (launch.seed_config_dir) {
   >;
   const provider = models.providers["evocfd-intern-ai"] as Record<string, unknown>;
   provider.apiKey = token;
-  await writeFile(join(stateDir, "models.json"), JSON.stringify(models, null, 2) + "\n");
+  await writeFile(join(configDir, "models.json"), JSON.stringify(models, null, 2) + "\n");
   await writeFile(
-    join(stateDir, "auth.json"),
+    join(configDir, "auth.json"),
     JSON.stringify({ "evocfd-intern-ai": { type: "api_key", key: token } }, null, 2) + "\n",
   );
-  console.log(`seeded ${stateDir} with the agent config and gateway credential`);
+  console.log(`seeded ${configDir} with the agent config and gateway credential`);
 }
 
 const evidenceDir = join(RUNS_DIR, TRIAL_ID, "private", "episodes");
