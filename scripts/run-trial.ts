@@ -105,6 +105,8 @@ if (!MODE_JUDGE) {
 
   // What the agent is asked to do, as a launch plan the rsih-adapter built.
   // Container paths, because the plan executes inside the isolated container.
+  const limits = fixture.definition.trial;
+
   const plan = MODE_FAKE
     ? {
         command: "node",
@@ -128,7 +130,7 @@ if (!MODE_JUDGE) {
           runId: TRIAL_ID,
           profile: "evocfd-intern-ai",
           model: "Atria-Dawn-Preview",
-          maxTurns: fixture.trial.max_agent_turns,
+          maxTurns: limits.max_agent_turns,
           sessionDir: "/agent-state/sessions",
           noContextFiles: true,
         },
@@ -162,9 +164,9 @@ if (!MODE_JUDGE) {
     fixture_id: FIXTURE_ID,
     image: IMAGE,
     seed_config_dir: MODE_FAKE ? null : "/agent-seed",
-    network_profile: fixture.trial.network_profile,
-    max_agent_turns: fixture.trial.max_agent_turns,
-    max_wall_seconds: fixture.trial.max_wall_seconds,
+    network_profile: limits.network_profile,
+    max_agent_turns: limits.max_agent_turns,
+    max_wall_seconds: limits.max_wall_seconds,
     harness: MODE_FAKE ? null : await harnessIdentity(),
     // Recorded verbatim and before anything runs; the episode runner executes
     // this exact plan.
