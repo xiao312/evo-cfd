@@ -1,0 +1,10 @@
+{
+  "name": "@evocfd/controller",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Campaign, episode, fixture, evidence, and selection machinery",
+  "scripts": {
+    "test": "node --experimental-strip-types --test \"test/*.test.ts\""
+  }
+}

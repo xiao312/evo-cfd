@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Generated campaign workspaces and results. Never committed.
+runs/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+
+# ---------------------------------------------------------------------------
+# Third-party components held locally pending license review.
+# These are NOT redistributed from this repository until THIRD_PARTY.md says
+# their terms are resolved. Do not commit anything under these paths.
+# ---------------------------------------------------------------------------
+third_party/RSI-Harness/
+cfd-baseline/solvers/
+cfd-baseline/harness/extensions/
