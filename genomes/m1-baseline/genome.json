@@ -1,0 +1,14 @@
+{
+  "genome_schema_version": "3",
+  "genome_id": "evocfd:m1-baseline",
+  "parent_id": "evocfd:m1-baseline",
+  "version": 1,
+  "base": "default",
+  "components": [
+    {
+      "id": "instructions",
+      "source": "./components/instructions.json",
+      "contract": "./contracts/instructions.dev.md"
+    }
+  ]
+}

@@ -43,6 +43,13 @@ export interface IsolationSpec {
    * state. Mounted at /agent-runtime.
    */
   agentRuntimeDir?: string;
+  /**
+   * Optional absolute host path of the Genome bundle that defines this trial's
+   * harness. Mounted read-only at /genome: a harness is what the trial varies,
+   * and an agent that could rewrite its own harness would invalidate the
+   * comparison the trial exists to make.
+   */
+  genomeDir?: string;
   /** UID/GID the agent runs as. Never root. */
   uid: number;
   gid: number;
@@ -74,6 +81,7 @@ const WORKSPACE_PATH = "/task/workspace";
 const RSIH_PATH = "/rsih";
 const AGENT_STATE_PATH = "/agent-state";
 const AGENT_RUNTIME_PATH = "/agent-runtime";
+const GENOME_PATH = "/genome";
 
 /**
  * Build the launch arguments for an isolated agent container.
@@ -126,6 +134,14 @@ export function buildAgentContainer(spec: IsolationSpec, image: string): AgentCo
       container: AGENT_RUNTIME_PATH,
       mode: "ro",
       reason: "the agent runtime the worker executes",
+    });
+  }
+  if (spec.genomeDir) {
+    mounts.push({
+      host: spec.genomeDir,
+      container: GENOME_PATH,
+      mode: "ro",
+      reason: "the Genome bundle that defines this trial's harness",
     });
   }
 

@@ -41,7 +41,30 @@ await mkdir(runsB, { recursive: true });
 const realFixture = await loadFixture(REAL_FIXTURE_DIR);
 
 async function trial(runsDir = runsA, id = "evaluate-001"): Promise<MaterializedTrial> {
-  return materializeFixture({ fixture: realFixture, trialId: id, runsDir });
+  const t = await materializeFixture({ fixture: realFixture, trialId: id, runsDir });
+  await recordEpisode(t);
+  return t;
+}
+
+/**
+ * Record the episode a trial is judged against.
+ *
+ * The episode is the link between a trajectory and a verdict; judging without
+ * one is refused. Tests record a synthetic episode rather than running a
+ * container, and the one test that needs the absence uses `withoutEpisode`.
+ */
+async function recordEpisode(
+  trial: MaterializedTrial,
+  exitCode = 0,
+  timedOut = false,
+): Promise<void> {
+  const dir = join(trial.layout.root, "private", "episodes", trial.trialId);
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, "result.json"), JSON.stringify({ exitCode, timedOut }, null, 2));
+}
+
+async function withoutEpisode(trial: MaterializedTrial): Promise<void> {
+  await rm(join(trial.layout.root, "private", "episodes"), { recursive: true, force: true });
 }
 
 /** Apply the intended fix: align the config key, leave the program, write the report. */
@@ -97,7 +120,9 @@ async function trialWithEvaluator(body: string, id: string): Promise<Materialize
     ),
   );
   const fixture = await loadFixture(fixtureDir);
-  return materializeFixture({ fixture, trialId: `${id}-trial`, runsDir: runsB });
+  const t = await materializeFixture({ fixture, trialId: `${id}-trial`, runsDir: runsB });
+  await recordEpisode(t);
+  return t;
 }
 
 function asObject(result: EvaluationResult): Record<string, unknown> {
@@ -172,6 +197,26 @@ test("a missing evaluation package is a setup fault, not a judgement", async () 
   await assert.rejects(() => evaluateTrial(t), (error: unknown) => {
     return error instanceof EvaluationError && error.message.includes("not runnable");
   });
+});
+
+test("a trial with no recorded episode cannot be judged", async () => {
+  const t = await trial(runsB, "evaluate-no-episode");
+  await withoutEpisode(t);
+  await assert.rejects(() => evaluateTrial(t), (error: unknown) => {
+    return error instanceof EvaluationError && error.message.includes("no recorded episode");
+  });
+  // Nothing was judged, so no verdict exists.
+  assert.equal(await recordedResult(t.layout), null);
+});
+
+test("the result names the episode it judges", async () => {
+  const t = await trial(runsB, "evaluate-episode-ref");
+  await withoutEpisode(t);
+  await recordEpisode(t, 1, false);
+  const result = await evaluateTrial(t);
+  assert.equal(result.episode_id, "evaluate-episode-ref");
+  assert.equal(result.episode_exit_code, 1);
+  assert.equal(result.episode_timed_out, false);
 });
 
 test("a judge replaced after materialization is not executed", async () => {
@@ -267,6 +312,7 @@ test("reset clears the recorded verdict so the trial can be judged again", async
 
   await resetTrial({ fixture: realFixture, layout: t.layout });
   assert.equal(await recordedResult(t.layout), null, "a pristine workspace has no verdict");
+  await recordEpisode(t);
 
   await correct(t);
   const second = await evaluateTrial(t);

@@ -71,6 +71,12 @@ export interface EvaluationResult {
   evaluator_digest: string;
   /** Digest of the workspace that was judged. */
   workspace_digest: string;
+  /** The episode whose work this verdict judges, if one was recorded. */
+  episode_id: string | null;
+  /** The recorded exit status of that episode. */
+  episode_exit_code: number | null;
+  /** True when the episode was killed for exceeding its wall-clock budget. */
+  episode_timed_out: boolean;
   /** The identity this result is attributable to. */
   trial_identity: string;
   /** ISO timestamp of when the evaluation completed. */
@@ -83,6 +89,33 @@ export class EvaluationAlreadyRecordedError extends Error {
 
 export class EvaluationError extends Error {
   readonly code = "EEVAL";
+}
+
+/** Where a trial's episode evidence lives, relative to the trial root. */
+const EPISODES_REL = join("private", "episodes");
+
+/**
+ * The episode whose outcome this verdict judges.
+ *
+ * A verdict over a workspace no episode produced is unattributable: it says
+ * what the workspace looks like, not what the agent did. The recorded episode
+ * is the link between a trajectory and a judgement, so judging without it is a
+ * setup fault rather than a judgement.
+ */
+async function recordedEpisode(
+  layout: TrialLayout,
+  trialId: string,
+): Promise<{ id: string; exit_code: number | null; timed_out: boolean } | null> {
+  const episodeResult = join(layout.root, EPISODES_REL, trialId, "result.json");
+  try {
+    const raw = JSON.parse(await readFile(episodeResult, "utf8")) as {
+      exitCode: number | null;
+      timedOut: boolean;
+    };
+    return { id: trialId, exit_code: raw.exitCode, timed_out: raw.timedOut };
+  } catch {
+    return null;
+  }
 }
 
 /** Default wall-clock budget for an evaluation, unless the fixture says else. */
@@ -111,6 +144,16 @@ export async function evaluateTrial(
   const budget = options.budgetSeconds ?? DEFAULT_EVALUATION_BUDGET_SECONDS;
 
   const { entrypoint } = await evaluatorEntrypoint(layout);
+
+  // A verdict over a workspace no episode produced would say what the workspace
+  // looks like without saying what the agent did. Judging requires the
+  // trajectory it is attributing the work to.
+  const episode = await recordedEpisode(layout, trial.trialId);
+  if (episode === null) {
+    throw new EvaluationError(
+      `no recorded episode for ${trial.trialId}; a trial must be executed before it can be judged`,
+    );
+  }
 
   // Provenance: the judge about to run must be the judge the trial was defined
   // against. A package swapped after materialization would be executed under a
@@ -163,6 +206,9 @@ export async function evaluateTrial(
     // The digest recorded is the state before the judge ran, which is the
     // agent's work. What the judge leaves behind is verified, not recorded.
     workspace_digest: judged.digest,
+    episode_id: episode?.id ?? null,
+    episode_exit_code: episode?.exit_code ?? null,
+    episode_timed_out: episode?.timed_out ?? false,
     trial_identity: trial.trialIdentity,
     evaluated_at: new Date().toISOString(),
   };

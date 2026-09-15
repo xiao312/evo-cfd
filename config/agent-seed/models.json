@@ -1,0 +1,14 @@
+{
+  "providers": {
+    "evocfd-intern-ai": {
+      "baseUrl": "http://host.docker.internal:18080/v1",
+      "api": "openai-completions",
+      "models": [
+        {
+          "id": "Atria-Dawn-Preview",
+          "reasoning": true
+        }
+      ]
+    }
+  }
+}
