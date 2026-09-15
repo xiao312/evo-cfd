@@ -11,8 +11,12 @@
  * A symlink on POSIX, a junction on Windows. Idempotent: a link that already
  * points at the right place is left alone.
  *
- * Note: this requires a filesystem that supports links. Tests run on the
- * compute host (POSIX) and in CI, not on a local exFAT volume.
+ * Note: this requires a filesystem that supports links, and intentionally
+ * does not fall back to copying: node refuses to strip types for modules
+ * under node_modules, so a copy of a TypeScript workspace package is
+ * unimportable, which fails in a far less obvious way than a missing link.
+ * On a volume that cannot link (a local exFAT checkout), run the individual
+ * test files directly; the full suite runs on the POSIX compute host and CI.
  */
 import {
   lstatSync,
@@ -41,6 +45,7 @@ function expand(glob) {
 }
 
 let linked = 0;
+
 for (const glob of pkg.workspaces ?? []) {
   for (const relative of expand(glob)) {
     const target = join(root, relative);
@@ -65,9 +70,17 @@ for (const glob of pkg.workspaces ?? []) {
       rmSync(linkPath, { recursive: true, force: true });
     }
     mkdirSync(linkDir, { recursive: true });
-    symlinkSync(target, linkPath, process.platform === "win32" ? "junction" : "dir");
-    linked += 1;
-    console.log(`linked ${name} -> ${relative}`);
+    try {
+      symlinkSync(target, linkPath, process.platform === "win32" ? "junction" : "dir");
+      linked += 1;
+      console.log(`linked ${name} -> ${relative}`);
+    } catch (error) {
+      throw new Error(
+        `cannot link ${name}: this filesystem does not support links ` +
+          `(${error.code ?? error.message}); run the test files individually, ` +
+          `or on a filesystem that supports links`,
+      );
+    }
   }
 }
 if (linked === 0) console.log("workspace links already in place");

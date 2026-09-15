@@ -1,0 +1,18 @@
+{
+  "fixture_id": "control-plane-001",
+  "version": 1,
+  "task": {
+    "prompt": "TASK.md"
+  },
+  "workspace": {
+    "source": "workspace"
+  },
+  "evaluation": {
+    "source": "evaluator"
+  },
+  "trial": {
+    "network_profile": "llm-only",
+    "max_agent_turns": 20,
+    "max_wall_seconds": 180
+  }
+}
