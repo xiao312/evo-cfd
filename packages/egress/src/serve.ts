@@ -12,6 +12,7 @@
  * egress, and that is enforced by this process refusing to serve.
  */
 import { loadEgressConfig } from "./config.ts";
+import { pathToFileURL } from "node:url";
 import { sshForwardArguments } from "./profiles.ts";
 import { startRelay } from "./relay.ts";
 import { startProxy } from "./proxy.ts";
@@ -89,6 +90,6 @@ export async function main(args: string[]): Promise<void> {
   await new Promise(() => {});
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.url.startsWith("file:") && pathToFileURL(process.argv[1]).href === import.meta.url) {
   void main(process.argv.slice(2));
 }
