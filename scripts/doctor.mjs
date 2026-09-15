@@ -72,7 +72,7 @@ if (!baseline) {
   if (rsih && observed.piVersion !== runtime.pi_version) {
     drift.push(`pi_version: recorded ${runtime.pi_version}, observed ${observed.piVersion}`);
   }
-  if (runtime.node_version && process.version !== runtime.node_version) {
+  if (runtime.node_version && process.version.replace(/^v/, "") !== runtime.node_version) {
     drift.push(
       `node_version: recorded ${runtime.node_version}, running ${process.version} ` +
         "(expected to differ across machines; must match on the campaign host)",
