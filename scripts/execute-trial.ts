@@ -74,14 +74,14 @@ if (launch.seed_config_dir) {
   console.log(`seeded ${stateDir} with the agent config and gateway credential`);
 }
 
-const evidenceDir = join(HOST_RUNS_DIR, TRIAL_ID, "private", "episodes");
+const evidenceDir = join(RUNS_DIR, TRIAL_ID, "private", "episodes");
 await mkdir(evidenceDir, { recursive: true });
 
 console.log(`running ${TRIAL_ID}: ${launch.command} ${launch.args.join(" ")}`);
 
 const result = await runEpisode({
   id: TRIAL_ID,
-  plan: { command: launch.command, args: launch.args, cwd: launch.cwd, env: launch.env },
+  plan: { command: launch.command, args: launch.args, cwd: REPO_ROOT, env: launch.env },
   evidenceDir,
   // The fixture's wall-clock bound, enforced here by killing the process group
   // rather than by trusting the agent to watch the clock.
