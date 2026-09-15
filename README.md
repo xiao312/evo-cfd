@@ -175,6 +175,31 @@ The result carries the identity of what judged what: the evaluator digest, the
 workspace digest of the state that was judged, and the trial identity. It never
 carries a credential.
 
+## Running a trial
+
+One trial, end to end, is `scripts/run-trial.ts`:
+
+```sh
+# from the controller container
+node scripts/run-trial.ts control-plane-001 --fake --trial-id fake-trial-001
+# then, where Docker actually lives
+sh runs/fake-trial-001/run-agent.sh
+# and back in the controller container
+node scripts/run-trial.ts control-plane-001 --judge --trial-id fake-trial-001
+```
+
+`--fake` swaps the agent for a deterministic prober that applies the intended
+fix, which proves the pipeline without spending a model call. Dropping the flag
+runs the real agent runtime mounted read-only at `/agent-runtime`, with its
+session on `/agent-state` and the prompt read inside the container from the
+mounted task file, so the orchestrator never duplicates the task. The script
+generates the launch command rather than running it inline, because the
+controller container has no Docker client by design — and the same generated
+script is what actually ran.
+
+`EVOCFD_HOST_ROOT` must be set when the controller runs in a container, since
+mount sources have to be host paths.
+
 ## Working in this repository
 
 There is nothing to install. EvoCFD has no external dependencies, so running

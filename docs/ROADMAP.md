@@ -193,7 +193,19 @@ digest. Run the evaluator with no network, with the workspace read-only, under
 a wall-clock timeout, without model credentials, independently of the agent
 session. This is the actual Law-4 boundary.
 
-### PR 4C — first real controlled experiment
+### PR 4C — first real controlled experiment  🚧 pipeline proven, real agent next
+
+The pipeline is proven end to end on the compute host with a deterministic fake
+agent (`scripts/run-trial.ts --fake`): materialize, launch inside the isolation
+boundary, judge independently — verdict PASS on all four criteria. Three real
+bugs were caught only by that run and are fixed: results were staged in `/tmp`
+and `rename` cannot cross the bind-mounted runs tree (EXDEV); the fixture
+program used `require()` in a `.js` file that the repository's `type: module`
+made an ES module wherever it was materialized; and re-judging tried to
+re-materialize an existing trial.
+
+What remains is exactly one real Pi episode on the same path — same script,
+no `--fake`.
 
 ```text
 control-plane-001
