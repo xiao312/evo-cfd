@@ -21,7 +21,7 @@
  */
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { createWriteStream, mkdir, open, writeFile } from "node:fs/promises";
+import { mkdir, open, writeFile } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { Readable } from "node:stream";
 import {
