@@ -10,6 +10,15 @@
  * by the isolation boundary. This asymmetry is the point: the judge sees the
  * agent's work, the agent never sees the judge.
  *
+ * Trust is still verified rather than assumed. The evaluation package is
+ * re-hashed before it runs and must still match the digest that entered trial
+ * identity — a judge swapped after materialization is not the judge the trial
+ * was defined against. The judge never receives the agent's workspace itself:
+ * it receives a staged copy whose digest is verified before and after, so a
+ * judge that edits what it is judging invalidates its own verdict. It runs with
+ * a scrubbed environment, because credentials are a capability and a judge has
+ * no need of any.
+ *
  * The evaluator contract is small and deliberately awkward to satisfy by
  * accident:
  *
@@ -20,7 +29,9 @@
  * object — the evaluator is missing, exits with an unexpected code, prints
  * something that is not the verdict, or exceeds its budget — records a failure
  * and says which. It never records a pass, because a pass that survives an
- * evaluator failure is not evidence of anything.
+ * evaluator failure is not evidence of anything. A verdict that claims to pass
+ * while one of its own criteria does not is not a pass either: the verdict must
+ * be internally consistent, or it says nothing.
  *
  * A result is written once. Re-judging the same workspace after the fact would
  * silently let an updated judge rewrite history, so a second evaluation of the
@@ -29,7 +40,7 @@
  * rest of the agent view.
  */
 import { spawn } from "node:child_process";
-import { mkdir, mkdtemp, open, readFile, rename, stat } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, open, readFile, rename, rm, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import type { MaterializedTrial, TrialLayout } from "./snapshot.ts";
@@ -100,15 +111,45 @@ export async function evaluateTrial(
   const budget = options.budgetSeconds ?? DEFAULT_EVALUATION_BUDGET_SECONDS;
 
   const { entrypoint } = await evaluatorEntrypoint(layout);
-  // The workspace digest recorded below is whatever the workspace holds now:
-  // the agent's work is the thing being judged, so a change from the pristine
-  // baseline is expected, not drift. The invariant this does not yet enforce —
-  // that the workspace is exactly what the episode left behind — needs an
-  // episode boundary to record against, and arrives with the episode runner.
+
+  // Provenance: the judge about to run must be the judge the trial was defined
+  // against. A package swapped after materialization would be executed under a
+  // recorded digest that no longer describes it, which is not a judgement, it
+  // is a different experiment with a forged label.
+  const evaluatorNow = await digestTree(layout.evaluator);
+  if (evaluatorNow.digest !== trial.evaluatorDigest) {
+    throw new EvaluationError(
+      `evaluation package for ${trial.trialId} has drifted from its recorded digest; ` +
+        `a judge may not be replaced after a trial is materialized`,
+    );
+  }
+
+  // What is being judged: the workspace as the episode left it, snapshotted
+  // before the judge can touch anything.
+  const judged = await digestTree(layout.agentWorkspace);
+
+  // The judge never receives the agent's workspace. It receives a copy on the
+  // private side of the trial, which it cannot write back through, and whose
+  // digest is verified on both sides of the run: the copy must be exact, and it
+  // must be unchanged when the judge is done. A judge that edits what it judges
+  // invalidates its own verdict.
+  const stagingDir = await mkdtemp(join(layout.privateDir, ".judge-"));
+  const judgedCopy = join(stagingDir, "workspace");
+  await cp(layout.agentWorkspace, judgedCopy, { recursive: true });
+  const copyBefore = await digestTree(judgedCopy);
+  if (copyBefore.digest !== judged.digest) {
+    await rm(stagingDir, { recursive: true, force: true });
+    throw new EvaluationError(
+      `the staged copy of ${trial.trialId}'s workspace is not identical to the workspace; ` +
+        `the judge cannot be handed a workspace the controller did not verify`,
+    );
+  }
 
   const started = Date.now();
-  const run = await runEvaluator(entrypoint, layout.agentWorkspace, budget);
+  const run = await runEvaluator(entrypoint, judgedCopy, budget);
   const elapsed = (Date.now() - started) / 1000;
+  const copyAfter = await digestTree(judgedCopy);
+  await rm(stagingDir, { recursive: true, force: true });
 
   const result: EvaluationResult = {
     trial_id: trial.trialId,
@@ -119,10 +160,19 @@ export async function evaluateTrial(
     budget_seconds: budget,
     elapsed_seconds: Math.round(elapsed * 1000) / 1000,
     evaluator_digest: trial.evaluatorDigest,
-    workspace_digest: (await digestTree(layout.agentWorkspace)).digest,
+    // The digest recorded is the state before the judge ran, which is the
+    // agent's work. What the judge leaves behind is verified, not recorded.
+    workspace_digest: judged.digest,
     trial_identity: trial.trialIdentity,
     evaluated_at: new Date().toISOString(),
   };
+
+  if (copyAfter.digest !== copyBefore.digest) {
+    result.error =
+      `evaluator modified the workspace it was judging; its verdict is not attributable to the recorded state`;
+    await recordResult(layout, result);
+    return result;
+  }
 
   applyVerdict(result, run);
 
@@ -156,6 +206,20 @@ function applyVerdict(result: EvaluationResult, run: EvaluatorRun): void {
   }
   result.pass = parsed.pass;
   if (parsed.error) result.error = parsed.error;
+  // A verdict that claims to pass must actually have passed every criterion it
+  // reports. A pass asserted over a failing or malformed criterion is not a
+  // stronger signal, it is an inconsistent one, and an unfalsifiable verdict
+  // with no criteria at all is not a pass either.
+  if (result.pass === true) {
+    const failed = result.criteria.find((c) => c.pass === false);
+    if (result.criteria.length === 0) {
+      result.error = `verdict claims pass=true but reports no criteria`;
+      result.pass = false;
+    } else if (failed !== undefined) {
+      result.error = `verdict claims pass=true but criterion ${failed.criterion} failed`;
+      result.pass = false;
+    }
+  }
 }
 
 interface EvaluatorRun {
@@ -180,6 +244,11 @@ async function runEvaluator(
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [entrypoint, workspace], {
       cwd: dirname(entrypoint),
+      // The judge inherits nothing ambient. Credentials, gateway tokens and
+      // proxy configuration are capabilities an evaluator has no use for, and
+      // leaking them into a judge would make the network boundary part of the
+      // judge's environment rather than part of the trial's.
+      env: evaluatorEnvironment(),
       // A new group so the whole evaluation dies together, including any
       // subprocess the evaluator itself spawned.
       detached: process.platform !== "win32",
@@ -369,6 +438,34 @@ async function recordResult(layout: TrialLayout, result: EvaluationResult): Prom
   await handle.close();
   // Rename onto the target so readers never observe a half-written verdict.
   await rename(staged, target);
+}
+
+/**
+ * The environment an evaluator is given: an allowlist, not a denylist.
+ *
+ * The controller's own environment holds provider keys, gateway tokens and
+ * proxy configuration. None of them are a judge's business — the network
+ * profile is a property of the trial, and a judge that needed a credential to
+ * reach a network would be a judge whose verdict depends on reachability. So
+ * the judge starts from the few variables an interpreter needs and nothing else.
+ */
+function evaluatorEnvironment(): Record<string, string> {
+  const allowed = new Set([
+    "PATH",
+    "LANG",
+    "LC_ALL",
+    "TZ",
+    "HOME",
+    "USER",
+    "SHELL",
+    "TMPDIR",
+    "SYSTEMROOT",
+  ]);
+  const env: Record<string, string> = {};
+  for (const [name, value] of Object.entries(process.env)) {
+    if (value !== undefined && allowed.has(name)) env[name] = value;
+  }
+  return env;
 }
 
 async function pathExists(path: string): Promise<boolean> {

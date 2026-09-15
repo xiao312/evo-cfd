@@ -53,11 +53,51 @@ async function correct(trial: MaterializedTrial): Promise<void> {
   await writeFile(join(trial.layout.agentWorkspace, "REPORT.md"), "config key mismatch corrected\n");
 }
 
-/** Install a synthetic evaluator that prints `verdict` and exits `code`. */
-async function withEvaluator(trial: MaterializedTrial, body: string): Promise<void> {
+/**
+ * Install a synthetic evaluator in place of the materialized one.
+ *
+ * This is a deliberate provenance violation, used only by the test below: a
+ * judge swapped in after materialization carries the digest of the judge it
+ * replaced, and the evaluator boundary must refuse to execute it.
+ */
+async function swapEvaluator(trial: MaterializedTrial, body: string): Promise<void> {
   await rm(trial.layout.evaluator, { recursive: true, force: true });
   await mkdir(trial.layout.evaluator, { recursive: true });
   await writeFile(join(trial.layout.evaluator, "check.mjs"), body);
+}
+
+/**
+ * Build a real fixture whose evaluator is `body`, then materialize it.
+ *
+ * The synthetic evaluators used to probe fail-closed behaviour are not swapped
+ * in after the fact — that is the forgery the boundary refuses. They belong to
+ * the fixture from the start, so their digest is recorded legitimately.
+ */
+async function trialWithEvaluator(body: string, id: string): Promise<MaterializedTrial> {
+  const fixtureDir = join(staging, "fixtures", id);
+  await rm(fixtureDir, { recursive: true, force: true });
+  await mkdir(join(fixtureDir, "workspace"), { recursive: true });
+  await mkdir(join(fixtureDir, "evaluator"), { recursive: true });
+  await writeFile(join(fixtureDir, "TASK.md"), "Make the program print the right total.\n");
+  await writeFile(join(fixtureDir, "workspace", "app.cjs"), "console.log('total=96');\n");
+  await writeFile(join(fixtureDir, "evaluator", "check.mjs"), body);
+  await writeFile(
+    join(fixtureDir, "fixture.json"),
+    JSON.stringify(
+      {
+        fixture_id: id,
+        version: 2,
+        task: { prompt: "TASK.md" },
+        workspace: { source: "workspace" },
+        evaluation: { source: "evaluator" },
+        trial: { network_profile: "llm-only", max_agent_turns: 5, max_wall_seconds: 60 },
+      },
+      null,
+      2,
+    ),
+  );
+  const fixture = await loadFixture(fixtureDir);
+  return materializeFixture({ fixture, trialId: `${id}-trial`, runsDir: runsB });
 }
 
 function asObject(result: EvaluationResult): Record<string, unknown> {
@@ -134,9 +174,51 @@ test("a missing evaluation package is a setup fault, not a judgement", async () 
   });
 });
 
+test("a judge replaced after materialization is not executed", async () => {
+  const t = await trial(runsB, "evaluate-swapped");
+  await swapEvaluator(t, "console.log('i am not the recorded judge');\n");
+  await assert.rejects(() => evaluateTrial(t), (error: unknown) => {
+    return error instanceof EvaluationError && error.message.includes("drifted");
+  });
+  // The workspace was never handed to the impostor, and no verdict exists.
+  assert.equal(await recordedResult(t.layout), null);
+});
+
+test("a judge that edits what it judges invalidates its own verdict", async () => {
+  const t = await trialWithEvaluator(
+    "import { writeFile } from 'node:fs/promises';\n" +
+      "import { join } from 'node:path';\n" +
+      "await writeFile(join(process.argv[2], 'tamper.txt'), 'no');\n" +
+      'process.stdout.write(JSON.stringify({pass: true, criteria: [{criterion: "output", pass: true, detail: ""}]}));\n',
+    "evaluate-tamper",
+  );
+  const result = await evaluateTrial(t);
+  assert.equal(result.pass, false);
+  assert.match(result.error ?? "", /modified the workspace/);
+});
+
+test("a verdict that claims pass while a criterion fails is not a pass", async () => {
+  const t = await trialWithEvaluator(
+    'process.stdout.write(JSON.stringify({pass: true, criteria: [{criterion: "output", pass: false, detail: "wrong"}]}));\n',
+    "evaluate-inconsistent",
+  );
+  const result = await evaluateTrial(t);
+  assert.equal(result.pass, false);
+  assert.match(result.error ?? "", /claims pass=true but criterion output failed/);
+});
+
+test("a pass asserted with no criteria at all is not a pass", async () => {
+  const t = await trialWithEvaluator(
+    "process.stdout.write(JSON.stringify({pass: true, criteria: []}));\n",
+    "evaluate-no-criteria",
+  );
+  const result = await evaluateTrial(t);
+  assert.equal(result.pass, false);
+  assert.match(result.error ?? "", /claims pass=true but reports no criteria/);
+});
+
 test("an evaluator that prints no verdict fails closed", async () => {
-  const t = await trial(runsB, "evaluate-empty");
-  await withEvaluator(t, "console.log('working...');\n");
+  const t = await trialWithEvaluator("console.log('working...');\n", "evaluate-empty");
   const result = await evaluateTrial(t);
   assert.equal(result.pass, false);
   assert.match(result.error ?? "", /printed nothing|no JSON object/);
@@ -144,18 +226,17 @@ test("an evaluator that prints no verdict fails closed", async () => {
 });
 
 test("an evaluator that prints unparseable output fails closed", async () => {
-  const t = await trial(runsB, "evaluate-garbage");
-  await withEvaluator(t, 'console.log("{almost");\n');
+  const t = await trialWithEvaluator('console.log("{almost");\n', "evaluate-garbage");
   const result = await evaluateTrial(t);
   assert.equal(result.pass, false);
   assert.match(result.error ?? "", /unparseable|no JSON object/);
 });
 
 test("an evaluator whose exit code disagrees with its verdict is not trusted", async () => {
-  const t = await trial(runsB, "evaluate-disagreement");
-  await withEvaluator(
-    t,
-    'process.stdout.write(JSON.stringify({pass: true, criteria: []}));\nprocess.exitCode = 1;\n',
+  const t = await trialWithEvaluator(
+    'process.stdout.write(JSON.stringify({pass: true, criteria: [{criterion: "ok", pass: true, detail: ""}]}));\n' +
+      "process.exitCode = 1;\n",
+    "evaluate-disagreement",
   );
   const result = await evaluateTrial(t);
   assert.equal(result.pass, false);
@@ -163,8 +244,7 @@ test("an evaluator whose exit code disagrees with its verdict is not trusted", a
 });
 
 test("an evaluator that exceeds its budget is killed and fails closed", async () => {
-  const t = await trial(runsB, "evaluate-timeout");
-  await withEvaluator(t, "setTimeout(() => {}, 60000);\n");
+  const t = await trialWithEvaluator("setTimeout(() => {}, 60000);\n", "evaluate-timeout");
   const result = await evaluateTrial(t, { budgetSeconds: 1 });
   assert.equal(result.pass, false);
   assert.match(result.error ?? "", /exceeded its 1s budget/);
@@ -173,8 +253,7 @@ test("an evaluator that exceeds its budget is killed and fails closed", async ()
 });
 
 test("an evaluator that crashes records the crash rather than passing", async () => {
-  const t = await trial(runsB, "evaluate-crash");
-  await withEvaluator(t, "throw new Error('judge is broken');\n");
+  const t = await trialWithEvaluator("throw new Error('judge is broken');\n", "evaluate-crash");
   const result = await evaluateTrial(t);
   assert.equal(result.pass, false);
   assert.match(result.error ?? "", /printed nothing|no JSON object/);
