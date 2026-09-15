@@ -33,7 +33,7 @@ no longer hypothetical.
 |---|---|---|
 | **M0 Runtime** | Real Pi/RSIH episode runs reproducibly on the server with controlled network and evidence capture | **Done** |
 | **M1 Experiment** | Resettable fixture → isolated real agent → protected external evaluator → authoritative evaluation record | **Done** |
-| **M2 Harness improvement** | Evidence → candidate harness change → fresh parent/candidate trials → selection | Not yet |
+| **M2 Harness improvement** | Evidence → candidate harness change → fresh parent/candidate trials → selection | **In progress** |
 | **M3 CFD loop** | Real solver incident → diagnosis → solver/recipe change → regression/evaluation → reusable harness learning | Not yet |
 | **M4 MASCOTTE campaign** | Full CH₄/O₂ application with physical and experimental evaluation | Not yet |
 | **M5 Generalization** | Second solver family + repeated fixture/promotion evidence + cross-profile learning | Later |
