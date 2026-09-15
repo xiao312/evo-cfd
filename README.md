@@ -137,6 +137,44 @@ empty root-owned directory, and the probe reports a writable-less workspace and
 a missing prompt — a failure that looks like a broken boundary but is a broken
 path.
 
+## Evaluation
+
+Evaluation is the moment the loop becomes answerable: it turns workspace
+changes into a verdict that can be compared across trials. `evaluate.ts` is
+written so that conversion cannot become optimistic.
+
+The evaluator contract is small and deliberately awkward to satisfy by
+accident:
+
+```text
+node check.mjs <agent-workspace>
+```
+
+It prints one JSON object — `{ pass, criteria: [{ criterion, pass, detail }] }`
+— and exits zero when the task is solved. Wherever the controller cannot obtain
+that object intact, the result records a failure and says which: the package is
+missing, the output contains no verdict, the JSON is unparseable, or the process
+exceeded its budget and was killed. A pass that survives an evaluator failure
+would not be evidence of anything.
+
+The verdict's own `pass` is authoritative, and the exit code is a witness that
+may only contradict it in the optimistic direction. A verdict claiming success
+from a process that exited non-zero has its pass withdrawn; a failure reported by
+a process that exited 1 is the ordinary failing case and is recorded as a
+judgement, not a fault.
+
+A result is written once, by staging the file and renaming it, so a reader never
+observes a half-written verdict and a judge cannot revise history after the
+fact. Evaluating a trial that already has a result is an error rather than an
+overwrite — and an existing but unparseable result is treated as a state fault
+to investigate, not an opportunity to overwrite it. `resetTrial` clears the
+recorded verdict along with the agent view it belonged to, so a pristine
+workspace honestly has no result.
+
+The result carries the identity of what judged what: the evaluator digest, the
+workspace digest of the state that was judged, and the trial identity. It never
+carries a credential.
+
 ## Working in this repository
 
 There is nothing to install. EvoCFD has no external dependencies, so running

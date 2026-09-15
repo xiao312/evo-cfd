@@ -152,7 +152,13 @@ tested) but:
 > an actual agent-side process attempts to access the known evaluator path and
 > receives `EACCES` / not-mounted.
 
-### PR 4B — authoritative evaluation
+### PR 4B — authoritative evaluation  ✅ done
+
+Implemented as `packages/controller/src/evaluate.ts` + `evaluate.test.ts` (14
+tests, all fail-closed paths covered). Delivered as `private/result.json`
+written once; the field names below were simplified during implementation
+(`pass`/`criteria`/`evaluator_digest`/`workspace_digest`) but the contract is the
+one described here.
 
 Implement `evaluate.ts`. Do not let every evaluator invent its own protocol.
 
