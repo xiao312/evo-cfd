@@ -485,34 +485,122 @@ test("a lineage whose parent is missing is a break, not a prefix", async () => {
   );
 });
 
+test("a lineage whose parent exists but under a forged identity is a break", async () => {
+  const root = await mkdtemp(join(tmpdir(), "harness-"));
+  const genomesRoot = join(root, "genomes");
+  const seed = await seedHarness(root);
+
+  // A candidate whose parent *is* present, but whose record claims an identity
+  // the parent does not have: a record moved into the wrong lineage, or a
+  // parent that changed after the candidate was built against it. Trusting the
+  // claim would compare this candidate against something that is not what it
+  // was built from.
+  const candidateDir = join(genomesRoot, "m1-candidate-021");
+  await writeCandidate(seed.dir, candidateDir, "evocfd:m1-candidate-021", "forged");
+  await recordCandidate({
+    genomeDir: candidateDir,
+    candidateSnapshot: await snapshotOf(root, candidateDir),
+    record: {
+      candidate_genome_id: "evocfd:m1-candidate-021",
+      parent_genome_id: SEED_GENOME_ID,
+      parent_harness_identity: "f".repeat(64),
+      change: { kind: "skill_upsert", skill: "s", rationale: "r", proposer_episode: "e" },
+      status: "proposed",
+    },
+  });
+
+  await assert.rejects(
+    () =>
+      candidateLineage({
+        genomesRoot,
+        genomeId: "evocfd:m1-candidate-021",
+        agentConfigDir: join(root, "agent-config"),
+        rsihRevision: "33c4f8d",
+        piVersion: "0.84.3",
+      }),
+    (error: Error) =>
+      error instanceof LineageBreakError && /claims parent identity/.test(error.message),
+  );
+});
+
+test("a candidate record found in the wrong bundle is a break", async () => {
+  const root = await mkdtemp(join(tmpdir(), "harness-"));
+  const genomesRoot = join(root, "genomes");
+  const seed = await seedHarness(root);
+
+  // The record names a genome id that is not the bundle it sits in — a
+  // directory renamed, or a record hand-edited into the wrong bundle. This
+  // cannot be written through recordCandidate, which is precisely why the
+  // walker has to check it as well.
+  const candidateDir = join(genomesRoot, "m1-candidate-022");
+  await writeCandidate(seed.dir, candidateDir, "evocfd:m1-candidate-022", "mislabeled");
+  await writeFile(
+    join(candidateDir, "candidate.json"),
+    JSON.stringify(
+      {
+        candidate_genome_id: "evocfd:totally-different",
+        parent_genome_id: SEED_GENOME_ID,
+        parent_harness_identity: harnessIdentity(seed.snapshot),
+        candidate_harness_identity: harnessIdentity(await snapshotOf(root, candidateDir)),
+        change: { kind: "skill_upsert", skill: "s", rationale: "r", proposer_episode: "e" },
+        status: "proposed",
+        created_at: "2026-01-01T00:00:00.000Z",
+      },
+      null,
+      2,
+    ) + "\n",
+  );
+
+  await assert.rejects(
+    () =>
+      candidateLineage({
+        genomesRoot,
+        genomeId: "evocfd:m1-candidate-022",
+        agentConfigDir: join(root, "agent-config"),
+        rsihRevision: "33c4f8d",
+        piVersion: "0.84.3",
+      }),
+    (error: Error) =>
+      error instanceof LineageBreakError && /claims genome id/.test(error.message),
+  );
+});
+
 test("cyclic ancestry is refused", async () => {
   const root = await mkdtemp(join(tmpdir(), "harness-"));
   const genomesRoot = join(root, "genomes");
   const seed = await seedHarness(root);
 
   const aDir = join(genomesRoot, "m1-candidate-030");
+  const bDir = join(genomesRoot, "m1-candidate-031");
   await writeCandidate(seed.dir, aDir, "evocfd:m1-candidate-030", "a");
+  await writeCandidate(seed.dir, bDir, "evocfd:m1-candidate-031", "b");
+
+  // A genuine two-cycle: each candidate claims the other as parent, and each
+  // claim is backed by the other's real identity. Identity claims are verified
+  // on the walk, so a cycle made of forgeries would be rejected earlier and
+  // would not exercise the cycle check itself.
+  const [identityA, identityB] = await Promise.all([
+    snapshotOf(root, aDir).then(harnessIdentity),
+    snapshotOf(root, bDir).then(harnessIdentity),
+  ]);
   await recordCandidate({
     genomeDir: aDir,
     candidateSnapshot: await snapshotOf(root, aDir),
     record: {
       candidate_genome_id: "evocfd:m1-candidate-030",
       parent_genome_id: "evocfd:m1-candidate-031",
-      parent_harness_identity: "0".repeat(64),
+      parent_harness_identity: identityB,
       change: { kind: "skill_upsert", skill: "s", rationale: "r", proposer_episode: "e" },
       status: "proposed",
     },
   });
-
-  const bDir = join(genomesRoot, "m1-candidate-031");
-  await writeCandidate(seed.dir, bDir, "evocfd:m1-candidate-031", "b");
   await recordCandidate({
     genomeDir: bDir,
     candidateSnapshot: await snapshotOf(root, bDir),
     record: {
       candidate_genome_id: "evocfd:m1-candidate-031",
       parent_genome_id: "evocfd:m1-candidate-030",
-      parent_harness_identity: "0".repeat(64),
+      parent_harness_identity: identityA,
       change: { kind: "skill_upsert", skill: "s", rationale: "r", proposer_episode: "e" },
       status: "proposed",
     },
@@ -561,7 +649,9 @@ test("a seed whose parent points at itself is a cycle, not a lineage", async () 
     record: {
       candidate_genome_id: SEED_GENOME_ID,
       parent_genome_id: SEED_GENOME_ID,
-      parent_harness_identity: "0".repeat(64),
+      // Its own real identity, so the self-claim passes verification and the
+      // walk reaches the cycle check rather than the identity check.
+      parent_harness_identity: harnessIdentity(await snapshotOf(root, join(genomesRoot, "self-parent"))),
       change: { kind: "skill_upsert", skill: "s", rationale: "r", proposer_episode: "e" },
       status: "proposed",
     },

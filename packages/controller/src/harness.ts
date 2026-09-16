@@ -221,6 +221,12 @@ export class CandidateMissingError extends Error {
  * it is, so a record cannot claim an identity its bundle does not have. The
  * write is staged: the record is built beside the destination and renamed into
  * place, so a candidate is either complete or absent, never half-described.
+ *
+ * This is the only way a candidate record comes into existence, so it is also
+ * the chokepoint for the record's status. `proposed` is the only value
+ * accepted here: activation is a state transition that needs trial evidence
+ * this function does not have, and a caller that could write `activated` could
+ * skip the comparison the whole design exists to run.
  */
 export async function recordCandidate(input: {
   genomeDir: string;
@@ -231,6 +237,19 @@ export async function recordCandidate(input: {
   const target = join(input.genomeDir, CANDIDATE_FILE);
   if (await pathExists(target)) {
     throw new CandidateExistsError(`a candidate record already exists at ${target}`);
+  }
+  if (input.record.status !== "proposed") {
+    throw new HarnessError(
+      `a candidate record may only be created as proposed, got ${JSON.stringify(input.record.status)}`,
+    );
+  }
+  if (input.record.candidate_genome_id !== input.candidateSnapshot.genome_id) {
+    throw new HarnessError(
+      `the record claims genome id ${input.record.candidate_genome_id} but the bundle declares ${input.candidateSnapshot.genome_id}`,
+    );
+  }
+  if (!input.record.parent_harness_identity) {
+    throw new HarnessError("a candidate record requires its parent's harness identity");
   }
 
   const record: CandidateRecord = {
@@ -323,6 +342,12 @@ function parseCandidateRecord(raw: string, genomeDir: string): CandidateRecord {
  * seed — or reports a parent that cannot be found, which is a lineage break:
  * a candidate whose ancestry is missing cannot be compared to anything, and
  * saying so is more useful than returning a truncated chain silently.
+ *
+ * Identities are recomputed and checked against what each record claims. A
+ * record is a file, and a file can be edited, moved into the wrong bundle, or
+ * written against a parent that has since changed; a lineage that trusted its
+ * own claims would propagate any of those silently. The check is what makes a
+ * lineage evidence rather than a story.
  */
 export interface LineageLink {
   genome_id: string;
@@ -368,9 +393,10 @@ export async function candidateLineage(input: HarnessBase & {
       rsihRevision: input.rsihRevision,
       piVersion: input.piVersion,
     });
+    const actualIdentity = harnessIdentity(snapshot);
     const link: LineageLink = {
       genome_id: current,
-      harness_identity: harnessIdentity(snapshot),
+      harness_identity: actualIdentity,
     };
     if (pendingChange) link.change = pendingChange;
     chain.unshift(link);
@@ -385,6 +411,50 @@ export async function candidateLineage(input: HarnessBase & {
       throw error;
     }
     pendingChange = candidate.change;
+
+    // A candidate link must describe the bundle it sits in. A record whose
+    // claimed identity does not match the bundle it was found in is not a
+    // lineage, it is a mislabeled directory, and walking on would produce a
+    // chain whose identities are assertions.
+    if (candidate.candidate_genome_id !== current) {
+      throw new LineageBreakError(
+        `the candidate record at ${dir} claims genome id ${candidate.candidate_genome_id} but was found in the bundle for ${current}`,
+      );
+    }
+    if (candidate.candidate_harness_identity !== actualIdentity) {
+      throw new LineageBreakError(
+        `the candidate record at ${dir} claims harness identity ${displayHarnessIdentity(
+          candidate.candidate_harness_identity,
+        )} but the bundle recomputes to ${displayHarnessIdentity(actualIdentity)}`,
+      );
+    }
+
+    // The parent's identity is claimed too, and it is the one that matters for
+    // a comparison: it says what the candidate was built against. The parent
+    // is resolved and recomputed here, because claiming is not being.
+    const parentDir = await resolve(input.genomesRoot, candidate.parent_genome_id);
+    if (parentDir === null) {
+      throw new LineageBreakError(
+        `the candidate ${current} declares parent ${candidate.parent_genome_id}, which is not present under ${input.genomesRoot}`,
+      );
+    }
+    const parentSnapshot = await buildHarnessSnapshot({
+      genomeDir: parentDir,
+      agentConfigDir: input.agentConfigDir,
+      rsihRevision: input.rsihRevision,
+      piVersion: input.piVersion,
+    });
+    const parentIdentity = harnessIdentity(parentSnapshot);
+    if (candidate.parent_harness_identity !== parentIdentity) {
+      throw new LineageBreakError(
+        `the candidate ${current} claims parent identity ${displayHarnessIdentity(
+          candidate.parent_harness_identity,
+        )} but the parent bundle ${candidate.parent_genome_id} recomputes to ${displayHarnessIdentity(
+          parentIdentity,
+        )}`,
+      );
+    }
+
     current = candidate.parent_genome_id;
   }
 }

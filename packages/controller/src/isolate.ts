@@ -24,7 +24,16 @@
  * before — but that a process running as the agent cannot open the evaluator
  * path at all.
  */
-import { isAbsolute, join, relative } from "node:path";
+import { isAbsolute, join, relative, sep } from "node:path";
+
+/**
+ * Host paths are consumed by the host's Docker daemon, which is a Linux
+ * process, so a bind-mount source is always a POSIX path — even when the
+ * launch plan is built on a machine that edits the repository on Windows.
+ */
+function toPosixHost(host: string): string {
+  return sep === "\\" ? host.split("\\").join("/") : host;
+}
 
 /** What the agent is given, in host terms. All paths must be absolute. */
 export interface IsolationSpec {
@@ -76,12 +85,12 @@ export interface AgentContainerLaunch {
   denied: string[];
 }
 
-const TASK_PATH = "/task";
+export const TASK_PATH = "/task";
 const WORKSPACE_PATH = "/task/workspace";
-const RSIH_PATH = "/rsih";
-const AGENT_STATE_PATH = "/agent-state";
+export const RSIH_PATH = "/rsih";
+export const AGENT_STATE_PATH = "/agent-state";
 const AGENT_RUNTIME_PATH = "/agent-runtime";
-const GENOME_PATH = "/genome";
+export const GENOME_PATH = "/genome";
 
 /**
  * Build the launch arguments for an isolated agent container.
@@ -104,25 +113,25 @@ export function buildAgentContainer(spec: IsolationSpec, image: string): AgentCo
 
   const mounts: MountEntry[] = [
     {
-      host: join(spec.trialRoot, "agent"),
+      host: toPosixHost(join(spec.trialRoot, "agent")),
       container: TASK_PATH,
       mode: "ro",
       reason: "the prompt and workspace, read-only at the top level",
     },
     {
-      host: join(spec.trialRoot, "agent", "workspace"),
+      host: toPosixHost(join(spec.trialRoot, "agent", "workspace")),
       container: WORKSPACE_PATH,
       mode: "rw",
       reason: "the only place the agent may change",
     },
     {
-      host: spec.rsihDir,
+      host: toPosixHost(spec.rsihDir),
       container: RSIH_PATH,
       mode: "ro",
       reason: "the harness runtime the agent may execute",
     },
     {
-      host: spec.agentStateDir,
+      host: toPosixHost(spec.agentStateDir),
       container: AGENT_STATE_PATH,
       mode: "rw",
       reason: "the agent's session directory, writable, outside the task",
@@ -130,7 +139,7 @@ export function buildAgentContainer(spec: IsolationSpec, image: string): AgentCo
   ];
   if (spec.agentRuntimeDir) {
     mounts.push({
-      host: spec.agentRuntimeDir,
+      host: toPosixHost(spec.agentRuntimeDir),
       container: AGENT_RUNTIME_PATH,
       mode: "ro",
       reason: "the agent runtime the worker executes",
@@ -138,7 +147,7 @@ export function buildAgentContainer(spec: IsolationSpec, image: string): AgentCo
   }
   if (spec.genomeDir) {
     mounts.push({
-      host: spec.genomeDir,
+      host: toPosixHost(spec.genomeDir),
       container: GENOME_PATH,
       mode: "ro",
       reason: "the Genome bundle that defines this trial's harness",
@@ -184,8 +193,122 @@ export function buildAgentContainer(spec: IsolationSpec, image: string): AgentCo
  * mounted is unreachable, which is the whole of the boundary.
  */
 export function isMounted(launch: AgentContainerLaunch, hostPath: string): boolean {
+  const query = toPosixHost(hostPath);
   return launch.mounts.some((mount) => {
-    const rel = relative(mount.host, hostPath);
+    const rel = relative(mount.host, query);
     return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
   });
+}
+
+/** Paths a proposer container needs, all absolute and host-side. */
+export interface ProposerSpec {
+  /** Absolute host path of the proposal run, e.g. runs/proposal-001. */
+  runRoot: string;
+  /** Absolute host path of the RSI-Harness runtime the proposer executes. */
+  rsihDir: string;
+  /** Absolute host path of a writable directory for the proposer's session. */
+  agentStateDir: string;
+  /** Absolute host path of the proposer's own Genome bundle, mounted read-only. */
+  genomeDir: string;
+  uid: number;
+  gid: number;
+  tmpfsSizeMb?: number;
+  extraHosts?: string[];
+}
+
+const PROPOSAL_INPUT_PATH = "/proposal-input";
+const PROPOSAL_OUTPUT_PATH = "/output";
+
+/**
+ * Build the launch arguments for a proposer container.
+ *
+ * The boundary is the same idea as a trial's, with two differences that follow
+ * from what a proposer is for. It reads recorded evidence instead of a task
+ * workspace, and its only writable path is the output directory, so the one
+ * thing it can produce is the one file it is allowed to write.
+ *
+ * Pure, like `buildAgentContainer`: the same spec yields the same command, so
+ * the boundary is testable without running anything.
+ */
+export function buildProposerContainer(spec: ProposerSpec, image: string): AgentContainerLaunch {
+  for (const [name, value] of [
+    ["runRoot", spec.runRoot],
+    ["rsihDir", spec.rsihDir],
+    ["agentStateDir", spec.agentStateDir],
+    ["genomeDir", spec.genomeDir],
+  ] as const) {
+    if (!isAbsolute(value))
+      throw new Error(`ProposerSpec.${name} must be an absolute path, got: ${value}`);
+  }
+  if (spec.uid === 0 || spec.gid === 0) {
+    throw new Error("the proposer container must not run as root");
+  }
+
+  const mounts: MountEntry[] = [
+    {
+      host: toPosixHost(join(spec.runRoot, "agent")),
+      container: TASK_PATH,
+      mode: "ro",
+      reason: "the proposer's prompt, read-only",
+    },
+    {
+      host: toPosixHost(join(spec.runRoot, "private", "proposal-input")),
+      container: PROPOSAL_INPUT_PATH,
+      mode: "ro",
+      reason: "recorded evidence and the read-only parent Genome",
+    },
+    {
+      host: toPosixHost(join(spec.runRoot, "private", "output")),
+      container: PROPOSAL_OUTPUT_PATH,
+      mode: "rw",
+      reason: "the only place the proposer may write: its proposal",
+    },
+    {
+      host: toPosixHost(spec.rsihDir),
+      container: RSIH_PATH,
+      mode: "ro",
+      reason: "the harness runtime the proposer executes",
+    },
+    {
+      host: toPosixHost(spec.agentStateDir),
+      container: AGENT_STATE_PATH,
+      mode: "rw",
+      reason: "the proposer's session directory, outside the evidence",
+    },
+    {
+      host: toPosixHost(spec.genomeDir),
+      container: GENOME_PATH,
+      mode: "ro",
+      reason: "the proposer's own Genome, never the one it reviews",
+    },
+  ];
+
+  const args = [
+    "--rm",
+    "--cap-drop=ALL",
+    "--security-opt=no-new-privileges",
+    `--user=${spec.uid}:${spec.gid}`,
+    "--read-only",
+    `--tmpfs=/tmp:rw,size=${spec.tmpfsSizeMb ?? 64}m,exec`,
+    ...mounts.flatMap((mount) => ["-v", `${mount.host}:${mount.container}:${mount.mode}`]),
+    ...(spec.extraHosts ?? []).flatMap((host) => ["--add-host", host]),
+    "-w",
+    PROPOSAL_OUTPUT_PATH,
+    image,
+  ];
+
+  return {
+    image,
+    args,
+    mounts,
+    // The proposer must not reach: the evaluator packages of the trials it
+    // reads about, other proposal runs, the writable Genome tree it reviews,
+    // and anything else in the run root.
+    denied: [
+      join(spec.runRoot, "private", "output"),
+      join(spec.runRoot, "private"),
+      join(spec.runRoot, "agent"),
+      spec.runRoot,
+    ],
+  };
 }

@@ -38,8 +38,8 @@ no longer hypothetical.
 | **M4 MASCOTTE campaign** | Full CH₄/O₂ application with physical and experimental evaluation | Not yet |
 | **M5 Generalization** | Second solver family + repeated fixture/promotion evidence + cross-profile learning | Later |
 
-We are *almost at the first scientifically meaningful milestone*. Not almost
-done.
+We are *at* the first scientifically meaningful milestone and building the
+second. Not almost done.
 
 ## PR sequence
 
@@ -54,10 +54,8 @@ NOW
 │
 │          ★ M1: experimental agent workbench   ✅
 │
-├─ PR 5    harness identity + candidates        ✅
-│
-├─ PR 5     harness identity
-├─ PR 6     bounded candidate generation
+├─ PR 5     harness identity + candidates      ✅
+├─ PR 6     bounded candidate generation       ✅
 ├─ PR 7     parent/candidate selection
 │
 │          ★ M2: primitive self-improving harness
@@ -272,13 +270,37 @@ A record is excluded from the digest of what it describes: `candidate.json` is
 not hashed, because a file containing its own identity cannot be written down
 without changing it.
 
-### PR 6 — bounded candidate generation
+### PR 6 — bounded candidate generation  ✅ done
 
 A **separate stable proposer episode** produces a bounded candidate from
-completed evidence. Initially allow only upsert/modify of **one skill** — no
+completed evidence. Only upsert/modify of **one skill** is representable — no
 solver modifications, no extension-writing, no model switching. The proposer
-may inspect the trial, trajectory, evaluation and parent harness, but cannot
-activate its candidate.
+inspects the trial, trajectory, evaluation and parent harness, but cannot
+activate its candidate: it writes one file, and a deterministic builder decides
+what becomes of it.
+
+What exists:
+
+- `packages/controller/src/proposal.ts` — the proposal schema and its
+  validation. A `no_change` decision is first-class, because most evidence
+  supports it and a proposer that invents a gap to justify being run is worse
+  than one that finds nothing.
+- `packages/controller/src/evidence.ts` — a read-only, digested evidence
+  package assembled from recorded artifacts only. The evaluation *result* is
+  copied in; the evaluation *package* never is.
+- `packages/controller/src/candidate-builder.ts` — deterministic construction:
+  validate the proposal, snapshot the parent from its real bytes, copy, apply
+  one skill change, load the bundle through RSI-Harness's own validator, then
+  check identity, diff against a per-kind allowlist, and publish atomically or
+  remove the staging entirely.
+- `genomes/evocfd-proposer/` — the proposer's own Genome, outside the lineage
+  it reviews.
+- `scripts/run-proposer.ts`, `scripts/execute-proposer.ts`,
+  `scripts/build-candidate.ts` — the same prepare/execute/construct split a
+  trial uses, for the same reason: what runs is what was written down.
+- Two PR 5 integrity gaps closed: `recordCandidate` accepts only `proposed`
+  and only for the bundle it sits in, and `candidateLineage` recomputes every
+  identity it walks and rejects a claim that does not match the bundle.
 
 ### PR 7 — parent/candidate experiment
 

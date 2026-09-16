@@ -29,8 +29,11 @@ packages/controller/     Campaign and improvement machinery
 packages/rsih-adapter/   Narrow integration with RSI-Harness
 third_party/RSI-Harness/ Upstream runtime (local only, see THIRD_PARTY.md)
 cfd-baseline/            One baseline: harness + two solver profiles + task
-fixtures/                Reviewed, resettable investigation tasks
-runs/                    Generated workspaces and results (not committed)
+fixtures/                 Reviewed, resettable investigation tasks
+genomes/                  Genome bundles: the seed, candidates, the proposer
+config/agent-seed/        Agent configuration (no credential in the repository copy)
+config/genome-templates/  Contracts a candidate installs, e.g. the skills component
+runs/                     Generated workspaces and results (not committed)
 ```
 
 ## Fixtures
@@ -267,7 +270,65 @@ could not be written down without changing it.
 
 Lineage walks from a candidate back to its seed and reports a break rather than
 a truncated chain when an ancestor is missing, because a candidate with no
-ancestry cannot be compared to anything.
+ancestry cannot be compared to anything. It also recomputes every identity on
+the walk and rejects a record whose claim does not match the bundle it sits in:
+a lineage is evidence, not a set of assertions.
+
+## Proposing a candidate
+
+A candidate starts as a proposal, and a proposal starts as evidence. The loop
+is three commands in three places, like a trial, because a proposer is an agent
+episode and is recorded the same way.
+
+```text
+recorded trial(s) ── assemble evidence ──┐
+                                        ↓
+                          proposer episode (isolated)
+                                        ↓
+                              private/output/proposal.json
+                                        ↓
+                          deterministic candidate builder
+                                        ↓
+                  no_change │ duplicate │ built │ rejected
+```
+
+Prepare, on the machine that edits the repository:
+
+```bash
+node scripts/run-proposer.ts --parent evocfd:m1-baseline \
+  --trials m1-trial-001,m1-trial-002 --run-id proposal-001
+```
+
+This materializes a read-only evidence package at
+`runs/proposal-001/private/proposal-input/` and writes the proposer's launch
+plan. The package carries the trial manifests, the task the agent saw, the raw
+event stream, the verdict, and the parent Genome — but never the evaluator that
+produced the verdict and never the fixture's held-out files. The digest of the
+package is recorded on the run, because a proposer that saw a different package
+made a different proposal.
+
+Execute where Docker lives, with `EVOCFD_GATEWAY_TOKEN` set:
+
+```bash
+node scripts/execute-proposer.ts proposal-001
+node scripts/build-candidate.ts proposal-001 --parent evocfd:m1-baseline
+```
+
+The builder is deterministic and refuses more than it accepts. It validates the
+proposal, snapshots the parent from its real bytes rather than trusting any
+identity the proposal supplies, applies exactly one skill change, loads the
+resulting bundle through RSI-Harness's own validator, and then checks that the
+candidate's identity differs from its parent's, that the changed-file set is
+exactly what the change kind permits, and that the parent is still untouched.
+Only then is the bundle published and `candidate.json` written, as `proposed`.
+
+`no_change` and `duplicate` are outcomes and not errors: a run that found
+nothing to change produced the correct artifact, and so did one that found the
+candidate already built. `rejected` says why nothing was built. Nothing in this
+loop activates a candidate — that takes trials of its own, which is PR 7.
+
+The proposer runs under its own Genome, `evocfd:proposer`, which is outside the
+lineage it reviews. An instrument cannot be part of what it measures.
 
 ## Working in this repository
 

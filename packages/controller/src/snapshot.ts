@@ -215,9 +215,31 @@ export async function digestTree(root: string, exclude: string[] = []): Promise<
   return { digest: hash.digest("hex"), files, directories };
 }
 
+/**
+ * Per-file digests for a tree: relative names to content digests. Used where a
+ * caller needs to know *which* file changed, not merely that the tree did —
+ * a candidate's changed-file allowlist is the main caller.
+ */
+export async function digestFileMap(
+  root: string,
+  exclude: string[] = [],
+): Promise<Map<string, string>> {
+  const excluded = new Set(exclude);
+  const entries = new Map<string, string>();
+  await walk(root, "", {
+    onFile: async (rel) => {
+      if (excluded.has(rel)) return;
+      const content = await readFile(join(root, ...rel.split("/")));
+      entries.set(rel, createHash("sha256").update(content).digest("hex"));
+    },
+    onDirectory: () => {},
+  });
+  return entries;
+}
+
 interface WalkVisitor {
-  onFile: (rel: string) => void;
-  onDirectory: (rel: string) => void;
+  onFile: (rel: string) => void | Promise<void>;
+  onDirectory: (rel: string) => void | Promise<void>;
 }
 
 async function walk(root: string, relDir: string, visitor: WalkVisitor): Promise<void> {
@@ -225,10 +247,12 @@ async function walk(root: string, relDir: string, visitor: WalkVisitor): Promise
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     const rel = relDir === "" ? entry.name : `${relDir}/${entry.name}`;
     if (entry.isDirectory()) {
-      visitor.onDirectory(rel);
+      await visitor.onDirectory(rel);
       await walk(root, rel, visitor);
     } else if (entry.isFile()) {
-      visitor.onFile(rel);
+      // Awaited: a visitor that hashes a file is async, and returning before it
+      // finishes would hand the caller a map with entries still missing.
+      await visitor.onFile(rel);
     }
   }
 }
