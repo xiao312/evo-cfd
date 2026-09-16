@@ -41,6 +41,24 @@ no longer hypothetical.
 We are *at* the first scientifically meaningful milestone and building the
 second. Not almost done.
 
+### Why the next milestone is CFD, not more controls
+
+M2's remaining question is whether a candidate harness *behaves differently*
+from its parent. The three control Genomes answered the question that came
+before it — can a deficiency be injected into evidence at all — and the answer
+was that on this fixture the model absorbs instruction-level deficiencies, so a
+repeated-iteration loop on the toy fixture has nothing to measure. More
+controls on the same fixture would produce more negative results at the same
+point, which is not progress.
+
+PR 7A is therefore the *thinnest* version of the comparison — enough to say
+"this candidate is not its parent" and no more — and then the loop moves to a
+domain where a task genuinely exceeds what the model already knows. That is
+PR 8 and the CFD fixtures: a solver that fails to converge, a thermo state that
+is inconsistent, a coupled numerical instability. Those are failures a skill
+can address and a model cannot paper over, which is exactly what the `propose`
+path has never been exercised on.
+
 ## PR sequence
 
 ```text
@@ -56,17 +74,19 @@ NOW
 │
 ├─ PR 5     harness identity + candidates      ✅
 ├─ PR 6     bounded candidate generation       ✅
-├─ PR 7     parent/candidate selection
+├─ PR 6.1   candidate-integrity hardening      ✅
+├─ PR 7A    minimal parent/candidate trial      ← the thinnest version that
+│          can say “this candidate is not the parent”
 │
-│          ★ M2: primitive self-improving harness
-│
-├─ PR 8     OF8 + realFluid execution
+├─ PR 8     OF8 + realFluid execution          ← the pivot
 ├─ CFD-001  provenance fixture
 ├─ CFD-002  thermo fixture
 ├─ CFD-003  coupled numerical fixture
 │
 │          ★ M3: self-improving CFD workbench
 │
+├─ PR 7B    parent/candidate selection at scale ← after CFD proves the loop
+│          pays for itself on a task the model does not already know
 ├─ MASCOTTE G2 baseline campaign
 ├─ real incident → solver / case / harness improvement
 ├─ experimental validation
@@ -312,7 +332,39 @@ real LLM run — the way to change that is a fixture where a skill-addressable
 deficiency actually fails a criterion, which is the first job of the fixture
 work rather than something to force.
 
-### PR 7 — parent/candidate experiment
+### PR 6.1 — candidate-integrity hardening  ✅ done
+
+PR 6's machinery was sound but its integrity guarantees were partly
+conventional. This PR makes them structural:
+
+- **Public CI is green on a clean checkout.** The candidate-builder tests no
+  longer invoke the pinned RSI-Harness, which is gitignored and absent from a
+  fresh clone. Unit tests validate bundle *shape* through an injected stub;
+  the one assertion that needs the real runtime skips with a stated reason and
+  is covered by the CI-rsih tier instead.
+- **A candidate is identified by content, not by `(parent, skill)`.** Two
+  candidates of the same skill from the same parent with different bytes are
+  two candidates, and both can exist; a repeated proposal is still a duplicate.
+- **`skill_upsert` is refused for a skill the parent already registers** — that
+  is a modify wearing an upsert's label, and the two have different provenance.
+- **Every evidence reference is grounded**: relative, inside the package,
+  existing, and naming a trial artifact rather than the package's bookkeeping.
+  A proposal to change the harness must rest on at least one *trial* artifact;
+  reading the parent Genome describes what changes, not why.
+- **A proposal resting on an unjudged trial is refused.** "I have not looked
+  yet" is not "no change needed", and a candidate built from unjudged evidence
+  would be compared as though a verdict had said something.
+- **The proposer's harness identity is recorded on every candidate**, because a
+  candidate with no recorded instrument is not auditable and a silent change of
+  proposer must not be readable as a change of parent.
+- **The `denied` path list is checked against the mount list**, so a boundary
+  that asserts a path is unreachable while mounting it is now a refused launch
+  rather than a probe that passes on a path it was meant to prove unreachable.
+- **`private/report.json`** is the machine-readable twin of each script's
+  console output: write-once, and carrying `no_change`/`duplicate`/`rejected`
+  as first-class statuses rather than as the absence of an outcome.
+
+### PR 7A — the thinnest parent/candidate comparison
 
 ```text
 Fixture reset
@@ -328,11 +380,27 @@ evaluation        evaluation
            comparison
 ```
 
-One trial each proves machinery. Later, 3 fixture families × replicates gives
-evidence for promotion. Only then is there an actual primitive
-self-improvement loop. **M2**.
+Deliberately small: **one** parent trial and **one** candidate trial, on the
+existing fixture, with replication and promotion logic explicitly out of
+scope. The only claim it can support is that a built candidate is loadable,
+runnable and distinguishable from its parent — that the comparison machinery
+works end to end. It is not an experiment about the harness, and it must not be
+read as one: with n=1 there is no power to say anything about which harness is
+better.
 
-### PR 8 — OF8/realFluid execution profile
+If the toy fixture produces no candidate — which is what every real run so far
+has produced — PR 7A compares a control candidate against the baseline and says
+so, rather than forcing a real candidate out of a fixture that has no deficiency
+to repair.
+
+### PR 7B — parent/candidate selection at scale
+
+3 fixture families × replicates, a promotion rule and a ledger over
+`private/report.json`. Deferred until after PR 8: this is where n=1 stops being
+enough, and it is worth doing on a task where the harness actually has
+something to add. **M2** closes here, not at PR 7A.
+
+### PR 8 — OF8/realFluid execution profile  ← the pivot
 
 Pin OpenFOAM 8, the realFluidFoam-8 source revision, compiler/toolchain,
 container digest and linked libraries. Build → tiny existing tutorial/smoke

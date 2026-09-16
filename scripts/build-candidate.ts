@@ -20,6 +20,7 @@ import { fileURLToPath } from "node:url";
 
 import { buildCandidate } from "../packages/controller/src/candidate-builder.ts";
 import { resolveInstallation } from "../packages/rsih-adapter/src/index.ts";
+import { writeReport } from "../packages/controller/src/report.ts";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const RUNS_DIR = join(REPO_ROOT, "runs");
@@ -87,3 +88,37 @@ switch (outcome.kind) {
     if (outcome.proposal) console.log(`decision      ${outcome.proposal.decision}`);
     break;
 }
+
+// The machine-readable twin of the prose above. `no_change`, `duplicate` and
+// `rejected` are outcomes rather than errors, and a ledger that reads this file
+// needs them as first-class statuses — not as the absence of a candidate. A run
+// that produced nothing is a *proposal* report; a run that produced a bundle is
+// a *candidate* report, and the two are what a comparison step distinguishes.
+const produced = outcome.kind === "built" || outcome.kind === "duplicate";
+await writeReport({
+  runRoot: join(RUNS_DIR, RUN_ID),
+  report: {
+    run_id: RUN_ID,
+    run_kind: produced ? "candidate" : "proposal",
+    status:
+      outcome.kind === "built"
+        ? "built"
+        : outcome.kind === "duplicate"
+          ? "duplicate"
+          : outcome.kind === "no_change"
+            ? "no_change"
+            : "rejected",
+    reason: outcome.kind === "rejected" ? outcome.reason : undefined,
+    subject: PARENT_ID,
+    parent_harness_identity: produced ? outcome.record.parent_harness_identity : undefined,
+    candidate_genome_id: produced ? outcome.record.candidate_genome_id : undefined,
+    candidate_harness_identity: produced ? outcome.record.candidate_harness_identity : undefined,
+    proposer_harness_identity: produced ? outcome.record.proposer_harness_identity : undefined,
+    artifacts: produced
+      ? // The candidate itself lives in the genomes tree, outside the run
+        // root, so it is pointed at by id rather than by a relative path
+        // that would have to escape this directory to reach it.
+        ["private/output/proposal.json", `genome:${outcome.record.candidate_genome_id}`]
+      : ["private/output/proposal.json"],
+  },
+});

@@ -198,6 +198,14 @@ export interface CandidateRecord {
   parent_genome_id: string;
   parent_harness_identity: string;
   candidate_harness_identity: string;
+  /**
+   * The identity of the harness that *produced* the proposal, which is not the
+   * parent and never the candidate: the proposer runs under its own Genome,
+   * outside the lineage it reviews. Recording it is what makes a candidate
+   * auditable as "the output of this instrument at this revision" — and what
+   * stops a silent change of proposer from being read as a change of parent.
+   */
+  proposer_harness_identity: string;
   change: CandidateChange;
   /**
    * `proposed` until a trial has actually run under the candidate and been
@@ -251,6 +259,12 @@ export async function recordCandidate(input: {
   if (!input.record.parent_harness_identity) {
     throw new HarnessError("a candidate record requires its parent's harness identity");
   }
+  if (!input.record.proposer_harness_identity) {
+    throw new HarnessError(
+      "a candidate record requires the identity of the harness that produced the proposal; " +
+        "a candidate with no recorded instrument is not auditable",
+    );
+  }
 
   const record: CandidateRecord = {
     ...input.record,
@@ -302,6 +316,7 @@ function parseCandidateRecord(raw: string, genomeDir: string): CandidateRecord {
     "parent_genome_id",
     "parent_harness_identity",
     "candidate_harness_identity",
+    "proposer_harness_identity",
   ];
   for (const key of required) {
     if (typeof record[key] !== "string" || (record[key] as string).length === 0) {
@@ -328,6 +343,7 @@ function parseCandidateRecord(raw: string, genomeDir: string): CandidateRecord {
     parent_genome_id: record.parent_genome_id,
     parent_harness_identity: record.parent_harness_identity,
     candidate_harness_identity: record.candidate_harness_identity,
+    proposer_harness_identity: record.proposer_harness_identity,
     change,
     status: record.status,
     created_at: record.created_at ?? "",

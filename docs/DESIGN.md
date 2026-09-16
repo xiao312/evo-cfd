@@ -196,7 +196,8 @@ investigation tasks; `snapshot.ts` digests bundles and trials into identities;
 and `evidence.ts` bound what a proposer may ask for and what it may see;
 `candidate-builder.ts` constructs a candidate deterministically or refuses it;
 `isolate.ts` is the authority boundary itself; `evaluate.ts` runs versioned
-checks; `gate.ts` will enforce authorization; `select.ts` will distinguish
+checks; `report.ts` is the machine-readable twin of a run's console output;
+`gate.ts` will enforce authorization; `select.ts` will distinguish
 experimental use, provisional evidence, and default promotion.
 
 `packages/rsih-adapter/` — the narrow integration with RSI-Harness: loading a

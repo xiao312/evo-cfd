@@ -100,3 +100,23 @@ real bundles against the pinned RSI-Harness, but no real LLM proposal has yet
 produced a candidate. The way to change that is a fixture where a
 skill-addressable deficiency actually fails a criterion — not a stronger
 misdirection, but a task the model does not already know how to do.
+
+## Why we are not forcing a candidate out of this fixture
+
+It would be easy to contrive one: a fixture whose evaluator only passes when
+some skill fires, so the first proposal has something to build. That has not
+been done, and the reason is that it would manufacture the result the loop
+exists to discover. The three controls established the shape of the problem —
+this model absorbs instruction-level deficiencies, follows verify and report
+unprompted, and even reads past an active misdirection to fix the right thing —
+so a candidate built on this fixture would be a change the model did not need,
+judged against a criterion that was never really at risk. The comparison would
+measure nothing, and worse, it would produce a green checkmark that reads as
+progress.
+
+The honest alternatives are the two the roadmap now commits to: compare a
+control candidate against the baseline under PR 7A, which tests the comparison
+machinery without pretending to test the harness; and move the loop to CFD,
+where a solver that fails to converge or an inconsistent thermo state is a
+deficiency the model cannot talk its way past. `propose` will be exercised by
+a real failure, or not at all.

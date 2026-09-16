@@ -28,6 +28,7 @@ import { evaluateTrial } from "../packages/controller/src/evaluate.ts";
 import { buildHarnessSnapshot, harnessIdentity as harnessIdentityOf, type HarnessSnapshot } from "../packages/controller/src/harness.ts";
 import { loadMaterializedTrial, materializeFixture } from "../packages/controller/src/snapshot.ts";
 import { loadFixture } from "../packages/controller/src/fixtures.ts";
+import { writeReport } from "../packages/controller/src/report.ts";
 import { buildLaunchPlan, resolveInstallation } from "../packages/rsih-adapter/src/index.ts";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -216,5 +217,20 @@ if (MODE_JUDGE) {
     console.log(`  ${criterion.pass ? "pass" : "fail"}  ${criterion.criterion} — ${criterion.detail}`);
   }
   console.log(`identity   ${result.trial_identity}`);
+
+  // The machine-readable twin of the prose above, written beside the verdict so
+  // a later comparison step reads one file instead of parsing a terminal.
+  await writeReport({
+    runRoot: trial.layout.root,
+    report: {
+      run_id: TRIAL_ID,
+      run_kind: "trial",
+      status: result.pass ? "pass" : "fail",
+      reason: result.error,
+      subject: FIXTURE_ID,
+      trial_identity: result.trial_identity,
+      artifacts: ["private/result.json"],
+    },
+  });
   process.exitCode = result.pass ? 0 : 1;
 }

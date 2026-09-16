@@ -7,3 +7,4 @@ export * from "./evaluate.ts";
 export * from "./proposal.ts";
 export * from "./evidence.ts";
 export * from "./candidate-builder.ts";
+export * from "./report.ts";

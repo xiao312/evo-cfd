@@ -1,3 +1,5 @@
+import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
@@ -5,9 +7,20 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
-import { buildCandidate, readProposal, type CandidateBuildContext } from "../src/candidate-builder.ts";
+import {
+  buildCandidate,
+  candidateContentDigest,
+  readProposal,
+  type CandidateBuildContext,
+} from "../src/candidate-builder.ts";
 import { PROPOSER_OUTPUT_DIR } from "../src/evidence.ts";
-import { buildHarnessSnapshot, candidateLineage, readCandidate, recordCandidate } from "../src/harness.ts";
+import {
+  buildHarnessSnapshot,
+  candidateLineage,
+  harnessIdentity,
+  readCandidate,
+  recordCandidate,
+} from "../src/harness.ts";
 import { digestFileMap } from "../src/snapshot.ts";
 import { validateProposal, type HarnessProposal } from "../src/proposal.ts";
 
@@ -16,8 +29,65 @@ const BASELINE = join(REPO_ROOT, "genomes", "m1-baseline");
 const RSIH_DIR = join(REPO_ROOT, "third_party", "RSI-Harness");
 const AGENT_CONFIG_DIR = join(REPO_ROOT, "config", "agent-seed");
 
+const RSIH_PRESENT = existsSync(RSIH_DIR);
+
+/**
+ * A stand-in for `rsih genome validate` that checks what the real one checks
+ * for these bundles: the manifest declares the id the record will claim, the
+ * components it names all exist, and every skill it registers ships a file.
+ * It validates the *shape*, which is what the construction logic can be
+ * trusted on without the runtime; whether the runtime accepts a bundle is a
+ * different question and is answered by CI-rsih.
+ */
+async function stubValidateBundle(input: {
+  rsihDir: string;
+  genomeDir: string;
+  genomeId: string;
+}): Promise<void> {
+  const genomeDir = input.genomeDir;
+  const genomeId = input.genomeId;
+  const manifest = JSON.parse(await readFile(join(genomeDir, "genome.json"), "utf8")) as {
+    genome_id: string;
+    components: Array<{ id: string; source?: string; contract?: string }>;
+  };
+  assert.equal(manifest.genome_id, genomeId, "the manifest must declare the id the builder named");
+  for (const component of manifest.components) {
+    if (component.source) {
+      const source = await readFile(join(genomeDir, component.source), "utf8").catch(() => null);
+      assert.ok(source !== null, `component ${component.id} names a missing source ${component.source}`);
+      if (component.id === "skills") {
+        const config = JSON.parse(source) as { config: { skills: Array<{ source: string }> } };
+        for (const skill of config.config.skills) {
+          const skillFile = await readFile(join(genomeDir, skill.source, "SKILL.md"), "utf8").catch(() => null);
+          assert.ok(skillFile !== null, `the registered skill ${skill.source} ships no SKILL.md`);
+        }
+      }
+    }
+    if (component.contract) {
+      const contract = await readFile(join(genomeDir, component.contract), "utf8").catch(() => null);
+      assert.ok(contract !== null, `component ${component.id} names a missing contract ${component.contract}`);
+    }
+  }
+}
+
 const SKILL = "verify-before-claim";
 const SKILL_FILE = `skills/${SKILL}/SKILL.md`;
+const PARENT_ID = "evocfd:m1-baseline";
+let parentIdentityCached: string | undefined;
+/** The seed's harness identity, computed once: the digest the builder hashes against. */
+async function parentIdentity(): Promise<string> {
+  if (parentIdentityCached === undefined) {
+    parentIdentityCached = harnessIdentity(
+      await buildHarnessSnapshot({
+        genomeDir: BASELINE,
+        agentConfigDir: AGENT_CONFIG_DIR,
+        rsihRevision: "33c4f8d",
+        piVersion: "0.84.3",
+      }),
+    );
+  }
+  return parentIdentityCached;
+}
 const SKILL_CONTENT =
   "---\n" +
   `name: ${SKILL}\n` +
@@ -28,6 +98,55 @@ const SKILL_CONTENT =
   "Run it. Read the output. Then report the outcome.\n";
 
 /** A scratch genomes tree with one baseline parent, plus its run directory. */
+/**
+ * A small evidence package with a recorded, judged trial: exactly what a
+ * proposal is expected to cite. The builder grounds references against this,
+ * so the fixture has to ship one rather than let every test invent paths.
+ */
+/**
+ * The candidate id the builder must produce for a given skill content: parent,
+ * skill, and the content digest the builder computes. The digest function is
+ * imported rather than hard-coded, so a test that varies the content still
+ * expects the id the builder will actually name — and two different contents
+ * get two different ids.
+ */
+function expectedId(content = SKILL_CONTENT, kind: "skill_upsert" | "skill_modify" = "skill_upsert"): string {
+  if (parentIdentityCached === undefined) {
+    throw new Error("expectedId called before parentIdentity() was awaited");
+  }
+  return `${PARENT_ID}--${SKILL}--${candidateContentDigest(parentIdentityCached, {
+    kind,
+    skill: SKILL,
+    skill_content: content,
+  })}`;
+}
+
+function expectedDirName(content = SKILL_CONTENT): string {
+  return expectedId(content).replaceAll(":", "-");
+}
+
+async function writeJudgedEvidence(runRoot: string, trialId = "m1-trial-001"): Promise<void> {
+  const base = join(runRoot, "private", "proposal-input", "evidence", trialId);
+  await mkdir(join(base, "episode"), { recursive: true });
+  await mkdir(join(base, "task"), { recursive: true });
+  await mkdir(join(base, "evaluation"), { recursive: true });
+  await writeFile(join(base, "episode", "events.jsonl"), '{"type":"session"}\n');
+  await writeFile(join(base, "episode", "result.json"), JSON.stringify({ exit_code: 0 }) + "\n");
+  await writeFile(join(base, "task", "TASK.md"), "# Do the thing\n");
+  await writeFile(join(base, "evaluation", "result.json"), JSON.stringify({ verdict: "pass" }) + "\n");
+  await writeFile(join(base, "trial-manifest.json"), JSON.stringify({ trial_id: trialId }) + "\n");
+  await mkdir(join(runRoot, "private", "proposal-input", "parent", "genome"), { recursive: true });
+  // The real package ships the whole parent Genome subtree here; the fixture
+  // mirrors that so a reference to `parent/` resolves as it would for a real
+  // proposer.
+  await cp(BASELINE, join(runRoot, "private", "proposal-input", "parent", "genome"), { recursive: true });
+  await writeFile(
+    join(runRoot, "private", "proposal-input", "parent", "harness-snapshot.json"),
+    JSON.stringify({ genome_id: "evocfd:m1-baseline" }) + "\n",
+  );
+}
+
+/** A scratch genomes tree with one baseline parent, plus its run directory. */
 async function fixture(skill = SKILL): Promise<{
   root: string;
   genomesRoot: string;
@@ -36,11 +155,17 @@ async function fixture(skill = SKILL): Promise<{
   parentDigest: Map<string, string>;
 }> {
   const root = await mkdtemp(join(tmpdir(), "evocfd-cand-"));
+  // The expected ids below hash against the parent's real identity, so warm
+  // it from the seed bundle before any test asks for one.
+  await parentIdentity();
   const genomesRoot = join(root, "genomes");
   const runRoot = join(root, "runs", "proposal-001");
   await mkdir(join(genomesRoot, "m1-baseline"), { recursive: true });
   await cp(BASELINE, join(genomesRoot, "m1-baseline"), { recursive: true });
   await mkdir(join(runRoot, PROPOSER_OUTPUT_DIR), { recursive: true });
+  // The proposal's evidence references must resolve inside the package the
+  // proposer was given, so the fixture ships a small judged one.
+  await writeJudgedEvidence(runRoot);
   const context: CandidateBuildContext = {
     repoRoot: REPO_ROOT,
     genomesRoot,
@@ -48,6 +173,10 @@ async function fixture(skill = SKILL): Promise<{
     rsihDir: RSIH_DIR,
     rsihRevision: "33c4f8d",
     piVersion: "0.84.3",
+    // The unit suite validates bundle shape itself; the real runtime is
+    // exercised by the RSIH integration suite and by the one test below that
+    // skips when the checkout is absent.
+    validateBundle: stubValidateBundle,
   };
   return {
     root,
@@ -73,6 +202,9 @@ async function writeProposal(runRoot: string, overrides: Record<string, unknown>
     ...overrides,
   };
   validateProposal(proposal as HarnessProposal);
+  // The references must resolve, so every run root that gets a proposal also
+  // gets the judged evidence package those references point into.
+  await writeJudgedEvidence(runRoot);
   await mkdir(join(runRoot, PROPOSER_OUTPUT_DIR), { recursive: true });
   await writeFile(join(runRoot, PROPOSER_OUTPUT_DIR, "proposal.json"), JSON.stringify(proposal, null, 2) + "\n");
 }
@@ -118,7 +250,7 @@ test("candidate: a skill_upsert builds, publishes and records", async () => {
   assert.equal(outcome.kind, "built");
   if (outcome.kind !== "built") throw new Error("unreachable");
 
-  assert.equal(outcome.record.candidate_genome_id, `evocfd:m1-baseline--${SKILL}`);
+  assert.equal(outcome.record.candidate_genome_id, expectedId());
   assert.equal(outcome.record.parent_genome_id, "evocfd:m1-baseline");
   assert.equal(outcome.record.change.kind, "skill_upsert");
   assert.equal(outcome.record.change.skill, SKILL);
@@ -127,9 +259,9 @@ test("candidate: a skill_upsert builds, publishes and records", async () => {
 
   // The published directory uses the id with `:` flattened, so it is a legal
   // path component on every filesystem.
-  assert.equal(outcome.genomeDir, join(f.genomesRoot, "evocfd-m1-baseline--verify-before-claim"));
+  assert.equal(outcome.genomeDir, join(f.genomesRoot, expectedDirName()));
   const manifest = JSON.parse(await readFile(join(outcome.genomeDir, "genome.json"), "utf8"));
-  assert.equal(manifest.genome_id, "evocfd:m1-baseline--verify-before-claim");
+  assert.equal(manifest.genome_id, expectedId());
   assert.equal(manifest.parent_id, "evocfd:m1-baseline");
   assert.equal(manifest.version, 2);
   assert.deepEqual(
@@ -166,17 +298,31 @@ test("candidate: the changed-file set is exactly the allowlist", async () => {
   await rm(f.root, { recursive: true, force: true });
 });
 
-test("candidate: the candidate validates under the pinned RSI-Harness", async () => {
+test("candidate: the candidate validates under the pinned RSI-Harness", async (t) => {
+  // The external checkout is gitignored and cloned only where EvoCFD actually
+  // runs. This is the one assertion that needs it, so it belongs to the RSIH
+  // integration tier rather than to CI-fast, and it says so rather than
+  // silently degrading into a shape check.
+  if (!RSIH_PRESENT) {
+    t.skip(`no RSI-Harness checkout at ${RSIH_DIR}; run CI-rsih for this assertion`);
+    return;
+  }
   const f = await fixture();
   await writeProposal(f.runRoot);
-  const outcome = await buildWith(f);
+  // Override the stub with the real runtime for this one bundle.
+  const outcome = await buildCandidate({
+    context: { ...f.context, validateBundle: undefined },
+    runRoot: f.runRoot,
+    parentGenomeId: "evocfd:m1-baseline",
+    proposerEpisodeId: "proposal-001",
+    stagingRoot: join(f.root, "staging"),
+  });
   assert.equal(outcome.kind, "built");
   if (outcome.kind !== "built") throw new Error("unreachable");
 
-  // buildCandidate uses the real validator by default; reaching this point means
-  // `rsih genome validate` accepted the bundle. Re-run it explicitly so the
-  // assertion is not only inferred from the absence of a rejection.
-  const { spawnSync } = await import("node:child_process");
+  // Reaching this point means `rsih genome validate` accepted the bundle.
+  // Re-run it explicitly so the assertion is not only inferred from the
+  // absence of a rejection.
   const result = spawnSync(
     process.execPath,
     ["--experimental-strip-types", join(RSIH_DIR, "src", "cli.ts"), "genome", "validate", outcome.genomeDir],
@@ -304,7 +450,7 @@ test("candidate: skill_modify rewrites only the skill file", async () => {
   const outcome = await buildCandidate({
     context: f.context,
     runRoot: modifyRun,
-    parentGenomeId: "evocfd:m1-baseline--verify-before-claim",
+    parentGenomeId: expectedId(),
     proposerEpisodeId: "proposal-002",
     stagingRoot: join(f.root, "staging"),
   });
@@ -337,7 +483,7 @@ test("candidate: skill_modify of an unregistered skill is refused", async () => 
   const outcome = await buildCandidate({
     context: f.context,
     runRoot: modifyRun,
-    parentGenomeId: "evocfd:m1-baseline--verify-before-claim",
+    parentGenomeId: expectedId(),
     proposerEpisodeId: "proposal-003",
   });
   assert.equal(outcome.kind, "rejected");
@@ -354,7 +500,7 @@ test("candidate: a constructed candidate has a walkable two-link lineage", async
 
   const lineage = await candidateLineage({
     genomesRoot: f.genomesRoot,
-    genomeId: "evocfd:m1-baseline--verify-before-claim",
+    genomeId: expectedId(),
     agentConfigDir: AGENT_CONFIG_DIR,
     rsihRevision: "33c4f8d",
     piVersion: "0.84.3",
@@ -362,7 +508,7 @@ test("candidate: a constructed candidate has a walkable two-link lineage", async
 
   assert.equal(lineage.length, 2);
   assert.equal(lineage[0].genome_id, "evocfd:m1-baseline");
-  assert.equal(lineage[1].genome_id, "evocfd:m1-baseline--verify-before-claim");
+  assert.equal(lineage[1].genome_id, expectedId());
   // The change is attached to the link that produced the next one.
   assert.equal(lineage[0].change?.skill, SKILL);
   assert.equal(lineage[1].change, undefined);
@@ -467,5 +613,150 @@ test("candidate: a proposal written outside the output directory is not found", 
   assert.equal(outcome.kind, "rejected");
   if (outcome.kind !== "rejected") throw new Error("unreachable");
   assert.match(outcome.reason, /no proposal at/);
+  await rm(f.root, { recursive: true, force: true });
+});
+
+test("candidate: the same skill with different content is a second candidate, not a duplicate", async () => {
+  const f = await fixture();
+  await writeProposal(f.runRoot);
+
+  // The first proposal's content.
+  const first = await buildWith(f);
+  assert.equal(first.kind, "built");
+  if (first.kind !== "built") throw new Error("unreachable");
+
+  // A second proposal for the *same skill* with different content. Same parent,
+  // same skill name, different bytes: a different harness, which has to be able
+  // to exist alongside the first. Under the old naming this was reported as a
+  // duplicate and the second content was silently unreachable.
+  const secondRun = join(f.root, "runs", "proposal-004");
+  const otherContent =
+    "---\n" +
+    `name: ${SKILL}\n` +
+    "description: Run the program and quote the exact line before reporting.\n" +
+    "---\n" +
+    "# Verify before claim\n" +
+    "\n" +
+    "Run it, paste the line that matters, then report.\n";
+  await writeProposal(secondRun, { skill_content: otherContent });
+  const second = await buildCandidate({
+    context: f.context,
+    runRoot: secondRun,
+    parentGenomeId: "evocfd:m1-baseline",
+    proposerEpisodeId: "proposal-004",
+    stagingRoot: join(f.root, "staging"),
+  });
+
+  assert.equal(second.kind, "built");
+  if (second.kind !== "built") throw new Error("unreachable");
+  assert.notEqual(second.record.candidate_harness_identity, first.record.candidate_harness_identity);
+  assert.notEqual(second.genomeDir, first.genomeDir);
+  assert.notEqual(expectedDirName(otherContent), expectedDirName());
+  assert.equal(second.genomeDir, join(f.genomesRoot, expectedDirName(otherContent)));
+
+  // Both candidates exist simultaneously and each carries its own identity.
+  const both = await readdir(f.genomesRoot);
+  assert.ok(both.includes(expectedDirName()));
+  assert.ok(both.includes(expectedDirName(otherContent)));
+
+  // A re-run of the *first* proposal is still a duplicate of the first, so an
+  // unchanged proposal never produces a second directory.
+  const rerun = await buildWith(f);
+  assert.equal(rerun.kind, "duplicate");
+  if (rerun.kind !== "duplicate") throw new Error("unreachable");
+  assert.equal(rerun.genomeDir, first.genomeDir);
+
+  await rm(f.root, { recursive: true, force: true });
+});
+
+test("candidate: skill_upsert is refused for a skill the parent already registers", async () => {
+  const f = await fixture();
+  await writeProposal(f.runRoot);
+  const first = await buildWith(f);
+  if (first.kind !== "built") throw new Error("unreachable");
+
+  // The candidate now carries the skill, so a further *upsert* of the same
+  // skill against it is a modify wearing an upsert's label. The two have
+  // different provenance: upsert means the harness gained a capability it never
+  // had.
+  const parentOfSecond = join(f.genomesRoot, "with-skills");
+  await cp(first.genomeDir, parentOfSecond, { recursive: true });
+  await rm(join(parentOfSecond, "candidate.json"), { force: true });
+  await rm(first.genomeDir, { recursive: true, force: true });
+
+  const secondRun = join(f.root, "runs", "proposal-005");
+  await writeProposal(secondRun, { kind: "skill_upsert" });
+  const outcome = await buildCandidate({
+    context: f.context,
+    runRoot: secondRun,
+    parentGenomeId: first.record.candidate_genome_id,
+    proposerEpisodeId: "proposal-005",
+    stagingRoot: join(f.root, "staging"),
+  });
+  assert.equal(outcome.kind, "rejected");
+  if (outcome.kind !== "rejected") throw new Error("unreachable");
+  assert.match(outcome.reason, /already registers that skill; use skill_modify/);
+  await rm(f.root, { recursive: true, force: true });
+});
+
+test("candidate: a proposal that cites no trial evidence is refused", async () => {
+  const f = await fixture();
+  await writeProposal(f.runRoot, {
+    evidence_refs: ["parent/genome/genome.json"],
+  });
+  const outcome = await buildWith(f);
+  assert.equal(outcome.kind, "rejected");
+  if (outcome.kind !== "rejected") throw new Error("unreachable");
+  assert.match(outcome.reason, /at least one trial artifact under evidence\//);
+  await rm(f.root, { recursive: true, force: true });
+});
+
+test("candidate: an evidence reference that does not resolve is refused", async () => {
+  const f = await fixture();
+  await writeProposal(f.runRoot, {
+    evidence_refs: ["evidence/m1-trial-001/episode/events.jsonl", "evidence/nowhere/evaluation/result.json"],
+  });
+  const outcome = await buildWith(f);
+  assert.equal(outcome.kind, "rejected");
+  if (outcome.kind !== "rejected") throw new Error("unreachable");
+  assert.match(outcome.reason, /does not resolve/);
+  await rm(f.root, { recursive: true, force: true });
+});
+
+test("candidate: an absolute evidence reference is refused", async () => {
+  const f = await fixture();
+  await writeProposal(f.runRoot, { evidence_refs: ["/etc/passwd"] });
+  const outcome = await buildWith(f);
+  assert.equal(outcome.kind, "rejected");
+  if (outcome.kind !== "rejected") throw new Error("unreachable");
+  assert.match(outcome.reason, /is absolute/);
+  await rm(f.root, { recursive: true, force: true });
+});
+
+test("candidate: a reference that escapes the evidence package is refused", async () => {
+  const f = await fixture();
+  await writeProposal(f.runRoot, { evidence_refs: ["../../../../etc/passwd"] });
+  const outcome = await buildWith(f);
+  assert.equal(outcome.kind, "rejected");
+  if (outcome.kind !== "rejected") throw new Error("unreachable");
+  assert.match(outcome.reason, /escapes the evidence package/);
+  await rm(f.root, { recursive: true, force: true });
+});
+
+test("candidate: a proposal resting on an unjudged trial is refused", async () => {
+  const f = await fixture();
+  await writeProposal(f.runRoot);
+  // Overwrite the recorded verdict *after* the proposal fixture is written, so
+  // the marker for a trial that was never judged survives: a mutation must not
+  // be built from evidence that reached no conclusion. "I have not looked yet"
+  // is not "no change needed".
+  await writeFile(
+    join(f.runRoot, "private", "proposal-input", "evidence", "m1-trial-001", "evaluation", "result.json"),
+    JSON.stringify({ verdict: "not_recorded" }) + "\n",
+  );
+  const outcome = await buildWith(f);
+  assert.equal(outcome.kind, "rejected");
+  if (outcome.kind !== "rejected") throw new Error("unreachable");
+  assert.match(outcome.reason, /no recorded verdict/);
   await rm(f.root, { recursive: true, force: true });
 });

@@ -41,5 +41,12 @@ jobs:
       - name: Validate the installation against EvoCFD's resolver
         run: npm run check:rsih
 
+      # CI-fast validates bundle *shape* with an injected stub, because a clean
+      # checkout has no RSI-Harness. This is the only tier that can answer the
+      # real question — does the runtime accept the bundles the builder emits —
+      # so the one test that needs the runtime runs here and only here.
+      - name: Run EvoCFD's tests against the pinned runtime
+        run: npm test
+
       - name: Run RSI-Harness's own checks
         run: npm run check:rsih:full

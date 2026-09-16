@@ -24,7 +24,7 @@
  * before — but that a process running as the agent cannot open the evaluator
  * path at all.
  */
-import { isAbsolute, join, relative, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, sep } from "node:path";
 
 /**
  * Host paths are consumed by the host's Docker daemon, which is a Linux
@@ -83,6 +83,26 @@ export interface AgentContainerLaunch {
   mounts: MountEntry[];
   /** Paths the agent must not be able to reach, for verification. */
   denied: string[];
+}
+
+/**
+ * The invariant a `denied` list must hold: nothing in it may be a path the
+ * mounts make visible. `denied` drives verification probes, so an entry the
+ * container can actually reach would assert a boundary that does not exist —
+ * and would do it in the direction that hides the problem, with the probe
+ * passing on a path it was meant to prove unreachable. This is the check that
+ * makes the contradiction impossible to express rather than merely easy to
+ * spot.
+ */
+export function assertDeniedUnreachable(launch: AgentContainerLaunch): void {
+  for (const denied of launch.denied) {
+    if (isMounted(launch, denied)) {
+      throw new Error(
+        `the denied path ${denied} is mounted into the container, so it is not denied; ` +
+          "the mount list and the denied list contradict each other",
+      );
+    }
+  }
 }
 
 export const TASK_PATH = "/task";
@@ -172,20 +192,24 @@ export function buildAgentContainer(spec: IsolationSpec, image: string): AgentCo
     image,
   ];
 
-  return {
-    image,
-    args,
-    mounts,
-    // The paths an agent must not reach. These are recorded so a verification
-    // run knows what to probe, and so the mount list above can be checked
-    // against them by test.
-    denied: [
-      join(spec.trialRoot, "private", "evaluator"),
-      join(spec.trialRoot, "private"),
-      join(spec.trialRoot, "manifests"),
-      spec.trialRoot,
-    ],
-  };
+  return (() => {
+    const launch: AgentContainerLaunch = {
+      image,
+      args,
+      mounts,
+      // The paths an agent must not reach. These are recorded so a verification
+      // run knows what to probe, and so the mount list above can be checked
+      // against them by test.
+      denied: [
+        join(spec.trialRoot, "private", "evaluator"),
+        join(spec.trialRoot, "private"),
+        join(spec.trialRoot, "manifests"),
+        spec.trialRoot,
+      ],
+    };
+    assertDeniedUnreachable(launch);
+    return launch;
+  })();
 }
 
 /**
@@ -297,18 +321,25 @@ export function buildProposerContainer(spec: ProposerSpec, image: string): Agent
     image,
   ];
 
-  return {
-    image,
-    args,
-    mounts,
-    // The proposer must not reach: the evaluator packages of the trials it
-    // reads about, other proposal runs, the writable Genome tree it reviews,
-    // and anything else in the run root.
-    denied: [
-      join(spec.runRoot, "private", "output"),
-      join(spec.runRoot, "private"),
-      join(spec.runRoot, "agent"),
-      spec.runRoot,
-    ],
-  };
+  return (() => {
+    const launch: AgentContainerLaunch = {
+      image,
+      args,
+      mounts,
+      // The proposer must not reach: the evaluator source of the trials it
+      // reads about, the staging area where candidates are built, or another
+      // proposal's output. Its own output directory is deliberately absent —
+      // it is mounted rw and is the only place the proposer may write, so
+      // listing it here would contradict the mount list, and the invariant
+      // check below now refuses such a launch rather than recording it.
+      denied: [
+        join(spec.runRoot, "private", "evaluator"),
+        join(spec.runRoot, "private", "staging"),
+        join(dirname(spec.runRoot), "proposal-000"),
+        spec.runRoot,
+      ],
+    };
+    assertDeniedUnreachable(launch);
+    return launch;
+  })();
 }

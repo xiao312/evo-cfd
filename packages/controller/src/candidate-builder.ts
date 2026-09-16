@@ -20,9 +20,11 @@
  * difference between a lineage that is asserted and one that is checked.
  */
 import { spawnSync } from "node:child_process";
-import { cp, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { stat } from "node:fs/promises";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { createHash } from "node:crypto";
 
 import {
   buildHarnessSnapshot,
@@ -34,7 +36,7 @@ import {
   type HarnessSnapshot,
 } from "./harness.ts";
 import { digestFileMap, digestTree } from "./snapshot.ts";
-import { PROPOSER_OUTPUT_DIR } from "./evidence.ts";
+import { EVIDENCE_DIR, PROPOSER_OUTPUT_DIR } from "./evidence.ts";
 import { PROPOSAL_FILE, validateProposal, type HarnessProposal } from "./proposal.ts";
 
 export class CandidateBuildError extends Error {
@@ -78,12 +80,23 @@ export interface CandidateBuildContext extends HarnessBase {
   /** Where the pinned RSI-Harness checkout lives, for validation. */
   rsihDir: string;
   /**
+   * Directory of the proposer's own Genome, the instrument that produced the
+   * proposal. Its identity is recorded on every candidate, and it is *not* a
+   * member of the lineage it reviews. Defaults to
+   * `<repoRoot>/genomes/evocfd-proposer`.
+   */
+  proposerGenomeDir?: string;
+  /**
    * Load a candidate bundle through the harness runtime. Defaults to
    * `rsih genome validate`, and is overridable so the construction logic can be
    * tested without a pinned checkout — and so a test can assert on the exact
    * bundle that was validated rather than only on its exit status.
    */
-  validateBundle?: (genomeDir: string, genomeId: string) => Promise<void>;
+  validateBundle?: (input: {
+    rsihDir: string;
+    genomeDir: string;
+    genomeId: string;
+  }) => Promise<void>;
 }
 
 /**
@@ -147,6 +160,17 @@ export async function buildCandidate(input: {
   // wrote into the parent is caught rather than silently inherited.
   const parentBefore = await digestFileMap(parentDir, ["candidate.json"]);
 
+  // The evidence the proposal cites is verified before anything is built, so a
+  // proposal resting on a claim with no support is refused at the door.
+  const evidenceRoot = join(input.runRoot, EVIDENCE_DIR);
+  const grounding = await groundEvidenceRefs({
+    evidenceRoot,
+    proposal,
+  });
+  if (grounding !== null) {
+    return { kind: "rejected", reason: grounding, proposal };
+  }
+
   const stagingRoot = input.stagingRoot ?? tmpdir();
   await mkdir(stagingRoot, { recursive: true });
   const staging = await mkdtemp(join(stagingRoot, "evocfd-candidate-"));
@@ -154,23 +178,13 @@ export async function buildCandidate(input: {
     const candidateDir = join(staging, "genome");
     await cp(parentDir, candidateDir, { recursive: true });
 
-    const candidateGenomeId = `${input.parentGenomeId}--${proposal.skill}`;
-    const existing = await defaultResolveGenomeDir(input.context.genomesRoot, candidateGenomeId);
-    if (existing !== null) {
-      // An identical candidate already exists. Building a second one would
-      // give the comparison step two directories for one harness, so the
-      // existing record is returned and the caller decides what to do.
-      try {
-        const record = await readCandidate(existing);
-        return { kind: "duplicate", record, genomeDir: existing };
-      } catch {
-        return {
-          kind: "rejected",
-          reason: `a Genome named ${candidateGenomeId} already exists but carries no candidate record`,
-          proposal,
-        };
-      }
-    }
+    // The id carries a short digest of exactly what varies between two
+    // candidates of the same skill: the parent, the kind, the skill and the
+    // proposed content. Two proposals that differ in any of those get different
+    // ids and can coexist; the full harness identity, not this suffix, remains
+    // authoritative for equality.
+    const contentDigest = candidateContentDigest(parentIdentity, proposal);
+    const candidateGenomeId = `${input.parentGenomeId}--${proposal.skill}--${contentDigest}`;
 
     const createdComponent = await applySkillChange({
       candidateDir,
@@ -187,7 +201,7 @@ export async function buildCandidate(input: {
       rsihDir: input.context.rsihDir,
       genomeDir: candidateDir,
       genomeId: candidateGenomeId,
-    });
+    });;
 
     const candidateSnapshot = await buildHarnessSnapshot({
       genomeDir: candidateDir,
@@ -210,18 +224,38 @@ export async function buildCandidate(input: {
       };
     }
 
+    // A duplicate is a candidate with the *same harness identity*, not the same
+    // skill name. Two proposals for one skill that propose different content
+    // are different candidates and must be able to coexist — otherwise the
+    // loop could never revisit a skill it had already touched. Only an exact
+    // identity match is the same harness twice.
+    const existing = await findCandidateByIdentity(input.context.genomesRoot, candidateIdentity);
+    if (existing !== null) {
+      return { kind: "duplicate", record: existing.record, genomeDir: existing.genomeDir };
+    }
+    // The content-derived id is unique by construction; a directory already
+    // occupying it without the matching identity is a contradiction, not a
+    // duplicate.
+    const idConflict = await defaultResolveGenomeDir(input.context.genomesRoot, candidateGenomeId);
+    if (idConflict !== null) {
+      throw new CandidateBuildError(
+        `a Genome at ${idConflict} occupies the id ${candidateGenomeId} but is not this candidate`,
+      );
+    }
+
     const changed = await diffBundles(parentDir, candidateDir);
     assertAllowedChanges(proposal.kind, proposal.skill, createdComponent, changed);
 
     // The record is written after every check, so it can only ever describe a
-     // bundle that passed all of them. `candidate.json` is excluded from the
-     // bundle's own digest — a file containing its own identity could not be
-     // written without changing it.
+    // bundle that passed all of them. `candidate.json` is excluded from the
+    // bundle's own digest — a file containing its own identity could not be
+    // written without changing it.
     const record: CandidateRecord = {
       candidate_genome_id: candidateGenomeId,
       parent_genome_id: input.parentGenomeId,
       parent_harness_identity: parentIdentity,
       candidate_harness_identity: candidateIdentity,
+      proposer_harness_identity: await proposerIdentity(input),
       change: {
         kind: proposal.kind,
         skill: proposal.skill,
@@ -371,10 +405,17 @@ async function applySkillChange(input: {
         contract: `./${contractFile}`,
       });
     } else {
-      // The component exists; the skill is added to it, replacing an entry for
-      // the same source if one is there, so an upsert is idempotent.
+      // The component exists. An upsert that targets a skill the parent already
+      // registers is a modify wearing an upsert's label, and the two have
+      // different provenance: `upsert` means the harness gained a capability it
+      // never had. Refusing keeps the lineage interpretable.
       const configPath = resolve(input.candidateDir, skillsComponent.source ?? "");
       const registered = await readSkillsConfig(configPath);
+      if (registered.skills.some((entry) => entry.source === skillEntry.source)) {
+        throw new CandidateBuildError(
+          `skill_upsert of ${input.proposal.skill} is impossible: the parent Genome already registers that skill; use skill_modify to replace it`,
+        );
+      }
       const skills = registered.skills.filter((entry) => entry.source !== skillEntry.source);
       skills.push(skillEntry);
       registered.writeSkills(skills);
@@ -471,6 +512,155 @@ async function diffBundles(parentDir: string, candidateDir: string): Promise<str
   return [...new Set(changed)].sort();
 }
 
+/** A byte separator between hashed fields, so no two fields can concatenate ambiguously. */
+const SEP = Buffer.from([0]);
+
+/**
+ * A short digest of exactly what distinguishes two candidates of the same
+ * skill from the same parent: the kind, the skill name and the proposed
+ * content. It names the directory; it is *not* the harness identity, which
+ * covers the whole bundle and remains the authority for equality. Naming by
+ * content is what lets a loop revisit a skill it already touched without the
+ * second attempt being mistaken for the first.
+ */
+export function candidateContentDigest(
+  parentIdentity: string,
+  proposal: Extract<HarnessProposal, { decision: "propose" }>,
+): string {
+  const hash = createHash("sha256");
+  hash.update(parentIdentity, "utf8");
+  hash.update(SEP);
+  hash.update(proposal.kind, "utf8");
+  hash.update(SEP);
+  hash.update(proposal.skill, "utf8");
+  hash.update(SEP);
+  hash.update(proposal.skill_content, "utf8");
+  return hash.digest("hex").slice(0, 8);
+}
+
+/**
+ * Find an existing candidate whose recorded harness identity equals the one
+ * given. Duplicate means "the same harness", never "the same skill name".
+ */
+async function findCandidateByIdentity(
+  genomesRoot: string,
+  identity: string,
+): Promise<{ record: CandidateRecord; genomeDir: string } | null> {
+  let entries: string[];
+  try {
+    entries = await readdir(genomesRoot, { withFileTypes: true })
+      .then((dirs) => dirs.filter((entry) => entry.isDirectory()).map((entry) => entry.name));
+  } catch {
+    return null;
+  }
+  for (const name of entries) {
+    const dir = join(genomesRoot, name);
+    try {
+      const record = await readCandidate(dir);
+      if (record.candidate_harness_identity === identity) {
+        return { record, genomeDir: dir };
+      }
+    } catch {
+      // A directory with no readable candidate record is not a candidate and
+      // cannot be a duplicate of anything.
+    }
+  }
+  return null;
+}
+
+/** What an evidence reference is allowed to point at. */
+const EVIDENCE_KINDS = ["episode", "evaluation", "task", "trial-manifest"] as const;
+
+/**
+ * Verify that every evidence reference a proposal cites is a real artifact the
+ * proposer was actually given.
+ *
+ * The proposer is told that a reference which does not resolve is a claim with
+ * no support; this is where that promise is enforced by something that cannot
+ * be talked out of it. A reference must be relative, must stay inside the
+ * package, must exist, and must name an evidence artifact rather than the
+ * package's own bookkeeping. A proposal to change the harness must rest on at
+ * least one *trial* artifact: reading the parent Genome is not evidence of a
+ * deficiency, so references under `parent/` do not count as support.
+ *
+ * Returns null when the proposal is grounded, or the reason it is not.
+ */
+async function groundEvidenceRefs(input: {
+  evidenceRoot: string;
+  proposal: HarnessProposal;
+}): Promise<string | null> {
+  const refs = input.proposal.evidence_refs;
+  if (refs.length === 0 && input.proposal.decision === "propose") {
+    return "a proposal must cite at least one evidence reference";
+  }
+
+  let trialRefs = 0;
+  const citedTrials = new Set<string>();
+  for (const ref of refs) {
+    if (isAbsolute(ref)) {
+      return `the evidence reference ${JSON.stringify(ref)} is absolute; references must be relative to the evidence package`;
+    }
+    if (ref.includes("..")) {
+      return `the evidence reference ${JSON.stringify(ref)} escapes the evidence package`;
+    }
+    // Normalize away any platform separator before resolving.
+    const normalized = sep === "\\" ? ref.split("\\").join("/") : ref;
+    if (!normalized.startsWith("evidence/") && !normalized.startsWith("parent/")) {
+      return `the evidence reference ${JSON.stringify(ref)} is not under evidence/ or parent/`;
+    }
+    const resolved = resolve(input.evidenceRoot, normalized);
+    const relativeInside = relative(input.evidenceRoot, resolved);
+    if (relativeInside.startsWith("..")) {
+      return `the evidence reference ${JSON.stringify(ref)} escapes the evidence package`;
+    }
+    if (!(await pathExists(resolved))) {
+      return `the evidence reference ${JSON.stringify(ref)} does not resolve inside the evidence package`;
+    }
+
+    if (normalized.startsWith("evidence/")) {
+      const parts = normalized.slice("evidence/".length).split("/");
+      const trialId = parts[0];
+      const kind = parts[1];
+      if (!EVIDENCE_KINDS.includes(kind as (typeof EVIDENCE_KINDS)[number])) {
+        return `the evidence reference ${JSON.stringify(ref)} names ${kind}, which is not a trial artifact`;
+      }
+      trialRefs += 1;
+      citedTrials.add(trialId);
+    }
+  }
+
+  if (input.proposal.decision === "propose") {
+    if (trialRefs === 0) {
+      return (
+        "a proposal must cite at least one trial artifact under evidence/; " +
+        "references to the parent Genome describe what is being changed, not why"
+      );
+    }
+    // A mutation must rest on trials that were actually judged. Which artifact
+    // of a trial a proposal cites is arbitrary — an episode log carries the
+    // behaviour, the evaluation carries the verdict — so the judgment is looked
+    // up per *trial*, not per reference. "I have not looked yet" is not
+    // "no change needed", and a candidate built from unjudged evidence would be
+    // compared as though a verdict had said something.
+    const unjudged: string[] = [];
+    for (const trialId of citedTrials) {
+      const verdict = await readVerdict(
+        join(input.evidenceRoot, "evidence", trialId, "evaluation", "result.json"),
+      );
+      if (verdict === null || verdict === "not_recorded") {
+        unjudged.push(trialId);
+      }
+    }
+    if (unjudged.length > 0) {
+      return (
+        `the proposal cites trials with no recorded verdict: ${unjudged.join(", ")}. ` +
+        "A mutation must rest on judged evidence; unjudged evidence supports no conclusion"
+      );
+    }
+  }
+  return null;
+}
+
 /**
  * Load a Genome bundle through the pinned RSI-Harness.
  *
@@ -520,5 +710,44 @@ export async function readProposal(runRoot: string): Promise<HarnessProposal> {
     return validateProposal(parsed);
   } catch (error) {
     throw new CandidateBuildError(`the proposal is not constructible: ${(error as Error).message}`);
+  }
+}
+
+/** Read the verdict out of a copied evaluation result, if there is a real one. */
+async function readVerdict(resultPath: string): Promise<string | null> {
+  try {
+    const raw = JSON.parse(await readFile(resultPath, "utf8")) as { verdict?: unknown };
+    return typeof raw.verdict === "string" ? raw.verdict : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The identity of the harness that produced the proposal. The proposer runs
+ * under its own Genome, outside the lineage it reviews, so this is resolved
+ * from the context's proposer directory rather than from the parent or the
+ * candidate. A candidate is only auditable if the instrument that measured the
+ * evidence is recorded with it.
+ */
+async function proposerIdentity(input: {
+  context: CandidateBuildContext;
+}): Promise<string> {
+  const dir = input.context.proposerGenomeDir ?? join(input.context.repoRoot, "genomes", "evocfd-proposer");
+  const snapshot = await buildHarnessSnapshot({
+    genomeDir: dir,
+    agentConfigDir: input.context.agentConfigDir,
+    rsihRevision: input.context.rsihRevision,
+    piVersion: input.context.piVersion,
+  });
+  return harnessIdentity(snapshot);
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code !== "ENOENT";
   }
 }

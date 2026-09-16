@@ -29,8 +29,25 @@ import {
   type HarnessSnapshot,
 } from "../src/harness.ts";
 import { digestTree } from "../src/snapshot.ts";
+import { fileURLToPath } from "node:url";
+
+const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 
 const SEED_GENOME_ID = "evocfd:m1-baseline";
+
+/**
+ * The identity of the proposer Genome as it stands in the repo. Hand-written
+ * records in this suite name it, because a candidate record without the
+ * instrument that produced it is not auditable and the writer now refuses one.
+ */
+const PROPOSER_IDENTITY = harnessIdentity(
+  await buildHarnessSnapshot({
+    genomeDir: join(REPO_ROOT, "genomes", "evocfd-proposer"),
+    agentConfigDir: join(REPO_ROOT, "config", "agent-seed"),
+    rsihRevision: "33c4f8d",
+    piVersion: "0.84.3",
+  }),
+);
 
 /** A minimal but real bundle: a manifest, a component and its contract. */
 async function writeBundle(dir: string, genomeId: string, text = "seed instructions"): Promise<void> {
@@ -268,6 +285,7 @@ test("a candidate record is excluded from its own digest", async () => {
     record: {
       candidate_genome_id: "evocfd:m1-candidate-001",
       parent_genome_id: SEED_GENOME_ID,
+      proposer_harness_identity: PROPOSER_IDENTITY,
       parent_harness_identity: harnessIdentity(seed.snapshot),
       change: {
         kind: "skill_upsert",
@@ -306,6 +324,7 @@ test("a candidate record is written once and read back exactly", async () => {
     record: {
       candidate_genome_id: "evocfd:m1-candidate-002",
       parent_genome_id: SEED_GENOME_ID,
+      proposer_harness_identity: PROPOSER_IDENTITY,
       parent_harness_identity: harnessIdentity(seed.snapshot),
       change: {
         kind: "skill_modify",
@@ -366,6 +385,7 @@ test("a malformed record is refused rather than trusted", async () => {
     JSON.stringify({
       candidate_genome_id: "x",
       parent_genome_id: "p",
+      proposer_harness_identity: PROPOSER_IDENTITY,
       parent_harness_identity: "i",
       candidate_harness_identity: "i",
       change: { kind: "rewrite_the_solver", skill: "s", rationale: "r", proposer_episode: "e" },
@@ -392,6 +412,7 @@ test("lineage walks from a candidate back to its seed", async () => {
     record: {
       candidate_genome_id: "evocfd:m1-candidate-010",
       parent_genome_id: SEED_GENOME_ID,
+      proposer_harness_identity: PROPOSER_IDENTITY,
       parent_harness_identity: harnessIdentity(seed.snapshot),
       change: {
         kind: "skill_upsert",
@@ -412,6 +433,7 @@ test("lineage walks from a candidate back to its seed", async () => {
     record: {
       candidate_genome_id: "evocfd:m1-candidate-011",
       parent_genome_id: "evocfd:m1-candidate-010",
+      proposer_harness_identity: PROPOSER_IDENTITY,
       parent_harness_identity: harnessIdentity(firstSnapshot),
       change: {
         kind: "skill_modify",
@@ -460,6 +482,7 @@ test("a lineage whose parent is missing is a break, not a prefix", async () => {
     record: {
       candidate_genome_id: "evocfd:m1-candidate-020",
       parent_genome_id: "evocfd:does-not-exist",
+      proposer_harness_identity: PROPOSER_IDENTITY,
       parent_harness_identity: "0".repeat(64),
       change: {
         kind: "skill_upsert",
@@ -503,6 +526,7 @@ test("a lineage whose parent exists but under a forged identity is a break", asy
     record: {
       candidate_genome_id: "evocfd:m1-candidate-021",
       parent_genome_id: SEED_GENOME_ID,
+      proposer_harness_identity: PROPOSER_IDENTITY,
       parent_harness_identity: "f".repeat(64),
       change: { kind: "skill_upsert", skill: "s", rationale: "r", proposer_episode: "e" },
       status: "proposed",
@@ -540,7 +564,8 @@ test("a candidate record found in the wrong bundle is a break", async () => {
       {
         candidate_genome_id: "evocfd:totally-different",
         parent_genome_id: SEED_GENOME_ID,
-        parent_harness_identity: harnessIdentity(seed.snapshot),
+        proposer_harness_identity: PROPOSER_IDENTITY,
+      parent_harness_identity: harnessIdentity(seed.snapshot),
         candidate_harness_identity: harnessIdentity(await snapshotOf(root, candidateDir)),
         change: { kind: "skill_upsert", skill: "s", rationale: "r", proposer_episode: "e" },
         status: "proposed",
@@ -589,6 +614,7 @@ test("cyclic ancestry is refused", async () => {
     record: {
       candidate_genome_id: "evocfd:m1-candidate-030",
       parent_genome_id: "evocfd:m1-candidate-031",
+      proposer_harness_identity: PROPOSER_IDENTITY,
       parent_harness_identity: identityB,
       change: { kind: "skill_upsert", skill: "s", rationale: "r", proposer_episode: "e" },
       status: "proposed",
@@ -600,6 +626,7 @@ test("cyclic ancestry is refused", async () => {
     record: {
       candidate_genome_id: "evocfd:m1-candidate-031",
       parent_genome_id: "evocfd:m1-candidate-030",
+      proposer_harness_identity: PROPOSER_IDENTITY,
       parent_harness_identity: identityA,
       change: { kind: "skill_upsert", skill: "s", rationale: "r", proposer_episode: "e" },
       status: "proposed",
@@ -651,6 +678,7 @@ test("a seed whose parent points at itself is a cycle, not a lineage", async () 
       parent_genome_id: SEED_GENOME_ID,
       // Its own real identity, so the self-claim passes verification and the
       // walk reaches the cycle check rather than the identity check.
+      proposer_harness_identity: PROPOSER_IDENTITY,
       parent_harness_identity: harnessIdentity(await snapshotOf(root, join(genomesRoot, "self-parent"))),
       change: { kind: "skill_upsert", skill: "s", rationale: "r", proposer_episode: "e" },
       status: "proposed",
