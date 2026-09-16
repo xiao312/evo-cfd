@@ -37,7 +37,6 @@ const HOST_ROOT = process.env.EVOCFD_HOST_ROOT ?? REPO_ROOT;
 const RUNS_DIR = join(REPO_ROOT, "runs");
 const HOST_RUNS_DIR = join(HOST_ROOT, "runs");
 const FIXTURE_ROOT = join(REPO_ROOT, "fixtures");
-const GENOME_ID = "m1-baseline";
 const IMAGE = "evocfd-dev:node22";
 
 const FIXTURE_ID = process.argv[2] ?? "control-plane-001";
