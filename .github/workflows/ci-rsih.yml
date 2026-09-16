@@ -44,9 +44,10 @@ jobs:
       # CI-fast validates bundle *shape* with an injected stub, because a clean
       # checkout has no RSI-Harness. This is the only tier that can answer the
       # real question — does the runtime accept the bundles the builder emits —
-      # so the one test that needs the runtime runs here and only here.
-      - name: Run EvoCFD's tests against the pinned runtime
-        run: npm test
+      # so the one test that needs the runtime runs here and only here. `check`
+      # rather than `test` because episode/smoke need the workspace links.
+      - name: Run EvoCFD's checks against the pinned runtime
+        run: npm run check
 
       - name: Run RSI-Harness's own checks
         run: npm run check:rsih:full
