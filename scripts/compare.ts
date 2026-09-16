@@ -73,7 +73,10 @@ async function armFor(trialId: string, genomeId: string | undefined): Promise<Tr
   // The arm is content-addressed, so the identity is recomputed from the bundle
   // rather than trusted from the manifest: a manifest that disagreed with its
   // own Genome would silently mislabel the comparison.
-  const genomeDir = defaultResolveGenomeDir(genome, join(REPO_ROOT, "genomes"));
+  const genomeDir = await defaultResolveGenomeDir(join(REPO_ROOT, "genomes"), genome);
+  if (genomeDir === null) {
+    throw new Error(`no Genome bundle for ${genome} under ${join(REPO_ROOT, "genomes")}`);
+  }
   const snapshot = await buildHarnessSnapshot({
     genomeDir,
     agentConfigDir: join(REPO_ROOT, "config", "agent-seed"),
