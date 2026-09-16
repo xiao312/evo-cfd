@@ -78,7 +78,7 @@ NOW
 ├─ PR 6.2   producer-consumer contract repair   ✅
 ├─ PR 7A    minimal parent/candidate trial      ✅
 │
-├─ PR 8     OF8 + realFluid execution          ← the pivot (step 0 ✅)
+├─ PR 8     OF8 + realFluid execution          ← the pivot (steps 0–1 ✅)
 ├─ CFD-001  provenance fixture
 ├─ CFD-002  thermo fixture
 ├─ CFD-003  coupled numerical fixture
@@ -454,9 +454,19 @@ inventory is published as
 [`docs/reviews/of8-environment-001/`](../reviews/of8-environment-001/) and
 recorded in `cfd-baseline/baseline.json`.
 
-What is **not** done: `realFluidReactingFoam` is not applied. This is the base
-it will modify, and the bundle exists precisely so that the modification is a
-diff against a known state rather than against "whatever was installed".
+What is **not** done: `realFluidReactingFoam` is built but has not yet been run
+on a case. The verified run used the package's own `reactingFoam` build on a
+non-reacting `1D_advection` case, which exercises the Peng-Robinson property
+path but has zero reactions. The immediate follow-up is a short compatible
+*reacting* case for the target solver.
+
+What changed about how the work is arranged, per review: the stock tree is
+**never** overwritten. The package builds into profile-specific output
+directories (`rf-profile/`), and stock OF8 was hashed before and after the
+build to prove non-interference. This matters because the package installs an
+executable named `reactingFoam` and libraries with the same SONAMES as stock —
+so identity at runtime is decided by `LD_LIBRARY_PATH` order, not by the
+executable path. The profile makes that order explicit and `ldd` verifies it.
 
 Pin OpenFOAM 8, the realFluidFoam-8 source revision, compiler/toolchain,
 container digest and linked libraries. Build → tiny existing tutorial/smoke
@@ -470,6 +480,16 @@ submit CFD job → status → collect result → cancel
 ```
 
 ### CFD fixtures, in order
+
+**The reviewer's sequencing, adopted.** A fixture is only meaningful on top of
+a demonstrably runnable correct setup — otherwise a failing fixture cannot
+separate "the agent did not diagnose the fault" from "the installation was
+wrong all along". So the order is: pinned stock reference → pinned real-fluid
+package with isolated outputs → a small correctly configured target-solver
+run → EvoCFD launches, records and assesses that run → and only then does
+CFD-001 introduce one controlled mismatch.
+
+The first three of those exist now, in `realfluid-baseline-001`.
 
 **CFD-001 — executable/library provenance.** Cheap and extremely important.
 Deliberately load the wrong solver/library; ask the agent to investigate
