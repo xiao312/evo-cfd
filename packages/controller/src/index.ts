@@ -9,3 +9,5 @@ export * from "./evidence.ts";
 export * from "./candidate-builder.ts";
 export * from "./report.ts";
 export * from "./compare.ts";
+export * from "./cfd-job.ts";
+export * from "./cfd-exec.ts";
