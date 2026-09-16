@@ -168,3 +168,32 @@ case-collisions rather than trusting the file count. This is the same class of
 silent-corruption failure as the earlier `write`-tool newline bug: a medium
 that quietly changes what it carries, with the damage surfacing far from the
 cause.
+
+## Tooling: the source sync is now rsync, not tar
+
+The tar-over-ssh sync worked, but it re-sent the whole tree on every run and
+relied on `git checkout -- .` plus `git clean -fdq` on the server to reconcile
+what tar could not delete. With the CFD baseline about to put large files in
+the tree, that became the wrong trade.
+
+`deps/sync-evo-rsync.sh` now sends only changed bytes, including `.git`, so the
+remote copy is a git repository at exactly the local HEAD with no
+reconciliation step. Verified end to end: remote HEAD matches local, `git
+status` reads clean, and a content checksum of a changed file matches.
+
+Three constraints of this particular host shaped the flags, and each is a real
+trap rather than a preference:
+
+- **The Windows rsync build advertises `no symlinks`.** The EvoCFD tree has none
+  today, so nothing is lost. The script refuses to run if that changes, because
+  silently dropping a symlink is exactly the class of failure the OF8 transfer
+  produced.
+- **`--no-perms --no-times` are mandatory.** The source is exFAT, whose
+  permissions and timestamps are meaningless on Linux; without these flags
+  rsync rewrites every file on every run.
+- **`-c` compares by content**, because those exFAT timestamps cannot be
+  trusted to decide what changed.
+
+The script also refuses a dirty working tree, so the destination is always a
+revision and never a half-edited copy. The old `sync-evo.sh` is kept for
+reference, not used.
