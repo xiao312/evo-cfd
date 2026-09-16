@@ -249,5 +249,5 @@ await main().catch((error) => {
   console.error(`FAIL  unexpected: ${(error as Error).message}`);
   process.exitCode = 1;
 });
-if (process.exitCode === 0) console.log("\nintegration chain: real evaluator output → evidence → candidate");
-else console.error("\nintegration chain failed");
+if (process.exitCode === 0) console.log("\nintegration chain OK: real evaluator output -> evidence -> candidate");
+else console.error(`\nintegration chain failed (exitCode=${JSON.stringify(process.exitCode)})`);
