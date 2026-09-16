@@ -85,6 +85,19 @@ repair, and the decision was `no_change`. A proposer that proposed against
 passing evidence because it disliked the instructions would be rating its own
 taste over the recorded outcome.
 
+## Reviewable evidence
+
+The narrative above describes outcomes; the evidence behind a description is
+published separately, in [`docs/reviews/`](reviews/).
+
+- [`candidate-build-integration-001`](reviews/candidate-build-integration-001/) —
+  the complete chain from a real `evaluateTrial()` result through evidence
+  assembly to a built candidate. Its value is precisely that it exercises the
+  boundary where the `pass`/`verdict` contract mismatch arose: one side wrote
+  `pass: boolean`, the other read a nonexistent `verdict` string, and every
+  isolated test on either side was green. The bundle ships the actual
+  evaluation result and the construction record that consumed it.
+
 ## What the loop has proven, and what it has not
 
 Proven: a proposer episode runs end to end, isolated, recorded through the same

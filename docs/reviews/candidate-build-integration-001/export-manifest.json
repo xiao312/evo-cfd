@@ -2,28 +2,28 @@
   "export_schema_version": 1,
   "source_run_id": "integration-proposal-001",
   "source_trial_id": "integration-candidate-001",
-  "tested_code_commit": "e7d68eda3df54700504a65e0a68076117a9b643f",
+  "tested_code_commit": "1f569e2c08e1fa62c4603c7c53194fcb1ce8e3b4",
   "working_tree_clean": false,
   "source_runs_are_local_only": "runs/ is gitignored; this bundle is the published copy",
-  "evidence_package_digest": "369238392da75ba6c31a84eec2099e17145b7a0dc9b664aa254e6cdb722fdd15",
+  "evidence_package_digest": "1ab65b4d8ea880c90aef98224ade57f4c503c3204fd36b904dbf64f1b05a7ee9",
   "files": [
     {
       "path": "records/trial.json",
       "source_artifact": "runs/integration-candidate-001/manifests/trial.json",
       "transformation": "none",
-      "export_sha256": "15e907f0cbec52e6312745c73bc13ff729a2c3f2a4297f01d5dec939d27e801c"
+      "export_sha256": "f4e733bc323eb5e1aeff8dd3a55dc90bf41ae57c90b1543ad8268276e5033fb2"
     },
     {
       "path": "records/episode-result.json",
       "source_artifact": "runs/integration-candidate-001/private/episodes/integration-candidate-001/result.json",
       "transformation": "none",
-      "export_sha256": "052a26349cb6293b7053ae351fea0309e1279f24b189721186cebbc3cda9b82e"
+      "export_sha256": "e9a6d157b1372c750974520fa7637b7aba59625aa446b0b879038c81b3e5c9ee"
     },
     {
       "path": "records/evaluation-result.json",
       "source_artifact": "runs/integration-candidate-001/private/result.json",
       "transformation": "none",
-      "export_sha256": "581067c30cd6fdf9b5868937a484e4abba769fd2fda4f540fe61dcf349b48ea2"
+      "export_sha256": "a05ba1888f7c3c0847e9addce92b823104cfa46d9508d3f9989fce4abc9c5e13"
     },
     {
       "path": "records/proposal.json",
@@ -53,13 +53,13 @@
       "path": "logs/verification.txt",
       "source_artifact": "stdout/stderr of scripts/integration-candidate.ts",
       "transformation": "captured from the process, then redacted",
-      "export_sha256": "95cd99c84eec20e67a0c37460418c176e0e8849199f736945f64618c836eb97f"
+      "export_sha256": "312643063e8860a382d045159b4d8b378e15594ad78f52bbea8ad2dece18cf81"
     },
     {
       "path": "changes/candidate.diff",
       "source_artifact": "diff of the parent Genome against the built candidate",
       "transformation": "generated at export time; the candidate is deleted afterwards",
-      "export_sha256": "67ddf7bca50c3897533f0258da7f116af0b3eaa09c81269b463e7b27b9eba07f"
+      "export_sha256": "5d184b69b3bddacbfc7a6d00ee44e47594f294c3c932e13ab459d5ba23ed0629"
     }
   ]
 }

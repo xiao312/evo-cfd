@@ -5,7 +5,7 @@ Does the production candidate builder accept evidence produced by the actual
 evaluator and publish a valid, bounded candidate?
 
 ## Code tested
-- EvoCFD commit: e7d68eda3df54700504a65e0a68076117a9b643f
+- EvoCFD commit: 1f569e2c08e1fa62c4603c7c53194fcb1ce8e3b4
 - Working tree clean: false
 - Uncommitted patch: none
 

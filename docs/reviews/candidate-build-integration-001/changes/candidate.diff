@@ -1,3 +1,138 @@
+--- /dev/null
++++ candidate.json
++ {
++   "candidate_genome_id": "evocfd:m1-baseline--integration-test-skill--36179a4a",
++   "parent_genome_id": "evocfd:m1-baseline",
++   "parent_harness_identity": "c3d4a76496e6b750017dc78aa269db65e29c5692c228016a5bb7f66f0222d20f",
++   "candidate_harness_identity": "ded8efcf88e75c87334d070f33991b6e4925a7a9a2256c870aeb82d52d1bb968",
++   "proposer_harness_identity": "1b759c0ed32b1f79cf8eb3171767e4971e1c6846e0354d12519b5fca02970088",
++   "change": {
++     "kind": "skill_upsert",
++     "skill": "integration-test-skill",
++     "rationale": "[INTEGRATION TEST] deterministic plumbing check, not an LLM proposal and not an observed deficiency: verify that real evaluator output grounds a candidate through the production builder.",
++     "proposer_episode": "integration-proposal-001"
++   },
++   "status": "proposed",
++   "created_at": "2026-09-16T06:24:32.444Z"
++ }
+--- /dev/null
++++ components/skills.json
++ {
++   "component_schema_version": "1",
++   "component_id": "skills",
++   "config": {
++     "skills": [
++       {
++         "source": "./skills/integration-test-skill",
++         "enabled": true
++       }
++     ]
++   }
++ }
+--- /dev/null
++++ contracts/skills.dev.md
++ # skills component — EvoCFD candidate contract
++ 
++ ## Scope
++ 
++ Owns workflow knowledge that loads on demand. A skill must not push its whole
++ body into context at startup: the description in its frontmatter is what the
++ model sees first, and the body is read only when the task matches it.
++ 
++ This contract is what the first candidate from `evocfd:m1-baseline` installs,
++ because that seed carries no skills component. A candidate cannot add a skill
++ without adding the component that registers it.
++ 
++ ## Config
++ 
++ - `skills`: an array of `{ source, enabled }` entries, where `source` is a
++   skill directory inside the bundle.
++ 
++ ## Allowed operations
++ 
++ EvoCFD's candidate changes are bounded to two kinds, and both are what this
++ component exists to carry:
++ 
++ - `skill_upsert` — install a skill the parent does not register
++ - `skill_modify` — replace the body of a skill the parent already registers
++ 
++ A skill cannot touch the model, the tools, the provider, the evaluator, or the
++ task, so a deficiency that needs any of those is not a skill's to fix.
++ 
++ ## Contract for a candidate skill
++ 
++ A skill must state:
++ 
++ - its **trigger** — the situation in which loading it is correct,
++ - its **inputs** — what it needs to have been given,
++ - its **steps** — what it directs, in an order that is executable,
++ - what **done** looks like — how the agent knows to stop.
++ 
++ The content has to be reusable: never bind it to one task's answer, to a
++ credential, or to a path that only exists in one trial. Prefer short executable
++ instructions over explanation; a skill that argues its own case has already
++ been loaded too late to help.
++ 
++ A skill is not a place to put instructions the harness already gives. If the
++ parent Genome's instructions already say it, a skill that repeats it adds a
++ second, divergent copy.
++ 
++ ## Candidate construction
++ 
++ Only these files may change when a skill is added to a bundle with no skills
++ component:
++ 
++ ```text
++ genome.json                    the component is registered
++ components/skills.json         the component config
++ contracts/skills.dev.md        this contract
++ skills/<name>/SKILL.md         the skill itself
++ ```
++ 
++ Everything else must remain byte-identical to the parent, and the builder
++ verifies that rather than assuming it.
 --- genome.json
 +++ genome.json
-@@ content differs; 295 -> 470 bytes; exported in full in the candidate tree before deletion
+- {
+-   "genome_schema_version": "3",
+-   "genome_id": "evocfd:m1-baseline",
+-   "parent_id": null,
+-   "version": 1,
+-   "base": "default",
+-   "components": [
+-     {
+-       "id": "instructions",
+-       "source": "./components/instructions.json",
+-       "contract": "./contracts/instructions.dev.md"
+-     }
+-   ]
+- }
++ {
++   "genome_schema_version": "3",
++   "genome_id": "evocfd:m1-baseline--integration-test-skill--36179a4a",
++   "parent_id": "evocfd:m1-baseline",
++   "version": 2,
++   "base": "default",
++   "components": [
++     {
++       "id": "instructions",
++       "source": "./components/instructions.json",
++       "contract": "./contracts/instructions.dev.md"
++     },
++     {
++       "id": "skills",
++       "source": "./components/skills.json",
++       "contract": "./contracts/skills.dev.md"
++     }
++   ]
++ }
+--- /dev/null
++++ skills/integration-test-skill/SKILL.md
++ ---
++ name: integration-test-skill
++ description: [INTEGRATION TEST] placeholder skill that exists to prove the construction path.
++ ---
++ # integration-test-skill
++ 
++ This skill exists only because an integration test needed a real file on a real
++ allowlist. It states no procedure and should never be activated.

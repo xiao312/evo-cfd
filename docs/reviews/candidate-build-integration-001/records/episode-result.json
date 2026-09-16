@@ -3,8 +3,8 @@
   "exitCode": 0,
   "signal": null,
   "timedOut": false,
-  "startedAt": "2026-09-16T06:16:31.122Z",
-  "endedAt": "2026-09-16T06:16:31.174Z",
+  "startedAt": "2026-09-16T06:24:31.028Z",
+  "endedAt": "2026-09-16T06:24:31.079Z",
   "header": null,
   "events": [],
   "malformed": [
@@ -32,7 +32,7 @@
     ],
     "cwd": "/workspace/runs/integration-candidate-001/agent/workspace",
     "env": {
-      "HOSTNAME": "194824c7847f",
+      "HOSTNAME": "b63216ce64c3",
       "EVOCFD_GATEWAY_TOKEN": "<redacted:EVOCFD_GATEWAY_TOKEN>",
       "PWD": "/workspace",
       "HOME": "/home/dfode",
@@ -43,7 +43,7 @@
     }
   },
   "recordedEnv": {
-    "HOSTNAME": "194824c7847f",
+    "HOSTNAME": "b63216ce64c3",
     "EVOCFD_GATEWAY_TOKEN": "<redacted:EVOCFD_GATEWAY_TOKEN>",
     "PWD": "/workspace",
     "HOME": "/home/dfode",

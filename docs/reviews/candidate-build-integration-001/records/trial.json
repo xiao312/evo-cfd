@@ -5,7 +5,7 @@
   "task_identity": "2bed0ae336f639e1729c430a32d58cc13b1c83e314261865c02234e5fe63369b",
   "workspace_digest": "c9d4b36a8b86ef134fc08b268bac7206ed109970c8df0e0e6e1f434579deab8f",
   "evaluator_digest": "93f03c8fad303a82ed50467d072380ba1a34181c416d669e004024d9b7fbf39a",
-  "trial_identity": "1498a76c56951e209f4256e0558bda28af47d356703ed766c1a28e589c0099d4",
+  "trial_identity": "0c71d382779483e7490c296567ac747d44032fc44ce11174686c6eaa27c5ead6",
   "trial": {
     "network_profile": "llm-only",
     "max_agent_turns": 20,
@@ -14,7 +14,7 @@
   "environment": {
     "environment_identity": null,
     "credential_ref": "gateway-token:default",
-    "harness_identity": null,
+    "harness_identity": "c3d4a76496e6b750017dc78aa269db65e29c5692c228016a5bb7f66f0222d20f",
     "genome_id": "evocfd:m1-baseline"
   },
   "layout": {
