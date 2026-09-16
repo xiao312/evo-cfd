@@ -133,3 +133,38 @@ machinery without pretending to test the harness; and move the loop to CFD,
 where a solver that fails to converge or an inconsistent thermo state is a
 deficiency the model cannot talk its way past. `propose` will be exercised by
 a real failure, or not at all.
+
+## Infrastructure incident: the OF8 source transfer lost 65 files to case collision
+
+**Symptom.** The first OpenFOAM-8 build on the compute host failed immediately:
+`fatal error: PointHit.H: No such file or directory`, from `line.H`'s own
+`#include "PointHit.H"`.
+
+**Root cause.** The source was cloned with git onto a Windows exFAT working
+tree. That filesystem is case-insensitive, so `PointHit.H` and `pointHit.H`
+collapsed into one entry and 65 distinct case-colliding groups were silently
+lost. The tree looked complete — 20,000 files present, no error, no warning —
+and was not. The failure appeared only at compile time, in a header whose name
+differed from its on-disk spelling by one letter.
+
+**Discriminating tests.**
+
+- `find src -name PointHit.H` → nothing, while `pointHit.H` existed. A missing
+  file, not a missing include path.
+- Re-cloning changed nothing: git on a case-insensitive tree reproduces the
+  same loss deterministically.
+- Auditing the GitHub archive tarball for lowercased-path duplicates found all
+  65 groups, `PointHit.H`/`pointHit.H` among them.
+
+**Fix.** Take the source as an archive tarball
+(`https://github.com/OpenFOAM/OpenFOAM-8/archive/refs/heads/master.tar.gz`),
+which never passes through a case-insensitive working tree, and transfer that.
+Verified on the server: both spellings present, build proceeds past the
+failing header with zero errors.
+
+**Generalisation.** Any transfer of a Linux source tree through this Windows
+host must avoid a git checkout on exFAT. Tarball in, tarball out, and audit the
+case-collisions rather than trusting the file count. This is the same class of
+silent-corruption failure as the earlier `write`-tool newline bug: a medium
+that quietly changes what it carries, with the damage surfacing far from the
+cause.
