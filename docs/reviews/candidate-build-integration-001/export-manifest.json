@@ -35,7 +35,7 @@
       "path": "records/construction-report.json",
       "source_artifact": "computed from the builder's return value",
       "transformation": "summarised from the builder's record, not copied from disk",
-      "export_sha256": ""
+      "export_sha256": "f9a501e755c0484092e338c946f648491ff03aaed318bb2fd6f6b89e949c9b9b"
     },
     {
       "path": "logs/episode-events.jsonl",
@@ -61,5 +61,12 @@
       "transformation": "generated at export time; the candidate is deleted afterwards",
       "export_sha256": "5d184b69b3bddacbfc7a6d00ee44e47594f294c3c932e13ab459d5ba23ed0629"
     }
-  ]
+  ],
+  "working_tree_dirty_reason": "the bundle directory itself was untracked at export time; a review bundle is written after the experiment it describes. No tracked file was modified and no commit was amended; the tree's tracked content matched the tested commit exactly.",
+  "synthetic_origin": {
+    "is_llm_observed_behaviour": false,
+    "agent": "scripts/fake-agent.mjs, a deterministic stand-in, not a language model",
+    "reason": "the purpose is to exercise the producer-consumer contract between evaluateTrial(), evidence assembly and the candidate builder. No model call is made, no agent trajectory exists, and nothing here is an observed LLM action.",
+    "populated_fields_that_resemble_real_runs": "records/construction-report.json carries proposer_harness_identity and a credential reference; these are produced by the same code paths as a real run and must not be read as evidence of an LLM execution."
+  }
 }

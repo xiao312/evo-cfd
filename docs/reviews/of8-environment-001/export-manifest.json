@@ -1,20 +1,20 @@
 {
   "bundle_id": "of8-environment-001",
   "generated": "2026-09-16",
-  "tested_code_commit": "c2e0aa5f861a65ebf7df8ef0c78154e62fa3a26c",
+  "tested_code_commit": "9ad3fbe9974f0638632a9a23b2d3741362da37fc",
   "tested_code_repo": "xiao312/evo-cfd",
   "tested_code_branch": "main",
   "working_tree_clean": true,
   "files": [
     {
       "path": "README.md",
-      "sha256": "17692ee265c55a0c9eb96e191b4937f5a136ebaf8d6dbcd2f7f593df5e4870cf",
+      "sha256": "e62946cb299b5a00b83d7d78fab802e16310d02a77cf87ebaacad979f0840990",
       "transformation": "author-written narrative; no source data",
-      "bytes": 9037
+      "bytes": 10434
     },
     {
       "path": "records/environment.json",
-      "sha256": "668f3df90cac4a6d964dfd9256931091bef98f2f646c534a84e0794e30d08615",
+      "sha256": "1a5b8acf26a889103aa90038ae29dcd0f433060fe1518fabfb74176b3b81a34c",
       "transformation": "author-written from observed values",
       "bytes": 2033
     },
@@ -26,9 +26,9 @@
     },
     {
       "path": "records/verification.json",
-      "sha256": "a83e147fdd400c5ed8fa913990a423507b892ba6278dc0f8e0d04052a285da9f",
+      "sha256": "611ed14318f2511036a4d7dcc1367583c28d7c33ad0278f601edc774427c8671",
       "transformation": "values read from the solver's own log",
-      "bytes": 1737
+      "bytes": 2418
     },
     {
       "path": "logs/build-tail.txt",

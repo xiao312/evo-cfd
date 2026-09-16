@@ -1,7 +1,7 @@
 {
   "bundle_id": "of8-environment-001",
   "bundle_type": "environment-inventory",
-  "tested_code_commit": "c2e0aa5f861a65ebf7df8ef0c78154e62fa3a26c",
+  "tested_code_commit": "9ad3fbe9974f0638632a9a23b2d3741362da37fc",
   "tested_code_repo": "xiao312/evo-cfd",
   "involves_llm": false,
   "involves_agent_episode": false,

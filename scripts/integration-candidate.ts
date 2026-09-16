@@ -12,7 +12,7 @@
  *      → evaluateTrial()      ← the real producer, writes result.json
  *      → assembleEvidencePackage()
  *      → labelled proposal    ← origin = integration test, NOT an LLM proposal
- *      → buildCandidate()     ← production CLI path, real rsihDir + validator
+ *      → buildCandidate()     ← production builder API, real rsihDir + validator
  * ```
  *
  * Nothing here hand-authors an approximation of the evaluator's JSON. The

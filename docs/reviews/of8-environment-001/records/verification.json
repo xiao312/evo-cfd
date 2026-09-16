@@ -12,24 +12,29 @@
     "blockMesh_exit": 0,
     "reactingFoam_exit": 0,
     "reached_time": 0.000979683,
-    "first_time": 1.19999e-06,
-    "courant_mean_first": 2.73409e-05,
+    "first_time": 0.00000119999,
+    "courant_mean_first": 0.0000273409,
     "courant_mean_last": 0.0817487,
-    "continuity_local_first": 1.52479e-05,
-    "continuity_local_last": 5.73148e-08,
+    "continuity_local_first": 0.0000152479,
+    "continuity_local_last": 5.73148e-8,
     "execution_time_s": 0.49
   },
   "interpretation": {
     "supported": [
-      "the binary loads, its shared libraries resolve, and the case meshes and runs to the requested truncated end time",
-      "the continuity residual decreases by more than two orders of magnitude over the run, which is consistent with a solver converging rather than diverging",
-      "adaptive time stepping kept the mean Courant number below 0.1 throughout, so the time-step control is functioning"
+      "the binary loads, its shared libraries resolve, and the case meshes and runs to a normal `End` at the requested truncated end time",
+      "the reported local time-step continuity error decreases between the first and final sampled entries, which is consistent with a solver that is not diverging",
+      "the reported mean Courant number is small at both the first and final sampled entries, which is consistent with the adaptive time-step control functioning"
     ],
     "not_supported": [
-      "nothing about accuracy, grid convergence, or correctness of the physics",
+      "the excerpt records first and last sampled values only; it is not a time history and contains no maximum, so it cannot bound the Courant number over the run",
+      "the quantity reported is the solver's `time step continuity errors`, which is not a linear-solver residual and is not evidence of physical convergence or of accuracy",
+      "nothing about grid convergence or correctness of the physics",
       "nothing about trans- or super-critical regimes, which are the project's actual target",
       "nothing about the realFluidReactingFoam modification, which was not built or run here"
     ]
   },
-  "cleanup": "the temporary case directory was deleted after the numbers were captured; only the log excerpt in logs/smoke-tail.txt remains"
+  "cleanup": "the temporary case directory was deleted after the numbers were captured; only the log excerpt in logs/smoke-tail.txt remains",
+  "requested_endTime": 0.001,
+  "actual_last_logged_time": 0.000979683,
+  "stopping_note": "the requested endTime was 0.001 and the last logged time was 0.000979683; the log ends with a normal `End`. The two are recorded separately rather than rounded into an exact-endpoint claim."
 }

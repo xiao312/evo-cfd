@@ -5,9 +5,14 @@ Does the production candidate builder accept evidence produced by the actual
 evaluator and publish a valid, bounded candidate?
 
 ## Code tested
-- EvoCFD commit: 1f569e2c08e1fa62c4603c7c53194fcb1ce8e3b4
-- Working tree clean: false
-- Uncommitted patch: none
+- EvoCFD commit: `1f569e2c08e1fa62c4603c7c53194fcb1ce8e3b4`
+- Working tree clean: **false** — but the dirtiness was only the bundle itself.
+  At export time this directory was untracked, because a bundle is written
+  after the experiment it describes. No source file was patched and no commit
+  was amended: the tree's tracked content matched `1f569e2` exactly. The
+  manifest records this as `working_tree_clean: false` with the reason in
+  `working_tree_dirty_reason`.
+- Uncommitted patch: none. Nothing modified a tracked file.
 
 ## Execution
 - Trial id: integration-candidate-001
@@ -15,15 +20,32 @@ evaluator and publish a valid, bounded candidate?
 - Runtime: `evocfd-dev:node22` container on the compute host
 - Exact commands:
   ```text
-  bash /data2/kexiao/bin/evocfd 'node scripts/integration-candidate.ts --bundle'
+  bash /data2/kexiao/bin/evocfd 'node scripts/integration-candidate.ts --bundle /data2/kexiao/EvoCFD/docs/reviews/candidate-build-integration-001'
   ```
+  The `--bundle` option takes the destination directory as its argument. The
+  export writes into that directory in place, which is why the tree reads as
+  dirty during the run and clean once the result is committed.
 
 ## Expected
+
 - A genuine `EvaluationResult` written by `evaluateTrial()` is accepted as judged evidence.
 - Exactly one skill is added, and the changed-file set is exactly the allowlist.
 - Parent Genome contents remain unchanged.
 - The pinned RSI-Harness validator accepts the candidate bundle.
 - Candidate status remains `proposed`; nothing is activated.
+
+**Scope of what is tested.** This script imports and calls the production
+`buildCandidate()` API directly, with the real RSI-Harness installation root and
+the pinned validator. It does **not** invoke `scripts/build-candidate.ts` as a
+separate process, so the CLI's argument parsing, environment setup and error
+reporting are **not** exercised here. The supported claim is:
+
+> The actual evaluator output is successfully consumed through evidence
+> assembly by the production candidate builder and the pinned RSI-Harness
+> validator.
+
+It is not a claim about autonomous improvement, and not a claim that the
+standalone CLI works.
 
 ## Observed
 - Outcome: `built` (see `records/construction-report.json`).
@@ -47,8 +69,11 @@ evaluator and publish a valid, bounded candidate?
 - The proposal was supplied by a deterministic integration test, not an LLM.
 - This is not evidence of a harness improvement, and the candidate was deleted
   after the bundle was written. It exercises a code path, nothing more.
-- The episode ran the `fake-agent.mjs` stand-in, so `episode-events.jsonl` is
-  empty: no model call was made and no agent trajectory exists to inspect.
+- The episode ran the `fake-agent.mjs` stand-in, so `episode-events.jsonl`
+  contains **no Pi JSON events**: no model call was made and no agent
+  trajectory exists to inspect. The file is not empty — it holds the three
+  plain-text lines the stand-in prints, which are its whole behaviour. Nothing
+  in this bundle is an observed LLM action.
 - The evaluation's criteria are those of the `control-plane-001` toy fixture.
 
 ## Review requested

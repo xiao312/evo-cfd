@@ -2,7 +2,7 @@
 
 **Bundle id:** `of8-environment-001`
 **Type:** environment inventory (no agent episode; no LLM behaviour in this bundle)
-**Tested code commit:** `c2e0aa5f861a65ebf7df8ef0c78154e62fa3a26c` (evo-cfd `main`)
+**Tested code commit:** `9ad3fbe9974f0638632a9a23b2d3741362da37fc` (evo-cfd `main`)
 **Status:** OpenFOAM-8 built and functionally verified. The `realFluidReactingFoam`
 modification is **not** applied yet — this bundle establishes the base it will
 modify, so that the modification is a change against a known state rather than
@@ -65,8 +65,17 @@ carries these identities.
 - `Allwmake` exit **0**, **0** compile errors, 7009 build-log lines.
 - **201** executables and **100** shared libraries under
   `platforms/linux64GccDPInt32Opt/`.
-- The smoke test ran to `Time = 0.000979683`, `Courant Number mean: 0.0817487`,
-  `time step continuity errors : sum local = 5.73148e-08`, exit 0.
+- The smoke test reached `Time = 0.000979683`, with the last reported mean Courant
+  number `0.0817487` and the last reported time-step continuity error
+  `sum local = 5.73148e-08`, exit 0. The requested `endTime` was `0.001`, so the
+  run stopped just short of it; the log ends with a normal `End`.
+
+  These are the **first and last sampled values** of quantities the solver
+  reports per time step. This is not a Courant history and not a maximum: the
+  excerpt does not establish that the Courant number stayed below 0.1 for the
+  whole run, only where it started and ended. The quantity the solver calls
+  "time step continuity errors" is named here in the solver's own terms, and is
+  not treated as a linear-solver residual or as proof of physical convergence.
 - `reactingFoam -help`, `simpleFoam -help` both print usage, i.e. the binaries
   load and their shared libraries resolve.
 
@@ -117,9 +126,11 @@ others. The executable in the smoke test is the one whose md5 is listed here;
   applied. Proving stock OF8 builds and runs is necessary but far from
   sufficient; the modified solver is a separate build with its own identity
   chain to be recorded in a later bundle.
-- **One smoke case, one solver, truncated.** The continuity residual reaching
-  5.7e-08 over 0.001 s of a 2-D laminar counter-flow flame says the toolchain
-  produces a running solver with sane numerics. It says nothing about
+- **One smoke case, one solver, truncated, and only endpoint-sampled.** The
+  reported time-step continuity error falling from 1.5e-05 to 5.7e-08 between
+  the first and last entries of a 2-D laminar counter-flow flame says the
+  toolchain produces a running solver that is not diverging. It is a sampled
+  first-and-last observation, not a time history, and it says nothing about
   accuracy, about trans- or super-critical regimes, or about the modified
   physics.
 - **ThirdParty was not really used.** `libscotchDecomp`/`libptscotchDecomp`
@@ -129,6 +140,15 @@ others. The executable in the smoke test is the one whose md5 is listed here;
 - **The source has no git identity on the host.** It came from an archive, so
   provenance rests on the archive sha256 recorded above, not on a commit hash.
   That is a deliberate trade for correctness — see the incident below.
+- **The smoke case was deleted, and that was a mistake.** Only selected numbers
+  and log excerpts were retained. That makes this record useful for inspection
+  but weak for exact replay: the tutorial as shipped was modified by the
+  `endTime` truncation, and that modified input was not kept. **The next bundle
+  retains the small case's input dictionaries, initialisation files, mesh
+  recipe and full text log.** A mesh-generation recipe plus its inputs is
+  sufficient, and is preferred over storing a generated mesh.
+  The immediate improvement is not another case; it is making the existing small
+  test repeatable.
 - **Host compiler, not containerised.** The build ran on the host with system
   gcc and system OpenMPI, not inside `evocfd-dev:node22`. The agent-side
   runtime remains containerised; this build is an external toolchain the
