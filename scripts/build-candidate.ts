@@ -48,6 +48,9 @@ const outcome = await buildCandidate({
     repoRoot: REPO_ROOT,
     genomesRoot: join(REPO_ROOT, "genomes"),
     agentConfigDir: join(REPO_ROOT, "config", "agent-seed"),
+    // The default validator joins `rsihDir/src/cli.ts`; omitting it made the
+    // production path throw where every test path injected a stub.
+    rsihDir: installation.root,
     rsihRevision: installation.revision,
     piVersion: installation.piVersion,
   },

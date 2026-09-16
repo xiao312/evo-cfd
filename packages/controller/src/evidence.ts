@@ -179,8 +179,9 @@ async function copyTrialEvidence(input: {
 
   // The verdict, copied as `evaluation/` so a proposer reads the criteria that
   // passed and failed. The evaluator that produced it is never part of the
-  // package. A trial with no verdict is still evidence, but it must not be
-  // mistaken for one.
+  // package. A trial with no verdict is still evidence, but it is written in
+  // the same shape a real result uses, so the one judgement parser treats it
+  // as "no trustworthy judgement" rather than as a verdict worded differently.
   const resultFile = join(privateDir, "result.json");
   if (await pathExists(resultFile)) {
     await mkdir(join(input.destination, "evaluation"), { recursive: true });
@@ -189,7 +190,16 @@ async function copyTrialEvidence(input: {
     await mkdir(join(input.destination, "evaluation"), { recursive: true });
     await writeFile(
       join(input.destination, "evaluation", "result.json"),
-      JSON.stringify({ trial_id: input.trialId, verdict: "not_recorded" }, null, 2) + "\n",
+      JSON.stringify(
+        {
+          trial_id: input.trialId,
+          pass: false,
+          criteria: [],
+          error: "no verdict was recorded for this trial",
+        },
+        null,
+        2,
+      ) + "\n",
     );
   }
 }

@@ -20,9 +20,7 @@
  * difference between a lineage that is asserted and one that is checked.
  */
 import { spawnSync } from "node:child_process";
-import { cp, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { stat } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { createHash } from "node:crypto";
 
@@ -37,7 +35,9 @@ import {
 } from "./harness.ts";
 import { digestFileMap, digestTree } from "./snapshot.ts";
 import { EVIDENCE_DIR, PROPOSER_OUTPUT_DIR } from "./evidence.ts";
+import { readJudgement as readJudgementFromEvaluator } from "./evaluate.ts";
 import { PROPOSAL_FILE, validateProposal, type HarnessProposal } from "./proposal.ts";
+import type { Judgement } from "./evaluate.ts";
 
 export class CandidateBuildError extends Error {
   readonly code = "ECANDIDATEBUILD";
@@ -171,7 +171,11 @@ export async function buildCandidate(input: {
     return { kind: "rejected", reason: grounding, proposal };
   }
 
-  const stagingRoot = input.stagingRoot ?? tmpdir();
+  // Staging happens on the *destination* filesystem, because `rename` across
+  // filesystems fails with EXDEV and a tmpdir is not generally the same volume
+  // as the Genome tree. Defaulting here rather than at the call sites means a
+  // caller cannot reintroduce a cross-device move by forgetting an override.
+  const stagingRoot = input.stagingRoot ?? join(input.context.genomesRoot, ".staging");
   await mkdir(stagingRoot, { recursive: true });
   const staging = await mkdtemp(join(stagingRoot, "evocfd-candidate-"));
   try {
@@ -289,15 +293,19 @@ export async function buildCandidate(input: {
     const published = join(input.context.genomesRoot, candidateGenomeId.replaceAll(":", "-"));
     await mkdir(input.context.genomesRoot, { recursive: true });
     await rename(candidateDir, published);
-    await rm(staging, { recursive: true, force: true });
 
     return { kind: "built", record, genomeDir: published, changedFiles: changed };
   } catch (error) {
-    await rm(staging, { recursive: true, force: true });
     if (error instanceof CandidateBuildError) {
       return { kind: "rejected", reason: error.message, proposal };
     }
     throw error;
+  } finally {
+    // Every path out of this block — built, duplicate, rejected, or thrown —
+    // removes its staging directory, including the early returns that used to
+    // leave one behind. After a successful publish the directory is already
+    // empty, so this is a no-op there.
+    await rm(staging, { recursive: true, force: true });
   }
 }
 
@@ -418,7 +426,10 @@ async function applySkillChange(input: {
       }
       const skills = registered.skills.filter((entry) => entry.source !== skillEntry.source);
       skills.push(skillEntry);
-      registered.writeSkills(skills);
+      // Awaited: the candidate is snapshotted, validated and published
+      // immediately after this returns, so a fire-and-forget write could land
+      // after the bundle was already read — or not at all.
+      await registered.writeSkills(skills);
       touched.add(relativeBundlePath(input.candidateDir, configPath));
     }
   }
@@ -641,20 +652,22 @@ async function groundEvidenceRefs(input: {
     // behaviour, the evaluation carries the verdict — so the judgment is looked
     // up per *trial*, not per reference. "I have not looked yet" is not
     // "no change needed", and a candidate built from unjudged evidence would be
-    // compared as though a verdict had said something.
+    // compared as though a verdict had said something. A task that *failed* is
+    // judged evidence and counts: the criterion is whether a trustworthy
+    // judgement exists, not whether it passed.
     const unjudged: string[] = [];
     for (const trialId of citedTrials) {
-      const verdict = await readVerdict(
+      const judgement = await readJudgement(
         join(input.evidenceRoot, "evidence", trialId, "evaluation", "result.json"),
       );
-      if (verdict === null || verdict === "not_recorded") {
-        unjudged.push(trialId);
+      if (!judgement.judged) {
+        unjudged.push(`${trialId} (${judgement.reason ?? "no trustworthy judgement"})`);
       }
     }
     if (unjudged.length > 0) {
       return (
-        `the proposal cites trials with no recorded verdict: ${unjudged.join(", ")}. ` +
-        "A mutation must rest on judged evidence; unjudged evidence supports no conclusion"
+        `the proposal cites trials with no trustworthy judgement: ${unjudged.join("; ")}. ` +
+        "A mutation must rest on judged evidence; an evaluation that could not obtain a verdict supports no conclusion"
       );
     }
   }
@@ -713,14 +726,9 @@ export async function readProposal(runRoot: string): Promise<HarnessProposal> {
   }
 }
 
-/** Read the verdict out of a copied evaluation result, if there is a real one. */
-async function readVerdict(resultPath: string): Promise<string | null> {
-  try {
-    const raw = JSON.parse(await readFile(resultPath, "utf8")) as { verdict?: unknown };
-    return typeof raw.verdict === "string" ? raw.verdict : null;
-  } catch {
-    return null;
-  }
+/** Read a judgement through the evaluator's own contract, never a re-approximation. */
+async function readJudgement(resultPath: string): Promise<Judgement> {
+  return readJudgementFromEvaluator(resultPath);
 }
 
 /**

@@ -469,6 +469,71 @@ export async function recordedResult(layout: TrialLayout): Promise<EvaluationRes
 }
 
 /**
+ * Whether a recorded result is a *judgement*, and what it concluded.
+ *
+ * The distinction this keeps is between a task that failed and an evaluation
+ * that never produced a trustworthy verdict. Both are written to the same
+ * file, and only one of them is evidence a proposal can rest on:
+ *
+ * ```text
+ * valid evaluation, pass=true            → judged, and it passed
+ * valid evaluation, pass=false, no error  → judged, and it failed
+ * evaluator or setup error                → not a judgement at all
+ * missing or malformed                     → not a judgement at all
+ * ```
+ *
+ * A failed task is still valuable judged evidence; the criterion is whether a
+ * trustworthy judgement exists, not whether it passed. Only the producer of
+ * this file knows that contract, so the parser lives here and every consumer —
+ * evidence assembly, candidate construction, comparison — reads through it
+ * rather than re-approximating the shape.
+ */
+export interface Judgement {
+  judged: boolean;
+  pass: boolean;
+  /** Present when no trustworthy judgement exists. */
+  reason?: string;
+}
+
+export async function readJudgement(resultPath: string): Promise<Judgement> {
+  let raw: string;
+  try {
+    raw = await readFile(resultPath, "utf8");
+  } catch (error) {
+    return {
+      judged: false,
+      pass: false,
+      reason: `no evaluation is recorded at ${resultPath} (${(error as NodeJS.ErrnoException).code ?? error})`,
+    };
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    return { judged: false, pass: false, reason: `the evaluation at ${resultPath} is not JSON: ${(error as Error).message}` };
+  }
+  if (typeof parsed !== "object" || parsed === null) {
+    return { judged: false, pass: false, reason: `the evaluation at ${resultPath} is not an object` };
+  }
+
+  const result = parsed as Partial<EvaluationResult>;
+  // An `error` means the verdict could not be obtained intact: the evaluator
+  // could not run, timed out, contradicted itself, or judged a workspace no
+  // episode produced. That is a fault, not a finding about the task.
+  if (typeof result.error === "string" && result.error.length > 0) {
+    return { judged: false, pass: false, reason: result.error };
+  }
+  if (typeof result.pass !== "boolean") {
+    return { judged: false, pass: false, reason: `the evaluation at ${resultPath} has no boolean pass` };
+  }
+  if (!Array.isArray(result.criteria)) {
+    return { judged: false, pass: false, reason: `the evaluation at ${resultPath} has no criteria array` };
+  }
+  return { judged: true, pass: result.pass };
+}
+
+/**
  * Write a result exactly once, so the record cannot be revised after the fact.
  * The write is atomic: a crash between write and close cannot leave a verdict
  * that reads as complete.

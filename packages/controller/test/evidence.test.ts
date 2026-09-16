@@ -27,8 +27,9 @@ const SNAPSHOT: HarnessSnapshot = {
 async function recordTrial(
   runsDir: string,
   trialId: string,
-  options: { verdict?: string; withEvaluator?: boolean } = {},
+  options: { pass?: boolean; error?: string; withEvaluator?: boolean } = {},
 ): Promise<void> {
+  const pass = options.pass ?? true;
   const trialRoot = join(runsDir, trialId);
   await mkdir(join(trialRoot, "manifests"), { recursive: true });
   await mkdir(join(trialRoot, "agent"), { recursive: true });
@@ -45,12 +46,25 @@ async function recordTrial(
     join(trialRoot, "private", "episodes", "events.jsonl"),
     '{"type":"session"}\n{"type":"agent_start"}\n',
   );
+  // The result is written exactly as `evaluateTrial` writes it: `pass` and
+  // `criteria[].pass`, never a `verdict` string and never `criteria[].passed`.
   await writeFile(
     join(trialRoot, "private", "result.json"),
     JSON.stringify({
       trial_id: trialId,
-      verdict: options.verdict ?? "pass",
-      criteria: [{ name: "structure", passed: true }],
+      fixture_id: "control-plane-001",
+      pass,
+      criteria: [{ criterion: "structure", pass, detail: "app.js is unchanged" }],
+      error: options.error,
+      exit_code: pass ? 0 : 1,
+      budget_seconds: 60,
+      elapsed_seconds: 1,
+      evaluator_digest: "e".repeat(64),
+      workspace_digest: "w".repeat(64),
+      episode_id: "episode",
+      episode_exit_code: 0,
+      episode_timed_out: false,
+      trial_identity: "t".repeat(64),
     }) + "\n",
   );
   if (options.withEvaluator) {
@@ -179,8 +193,12 @@ test("evidence: a trial with no verdict is marked, not silent", async () => {
   });
   const result = JSON.parse(
     await readFile(join(pkg.dir, "evidence", "m1-trial-001", "evaluation", "result.json"), "utf8"),
-  ) as { verdict: string };
-  assert.equal(result.verdict, "not_recorded");
+  ) as { pass: boolean; error?: string };
+  // A trial that reached no verdict is written in the same shape a real result
+  // uses, so the one judgement parser reads it as "no trustworthy judgement"
+  // rather than as a differently-worded verdict.
+  assert.equal(result.pass, false);
+  assert.match(result.error ?? "", /no verdict was recorded/);
 
   await rm(s.root, { recursive: true, force: true });
 });

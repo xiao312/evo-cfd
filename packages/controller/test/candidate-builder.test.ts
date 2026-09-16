@@ -7,13 +7,13 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
+import { EVIDENCE_DIR, PROPOSER_OUTPUT_DIR } from "../src/evidence.ts";
 import {
   buildCandidate,
   candidateContentDigest,
   readProposal,
   type CandidateBuildContext,
 } from "../src/candidate-builder.ts";
-import { PROPOSER_OUTPUT_DIR } from "../src/evidence.ts";
 import {
   buildHarnessSnapshot,
   candidateLineage,
@@ -133,7 +133,10 @@ async function writeJudgedEvidence(runRoot: string, trialId = "m1-trial-001"): P
   await writeFile(join(base, "episode", "events.jsonl"), '{"type":"session"}\n');
   await writeFile(join(base, "episode", "result.json"), JSON.stringify({ exit_code: 0 }) + "\n");
   await writeFile(join(base, "task", "TASK.md"), "# Do the thing\n");
-  await writeFile(join(base, "evaluation", "result.json"), JSON.stringify({ verdict: "pass" }) + "\n");
+  // Written in the shape `evaluateTrial` actually produces — `pass` and
+  // `criteria`, never a `verdict` string — so the fixture cannot drift from the
+  // producer's contract the way the hand-authored `{verdict: "pass"}` did.
+  await writeEvaluation(join(base, "evaluation", "result.json"), { pass: true });
   await writeFile(join(base, "trial-manifest.json"), JSON.stringify({ trial_id: trialId }) + "\n");
   await mkdir(join(runRoot, "private", "proposal-input", "parent", "genome"), { recursive: true });
   // The real package ships the whole parent Genome subtree here; the fixture
@@ -147,6 +150,48 @@ async function writeJudgedEvidence(runRoot: string, trialId = "m1-trial-001"): P
 }
 
 /** A scratch genomes tree with one baseline parent, plus its run directory. */
+/**
+ * Write an evaluation result in the exact shape `evaluateTrial` produces.
+ *
+ * This is the producer's contract, not an approximation of it: `pass` and
+   * `criteria`, with `error` present only when no trustworthy verdict was
+   * obtained. An earlier version of this helper wrote `{verdict: "pass"}`, which
+   * matched what the consumer happened to expect and bore no relation to what
+   * the producer writes — so both sides were tested against the same wrong
+   * thing.
+   */
+async function writeEvaluation(
+  path: string,
+  options: { pass?: boolean; error?: string } = {},
+): Promise<void> {
+  const pass = options.pass ?? true;
+  await writeFile(
+    path,
+    JSON.stringify(
+      {
+        trial_id: "m1-trial-001",
+        fixture_id: "control-plane-001",
+        pass,
+        criteria: pass
+          ? [{ criterion: "report", pass: true, detail: "REPORT.md is not empty" }]
+          : [{ criterion: "report", pass: false, detail: "REPORT.md is empty" }],
+        error: options.error,
+        exit_code: pass ? 0 : 1,
+        budget_seconds: 60,
+        elapsed_seconds: 1,
+        evaluator_digest: "e".repeat(64),
+        workspace_digest: "w".repeat(64),
+        episode_id: "episode",
+        episode_exit_code: 0,
+        episode_timed_out: false,
+        trial_identity: "t".repeat(64),
+      },
+      null,
+      2,
+    ) + "\n",
+  );
+}
+
 async function fixture(skill = SKILL): Promise<{
   root: string;
   genomesRoot: string;
@@ -746,17 +791,35 @@ test("candidate: a reference that escapes the evidence package is refused", asyn
 test("candidate: a proposal resting on an unjudged trial is refused", async () => {
   const f = await fixture();
   await writeProposal(f.runRoot);
-  // Overwrite the recorded verdict *after* the proposal fixture is written, so
-  // the marker for a trial that was never judged survives: a mutation must not
-  // be built from evidence that reached no conclusion. "I have not looked yet"
-  // is not "no change needed".
-  await writeFile(
-    join(f.runRoot, "private", "proposal-input", "evidence", "m1-trial-001", "evaluation", "result.json"),
-    JSON.stringify({ verdict: "not_recorded" }) + "\n",
-  );
+  // Replace the evaluation with the shape written when a trial reached no
+  // verdict: `error` set, no trustworthy judgement — *after* the fixture is
+  // written so it is not overwritten. "I have not looked yet" is not
+  // "no change needed".
+  await writeEvaluation(join(f.runRoot, EVIDENCE_DIR, "evidence", "m1-trial-001", "evaluation", "result.json"), {
+    pass: false,
+    error: "the evaluator could not obtain a verdict",
+  });
   const outcome = await buildWith(f);
   assert.equal(outcome.kind, "rejected");
   if (outcome.kind !== "rejected") throw new Error("unreachable");
-  assert.match(outcome.reason, /no recorded verdict/);
+  assert.match(outcome.reason, /no trustworthy judgement/);
+  await rm(f.root, { recursive: true, force: true });
+});
+
+/**
+ * A task that failed is judged evidence. This is the case the earlier `verdict`
+ * parser got backwards in the worst way: a failing trial is exactly what a
+ * repair proposal is for, and it must not be refused as "unjudged".
+ */
+test("candidate: a proposal resting on a failed trial is accepted as judged", async () => {
+  const f = await fixture();
+  await writeProposal(f.runRoot);
+  await writeEvaluation(join(f.runRoot, EVIDENCE_DIR, "evidence", "m1-trial-001", "evaluation", "result.json"), {
+    pass: false,
+  });
+  const outcome = await buildWith(f);
+  assert.equal(outcome.kind, "built");
+  if (outcome.kind !== "built") throw new Error("unreachable");
+  assert.equal(outcome.record.status, "proposed");
   await rm(f.root, { recursive: true, force: true });
 });
