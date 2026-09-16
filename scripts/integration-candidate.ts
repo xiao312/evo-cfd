@@ -491,6 +491,25 @@ async function exportBundle(input: ExportInput): Promise<void> {
  */
 async function diffTrees(parentDir: string, candidateDir: string): Promise<string> {
   const lines: string[] = [];
+
+  /** Everything under a directory the change added, emitted as additions. */
+  async function walkAdded(rel: string): Promise<void> {
+    const absC = join(candidateDir, rel);
+    const names = await readdir(absC).catch(() => [] as string[]);
+    for (const name of [...names].sort()) {
+      const child = join(rel, name).split(sep).join("/");
+      const cStat = await stat(join(absC, name)).catch(() => null);
+      if (cStat?.isDirectory()) {
+        await walkAdded(join(rel, name));
+        continue;
+      }
+      if (cStat === null) continue;
+      lines.push(`--- /dev/null`);
+      lines.push(`+++ ${child}`);
+      lines.push(indent(await readFile(join(absC, name), "utf8"), "+"));
+    }
+  }
+
   async function walk(rel: string): Promise<void> {
     const absP = join(parentDir, rel);
     const absC = join(candidateDir, rel);
@@ -505,7 +524,11 @@ async function diffTrees(parentDir: string, candidateDir: string): Promise<strin
       const cStat = await stat(c).catch(() => null);
       if (pStat === null && cStat === null) continue;
       if (pStat === null) {
-        // Added by the change.
+        // Added by the change. A whole added directory is walked, not read.
+        if (cStat.isDirectory()) {
+          await walkAdded(join(rel, name));
+          continue;
+        }
         lines.push(`--- /dev/null`);
         lines.push(`+++ ${child}`);
         lines.push(indent(await readFile(c, "utf8"), "+"));
