@@ -30,6 +30,7 @@
  */
 import { rm } from "node:fs/promises";
 import { writeFileSync, mkdirSync } from "node:fs";
+import { readdir } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -136,6 +137,18 @@ async function main(): Promise<void> {
   });
   check(pkg.digest.length === 64, `the evidence package has a digest (${pkg.digest.slice(0, 16)})`);
 
+  // The episode evidence is copied as `episode/<episode-id>/events.jsonl`, so
+  // the reference is resolved from what the package actually contains rather
+  // than assumed — the same way a proposer would discover it.
+  const episodeRoot = join(pkg.dir, "evidence", TRIAL_ID, "episode");
+  const episodeIds = await readdir(episodeRoot, { withFileTypes: true })
+    .then((entries) => entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name))
+    .catch(() => []);
+  const episodeRef =
+    episodeIds.length > 0
+      ? `evidence/${TRIAL_ID}/episode/${episodeIds[0]}/events.jsonl`
+      : `evidence/${TRIAL_ID}/trial-manifest.json`;
+
   // 5. A labelled test proposal. Its origin is recorded in the rationale so no
   // reader can mistake it for an LLM's judgement of the harness.
   const proposal = {
@@ -151,7 +164,7 @@ async function main(): Promise<void> {
     risks: [],
     evidence_refs: [
       `evidence/${TRIAL_ID}/evaluation/result.json`,
-      `evidence/${TRIAL_ID}/episode/events.jsonl`,
+      episodeRef,
     ],
     skill_content:
       "---\n" +
