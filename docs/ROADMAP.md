@@ -78,7 +78,7 @@ NOW
 ├─ PR 6.2   producer-consumer contract repair   ✅
 ├─ PR 7A    minimal parent/candidate trial      ✅
 │
-├─ PR 8     OF8 + realFluid execution          ← the pivot
+├─ PR 8     OF8 + realFluid execution          ← the pivot (step 0 ✅)
 ├─ CFD-001  provenance fixture
 ├─ CFD-002  thermo fixture
 ├─ CFD-003  coupled numerical fixture
@@ -444,6 +444,19 @@ enough, and it is worth doing on a task where the harness actually has
 something to add. **M2** closes here, not at PR 7A.
 
 ### PR 8 — OF8/realFluid execution profile  ← the pivot
+
+**Step 0 is done: the toolchain exists and is verified.** OpenFOAM-8 and
+ThirdParty-8 are built on the compute host at `/data2/kexiao/of8/`, with
+`Allwmake` exiting 0 and zero compile errors, 201 executables and 100 shared
+libraries. A stock `reactingFoam` counter-flow flame runs to a truncated end
+time with the continuity residual falling two orders of magnitude. The
+inventory is published as
+[`docs/reviews/of8-environment-001/`](../reviews/of8-environment-001/) and
+recorded in `cfd-baseline/baseline.json`.
+
+What is **not** done: `realFluidReactingFoam` is not applied. This is the base
+it will modify, and the bundle exists precisely so that the modification is a
+diff against a known state rather than against "whatever was installed".
 
 Pin OpenFOAM 8, the realFluidFoam-8 source revision, compiler/toolchain,
 container digest and linked libraries. Build → tiny existing tutorial/smoke
