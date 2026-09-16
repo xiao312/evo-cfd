@@ -23,19 +23,25 @@ import {
   writeJobRecord,
 } from "../packages/controller/src/cfd-exec.ts";
 
-const CASES = "/data2/kexiao/of8/rf-cases";
+const HOST_ROOT = process.env.EVOCFD_HOST_ROOT ?? "/workspace";
+// The job directory must be writable, so it lives under the repository mount,
+// not under the read-only solver tree.
+const CASES = join(HOST_ROOT, "runs", "cfd-cases");
 const JOB = join(CASES, "job-1D-advection-001");
-const SOURCE = join(CASES, "1D_advection");
+// The reference case is part of the solver installation and is read-only.
+// It is copied into the writable job directory before anything runs.
+const PROFILE_ROOT = process.env.EVOCFD_SOLVER_ROOT ?? "/data2/kexiao/of8";
+const SOURCE = join(PROFILE_ROOT, "rf-cases", "1D_advection");
 
 const profile = resolveProfile({
   id: "of8-realfluid",
-  executable: "/data2/kexiao/of8/rf-profile/bin/reactingFoam",
+  executable: join(PROFILE_ROOT, "rf-profile/bin/reactingFoam"),
   executableSha256:
     "14fd124a0e46d043cdad5f9b6b8e26ed23d0778084d55c609e9665d58799007c",
-  envFile: "/data2/kexiao/of8/rf-profile-env.sh",
+  envFile: join(PROFILE_ROOT, "rf-profile-env.sh"),
   libraryPaths: [
-    "/data2/kexiao/of8/rf-profile/lib",
-    "/data2/kexiao/of8/OpenFOAM-8/platforms/linux64GccDPInt32Opt/lib",
+    join(PROFILE_ROOT, "rf-profile/lib"),
+    join(PROFILE_ROOT, "OpenFOAM-8/platforms/linux64GccDPInt32Opt/lib"),
   ],
   expectedProfileLibraries: [
     "libreactionThermophysicalModels.so",
