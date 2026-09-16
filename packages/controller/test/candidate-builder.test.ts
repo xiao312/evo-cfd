@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 import { buildCandidate, readProposal, type CandidateBuildContext } from "../src/candidate-builder.ts";
+import { PROPOSER_OUTPUT_DIR } from "../src/evidence.ts";
 import { buildHarnessSnapshot, candidateLineage, readCandidate, recordCandidate } from "../src/harness.ts";
 import { digestFileMap } from "../src/snapshot.ts";
 import { validateProposal, type HarnessProposal } from "../src/proposal.ts";
@@ -39,7 +40,7 @@ async function fixture(skill = SKILL): Promise<{
   const runRoot = join(root, "runs", "proposal-001");
   await mkdir(join(genomesRoot, "m1-baseline"), { recursive: true });
   await cp(BASELINE, join(genomesRoot, "m1-baseline"), { recursive: true });
-  await mkdir(join(runRoot, "private"), { recursive: true });
+  await mkdir(join(runRoot, PROPOSER_OUTPUT_DIR), { recursive: true });
   const context: CandidateBuildContext = {
     repoRoot: REPO_ROOT,
     genomesRoot,
@@ -72,7 +73,8 @@ async function writeProposal(runRoot: string, overrides: Record<string, unknown>
     ...overrides,
   };
   validateProposal(proposal as HarnessProposal);
-  await writeFile(join(runRoot, "private", "proposal.json"), JSON.stringify(proposal, null, 2) + "\n");
+  await mkdir(join(runRoot, PROPOSER_OUTPUT_DIR), { recursive: true });
+  await writeFile(join(runRoot, PROPOSER_OUTPUT_DIR, "proposal.json"), JSON.stringify(proposal, null, 2) + "\n");
 }
 
 async function buildWith(fixture: Awaited<ReturnType<typeof fixture>>) {
@@ -90,7 +92,7 @@ test("candidate: a no_change proposal builds nothing", async () => {
   await writeProposal(f.runRoot, { decision: "no_change", rationale: "Nothing to change.", skill: undefined });
   // A no_change carries no skill fields at all; write it directly.
   await writeFile(
-    join(f.runRoot, "private", "proposal.json"),
+    join(f.runRoot, PROPOSER_OUTPUT_DIR, "proposal.json"),
     JSON.stringify(
       { schema_version: 1, decision: "no_change", rationale: "Nothing to change.", evidence_refs: [] },
       null,
@@ -242,7 +244,7 @@ test("candidate: rejects a proposal whose parent is absent", async () => {
 test("candidate: rejects a malformed proposal rather than building from it", async () => {
   const f = await fixture();
   await writeFile(
-    join(f.runRoot, "private", "proposal.json"),
+    join(f.runRoot, PROPOSER_OUTPUT_DIR, "proposal.json"),
     JSON.stringify({ schema_version: 1, decision: "propose", kind: "skill_upsert", skill: "Bad Name" }) + "\n",
   );
   const outcome = await buildWith(f);
@@ -448,8 +450,22 @@ test("candidate: a candidate record may only be created as proposed", async () =
 
 test("candidate: readProposal reports a file that is not JSON", async () => {
   const f = await fixture();
-  await mkdir(join(f.runRoot, "private"), { recursive: true });
-  await writeFile(join(f.runRoot, "private", "proposal.json"), "{not json");
+  await mkdir(join(f.runRoot, PROPOSER_OUTPUT_DIR), { recursive: true });
+  await writeFile(join(f.runRoot, PROPOSER_OUTPUT_DIR, "proposal.json"), "{not json");
   await assert.rejects(() => readProposal(f.runRoot), /not valid JSON/);
+  await rm(f.root, { recursive: true, force: true });
+});
+
+test("candidate: a proposal written outside the output directory is not found", async () => {
+  const f = await fixture();
+  // The proposer's only writable path is private/output. A proposal that turns
+  // up under private/ instead was not written by the proposer this run gave a
+  // writable path to, so it is not this run's proposal.
+  await mkdir(join(f.runRoot, "private"), { recursive: true });
+  await writeFile(join(f.runRoot, "private", "proposal.json"), "{}\n");
+  const outcome = await buildWith(f);
+  assert.equal(outcome.kind, "rejected");
+  if (outcome.kind !== "rejected") throw new Error("unreachable");
+  assert.match(outcome.reason, /no proposal at/);
   await rm(f.root, { recursive: true, force: true });
 });

@@ -34,6 +34,7 @@ import {
   type HarnessSnapshot,
 } from "./harness.ts";
 import { digestFileMap, digestTree } from "./snapshot.ts";
+import { PROPOSER_OUTPUT_DIR } from "./evidence.ts";
 import { PROPOSAL_FILE, validateProposal, type HarnessProposal } from "./proposal.ts";
 
 export class CandidateBuildError extends Error {
@@ -499,13 +500,15 @@ async function validateBundleWithRsih(input: {
 
 /** Read and validate the proposal file of a run. */
 export async function readProposal(runRoot: string): Promise<HarnessProposal> {
+  // The proposal arrives through the proposer's only writable path, which is
+  // private/output on the host side; a file anywhere else would mean the
+  // proposer wrote somewhere it was never given.
+  const proposalPath = join(runRoot, PROPOSER_OUTPUT_DIR, PROPOSAL_FILE);
   let raw: string;
   try {
-    raw = await readFile(join(runRoot, "private", PROPOSAL_FILE), "utf8");
+    raw = await readFile(proposalPath, "utf8");
   } catch (error) {
-    throw new CandidateBuildError(
-      `no proposal at ${join(runRoot, "private", PROPOSAL_FILE)}: ${(error as Error).message}`,
-    );
+    throw new CandidateBuildError(`no proposal at ${proposalPath}: ${(error as Error).message}`);
   }
   let parsed: unknown;
   try {
