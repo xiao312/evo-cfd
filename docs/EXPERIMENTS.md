@@ -1,0 +1,102 @@
+# Experiments
+
+What has actually run, and what it showed. Every entry is a real episode or a
+real construction on the compute host, not a unit test.
+
+## M1 baseline trials
+
+Three real episodes under `evocfd:m1-baseline`, driving RSI-Harness's own CLI
+into Pi 0.84.3 and out through the egress relay to `Atria-Dawn-Preview`.
+
+| Trial | Events | Malformed | Exit | Verdict |
+|---|---|---|---|---|
+| `m1-trial-001` | 650 | 0 | 0 | PASS, all four criteria |
+| `m1-trial-002` | 386 | 0 | 0 | PASS, all four criteria |
+| `m1-trial-003` | 330 | 0 | 0 | PASS, all four criteria |
+
+Trial identity `6d6c9e12…` was identical across the first two (same fixture,
+same harness, same environment) and the v2 identity `c3d4a764…` verified
+consistent across the launch plan, the trial manifest and the result for the
+third. `credential_ref: gateway-token:default` recorded on every result.
+
+## M1 control trials
+
+Three controls were built to put a real deficiency into real evidence, so a
+proposer could be tested on the case where a deficiency *is* present. All three
+trials passed anyway.
+
+| Control | What it removes | Trial | Verdict |
+|---|---|---|---|
+| `m1-control-noverify` | "verify before you claim" | `noverify-trial-001` | PASS |
+| `m1-control-noreport` | the `REPORT.md` requirement | `noreport-trial-001` | PASS |
+| `m1-control-misdirect` | replaces it with an active misdirection | `misdirect-trial-001` | PASS |
+
+Each is an honest negative result, and together they say something specific:
+on this fixture with this model, an instruction the model follows unprompted is
+not a deficiency the evidence can show. Removing "verify before you claim"
+changed nothing, because the agent verifies from its own tendencies. Removing
+the report requirement changed nothing, because the agent wrote a 300-character
+report unprompted and the criterion only requires non-empty. Even an active
+misdirection — instructions that assert the program has a config-reading bug and
+must be corrected, when the real defect is a config-key mismatch and the program
+must stay byte-identical — did not cause a failure: the agent read the code,
+saw the mismatch, and fixed `config.json` anyway.
+
+A deficiency that reaches the evidence has to be something the harness gets
+*wrong* in a way the model cannot absorb, not merely something the harness
+stops saying. This fixture absorbs a great deal, which is a finding about the
+fixture as much as about the harness, and it is why the first real candidates
+will come from harder fixtures, not from a stronger stomach for engineering a
+failure.
+
+## Proposals
+
+| Run | Evidence | Decision | Built |
+|---|---|---|---|
+| `proposal-001` | `m1-trial-{001,002,003}` | `no_change` | none |
+| `proposal-002` | `fail-trial-001` (synthetic) | refused | none |
+| `proposal-003` | `misdirect-trial-001` | `no_change` | none |
+
+**`proposal-001`** — 1811 events, 0 malformed, exit 0, over the three passing
+trials. `no_change` with fourteen evidence refs. The rationale classified the
+episodes' self-corrected slips (an `xxd` call against a read-only PATH, a
+redundant config key left in place, a report line claimed before it was true
+and then made true) as model behaviour rather than harness deficiency, and cited
+the seed Genome's own contract that the baseline must carry no task-specific
+hint. That is the correct answer for all-pass evidence, and it is the answer
+that costs the most to get wrong: a proposer that invents a gap to justify
+having been run produces a candidate that will be compared as though the gap
+were real.
+
+**`proposal-002`** — the synthetic-evidence route. A scripted trial record whose
+event stream showed an agent claiming an unverified fix, judged `fail`, labelled
+`synthetic: true`. The proposer refused it: evidence no model produced cannot
+demonstrate a behaviour the harness lacks. The integrity labelling worked
+backwards through the whole design — the label exists so synthetic data can
+never be mistaken for a trial that ran, and it was the first thing the proposer
+reached for. Scripted evidence is not evidence of a harness, so the control
+Genomes are the honest way to obtain the same situation.
+
+**`proposal-003`** — 963 events, 0 malformed, over the misdirect control. The
+harness under review genuinely contained a misdirecting paragraph, and the
+proposer named it as the one thing that looked like a deficiency — but the trial
+passed every criterion, so the evidence carried no failure for a skill to
+repair, and the decision was `no_change`. A proposer that proposed against
+passing evidence because it disliked the instructions would be rating its own
+taste over the recorded outcome.
+
+## What the loop has proven, and what it has not
+
+Proven: a proposer episode runs end to end, isolated, recorded through the same
+evidence path as a trial; the evidence package excludes the evaluator and the
+held-out files; the proposal schema bounds what may be asked for; a
+deterministic builder constructs a candidate or refuses it, with identity,
+allowlist and parent-untouched checks enforced by construction.
+
+Not yet exercised by a real run: the `propose` path itself. Every real episode
+so far has correctly concluded `no_change`, because every real trial so far has
+passed. The construction path is covered by unit tests that build and validate
+real bundles against the pinned RSI-Harness, but no real LLM proposal has yet
+produced a candidate. The way to change that is a fixture where a
+skill-addressable deficiency actually fails a criterion — not a stronger
+misdirection, but a task the model does not already know how to do.
