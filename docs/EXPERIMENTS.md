@@ -197,3 +197,58 @@ trap rather than a preference:
 The script also refuses a dirty working tree, so the destination is always a
 revision and never a half-edited copy. The old `sync-evo.sh` is kept for
 reference, not used.
+
+## CFD: the real-fluid solver builds isolated from stock, and runs on its own physics
+
+The reviewer's next work package was *real-fluid baseline integration and one
+clean run*, deliberately before CFD-001 and before any scientific modification.
+The reasoning is worth keeping: a provenance-mismatch fixture built on top of an
+unverified installation cannot distinguish "the agent failed to diagnose the
+fault" from "the installation was wrong all along". The correct setup has to be
+demonstrably runnable before the injected difference is the only difference.
+
+**What was done.** The `realFluidFoam-8` package at upstream commit `48506de`
+was built into **profile-specific output directories**, never into stock output
+and never into the user's ambient `~/.OpenFOAM` tree. `Allwmake` exits 0 with
+zero compile errors, producing 15 libraries and three executables including the
+target `realFluidReactingFoam`.
+
+**Why the output directories were overridden.** The package installs an
+executable *named `reactingFoam`* and libraries *named identically to stock
+ones* — `libcombustionModels.so`, `libspecie.so`,
+`libreactionThermophysicalModels.so`. Built to the default locations,
+`reactingFoam` on `PATH` would silently become the modified solver, and which
+`libspecie.so` a binary loads would depend on the order of directories in
+`LD_LIBRARY_PATH`. The profile removes the ambiguity by construction: stock
+outputs live only under `OpenFOAM-8/platforms/…/`, profile outputs only under
+`rf-profile/`, and the two never overlap. `ldd` on the executed binary confirms
+the effect — the six modified-physics libraries resolve from the profile
+directory, the four infrastructure libraries from stock.
+
+**Stock OF8 is unchanged, proven by measurement.** Four stock artefacts were
+hashed before the build and again after it; all four identical. This is a
+sample rather than a whole-tree digest, and the limitation is recorded as a
+review question rather than claimed away.
+
+**The run used the real physics, not ideal gas.** The package's own
+`1D_advection` tutorial selects, from the solver's own log,
+`PRchungKineticMixture` / `PengRobinson` / `chungKinetic` / `rfJanaf` /
+`rfSpecie` with `PRchungKineticStandardChemistryModel`. That is a cubic
+equation of state with Chung's kinetic transport. Selection is not correctness,
+and the case has zero reactions, so this proves the property path *executes* and
+nothing about combustion accuracy — a narrower and honest claim.
+
+Two corrections from the reviewer changed the *workflow*, not only the docs:
+
+- **Archive transfer, not git checkout, for any Linux source tree.** The
+  case-collision incident generalises: EvoCFD's own case-safe TypeScript repo
+  may sync from Windows, but OpenFOAM source and build trees stay on a
+  case-sensitive filesystem end to end. The `no symlinks` limit on the rsync
+  build applies to that sync path only, and must not become a universal rule
+  for upstream solver trees.
+- **Do not synchronise over inputs an active run is consuming.** Sync now runs
+  before a trial's inputs are prepared, not during it.
+
+The previous bundle deleted its smoke case and kept only numbers, which made it
+inspectable but not replayable. This one retains the full case inputs and logs,
+and that is now the standing requirement.

@@ -1,0 +1,62 @@
+=== BLOCKMESH TAIL ===
+
+End
+
+
+=== SETFIELDS TAIL ===
+
+End
+
+
+=== REACTINGFOAM HEADER ===
+/*---------------------------------------------------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+Build  : 8
+Exec   : reactingFoam
+Date   : Sep 16 2026
+Time   : 18:30:59
+Host   : "server40902"
+PID    : 4036865
+I/O    : uncollated
+Case   : /data2/kexiao/of8/rf-cases/1D_advection
+nProcs : 1
+sigFpe : Enabling floating point exception trapping (FOAM_SIGFPE).
+fileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 10)
+allowSystemOperations : Allowing user-supplied system call operations
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+Create time
+
+Create mesh for time = 0
+
+=== THERMO SELECTION ===
+Reading thermophysical properties
+Selecting thermodynamics package 
+    type            hePsiThermo;
+    mixture         PRchungKineticMixture;
+    transport       chungKinetic;
+    thermo          rfJanaf;
+    equationOfState PengRobinson;
+    specie          rfSpecie;
+ *** Nam: checking in hePsiThermo class 
+
+=== REACT TAIL ===
+ExecutionTime = 54.29 s  ClockTime = 54 s
+
+End
+
+
+=== TIMES ===
+Time = 1e-05
+Time = 2e-05
+Time = 0.00199
+Time = 0.002
+
+=== CONTINUITY ===
+time step continuity errors : sum local = 1.44921e-15
+time step continuity errors : sum local = 1.46059e-15

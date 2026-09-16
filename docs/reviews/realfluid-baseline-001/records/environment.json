@@ -1,0 +1,43 @@
+{
+  "bundle_id": "realfluid-baseline-001",
+  "bundle_type": "solver-baseline",
+  "tested_code_commit": "63201da78f1bc0395f32f6b329ece3af44fcd2fb",
+  "tested_code_repo": "xiao312/evo-cfd",
+  "involves_llm": false,
+  "involves_agent_episode": false,
+  "solver_profile": "of8-realfluid",
+  "package": {
+    "name": "realFluidFoam-8",
+    "upstream": "github.com/danhnam11/realFluidFoam-8",
+    "upstream_commit": "48506de20ce67f35279c5347b09dcd86865a4c39",
+    "upstream_commit_subject": "add c3.PR.LEMOS tutorial case",
+    "source_archive_sha256": "13073ca413d2bd73b8506fb77c42095fcb6e754bef72c59bda1c8934236048a4",
+    "provenance": "archive of the pinned commit downloaded from github; never extracted on a case-insensitive filesystem",
+    "local_modifications": "none; built exactly as upstream ships",
+    "license": "GPL-3.0"
+  },
+  "build": {
+    "command": "./Allwmake -j 32",
+    "env": "/data2/kexiao/of8/rf-profile-env.sh",
+    "stock_environment": "/data2/kexiao/of8/OpenFOAM-8/etc/bashrc",
+    "output_appbin": "/data2/kexiao/of8/rf-profile/bin",
+    "output_libbin": "/data2/kexiao/of8/rf-profile/lib",
+    "output_layout_note": "profile-specific directories override FOAM_USER_APPBIN and FOAM_USER_LIBBIN so the package cannot write into either the stock platform directories or the user's ambient ~/.OpenFOAM tree",
+    "tmpdir": "/data2/kexiao/tmp",
+    "exit_code": 0,
+    "compile_errors": 0,
+    "libraries_built": 15,
+    "executables_built": ["reactingFoam", "realFluidFoam", "realFluidReactingFoam"]
+  },
+  "stock_separation": {
+    "claim": "the stock OpenFOAM-8 installation is unchanged by this build",
+    "verification": "md5 of four stock artefacts measured before and after the realFluid build; all four identical",
+    "stock_artefacts_unchanged": {
+      "bin/reactingFoam": "24b7472b872c5a5860bc0508002bd61e",
+      "lib/libOpenFOAM.so": "e8f9c47d9111e6d030692decdaf799e4",
+      "lib/libfiniteVolume.so": "77aa24a1c2e847acbb8e824aa24bd829",
+      "lib/libcombustionModels.so": "2cd3b20b8e67891ef62a8fa1ae61a57d"
+    },
+    "note": "the package installs libraries with the same SONAMES as stock (libcombustionModels, libspecie, libreactionThermophysicalModels, ...), so library identity at runtime is decided by LD_LIBRARY_PATH order, not by the executable path. The profile env puts the profile library directory first; ldd confirms the effect below."
+  }
+}

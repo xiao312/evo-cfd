@@ -1,0 +1,57 @@
+{
+  "bundle_id": "realfluid-baseline-001",
+  "purpose": "bind each executable to the libraries it actually resolves at runtime, under the profile's environment contract",
+  "note": "an absolute executable path alone does not identify which shared libraries are loaded. The modified and stock libraries share SONAMES, so both rows and the resolution order are recorded.",
+  "executables": {
+    "realFluidReactingFoam": {
+      "path": "/data2/kexiao/of8/rf-profile/bin/realFluidReactingFoam",
+      "sha256": "2d2d98f7d7f6b53e0a4b145054ee0181c769ca26abb542af0cc863bec2ee989e",
+      "resolves": {
+        "from_profile_lib": [
+          "libreactionThermophysicalModels.so",
+          "libspecie.so",
+          "libchemistryModel.so",
+          "libcombustionModels.so",
+          "libfluidThermophysicalModels.so",
+          "libfluidThermoMomentumTransportModels.so"
+        ],
+        "from_stock_lib": [
+          "libOpenFOAM.so",
+          "libfiniteVolume.so",
+          "libmeshTools.so",
+          "libsampling.so"
+        ]
+      }
+    },
+    "reactingFoam": {
+      "path": "/data2/kexiao/of8/rf-profile/bin/reactingFoam",
+      "sha256": "14fd124a0e46d043cdad5f9b6b8e26ed23d0778084d55c609e9665d58799007c",
+      "note": "the package's own reactingFoam, built against the real-fluid libraries; NOT the stock executable of the same name",
+      "stock_executable_of_same_name": {
+        "path": "/data2/kexiao/of8/OpenFOAM-8/platforms/linux64GccDPInt32Opt/bin/reactingFoam",
+        "md5": "24b7472b872c5a5860bc0508002bd61e",
+        "note": "unchanged and still present; the two are distinct binaries that share a name"
+      }
+    },
+    "realFluidFoam": {
+      "path": "/data2/kexiao/of8/rf-profile/bin/realFluidFoam",
+      "sha256": "595c99817e19a2ab83f503c6725af6e61a217aa843fb122c2b34df25f3ef7fc2"
+    }
+  },
+  "library_resolution_order": [
+    "/data2/kexiao/of8/rf-profile/lib",
+    "/data2/kexiao/of8/OpenFOAM-8/platforms/linux64GccDPInt32Opt/lib"
+  ],
+  "invocation_contract": {
+    "environment_file": "/data2/kexiao/of8/rf-profile-env.sh",
+    "what_it_does": [
+      "sources the stock OpenFOAM-8 bashrc (provides wmake, compiler wrappers, stock infrastructure libraries)",
+      "sets LIB_rfFoam8_SRC to the package's src directory, as the package's Make/options require",
+      "overrides FOAM_USER_APPBIN and FOAM_USER_LIBBIN to profile-specific directories",
+      "puts the profile library directory first on LD_LIBRARY_PATH",
+      "puts the profile binary directory first on PATH",
+      "redirects compiler temporaries to /data2 because the root filesystem is full"
+    ],
+    "caveat": "this is a host-built toolchain invoked through a sourced shell environment, not a container image. The containerised agent runtime and this toolchain are separate objects; a trial that invokes this solver must do so through this contract or state clearly what differed."
+  }
+}

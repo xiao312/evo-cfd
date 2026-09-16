@@ -1,0 +1,57 @@
+{
+  "bundle_id": "realfluid-baseline-001",
+  "what": "proof that the real-fluid property path, not the ideal-gas path, is what executes",
+  "case": {
+    "source": "the package's own tutorial tutorials/1D_advection",
+    "meshing": "blockMesh",
+    "initialisation": "setFields",
+    "solver_invoked": "reactingFoam (the package's build, at /data2/kexiao/of8/rf-profile/bin/reactingFoam)",
+    "solver_resolution": "PATH resolves to the profile binary, not the stock executable of the same name; see records/identity-chain.json",
+    "divergence_from_upstream": "endTime truncated from 0.02 to 0.002 to bound wall time; no other input changed. The modified controlDict is retained in case/system/controlDict.",
+    "processors": 1
+  },
+  "thermophysical_path": {
+    "evidence": "the solver's own log lines, reproduced in logs/run-tail.txt under THERMO SELECTION",
+    "selected": {
+      "type": "hePsiThermo",
+      "mixture": "PRchungKineticMixture",
+      "transport": "chungKinetic",
+      "thermo": "rfJanaf",
+      "equationOfState": "PengRobinson",
+      "specie": "rfSpecie"
+    },
+    "chemistry": "PRchungKineticStandardChemistryModel, 2 species, 0 reactions",
+    "interpretation": "this is the real-fluid property path: a cubic Peng-Robinson equation of state with Chung's kinetic transport and the package's own rfSpecie/rfJanaf thermodynamics. It is not the ideal-gas path, and the case also ships a commented ideal-gas thermoType for comparison."
+  },
+  "result": {
+    "blockMesh_exit": 0,
+    "setFields_exit": 0,
+    "reactingFoam_exit": 0,
+    "requested_endTime": 0.002,
+    "first_logged_time": 1e-05,
+    "last_logged_time": 0.002,
+    "termination": "normal `End`, reached the requested endTime exactly",
+    "continuity_first": "1.44921e-15",
+    "continuity_last": "1.46059e-15",
+    "execution_time_s": 54.29
+  },
+  "interpretation": {
+    "supported": [
+      "the package builds with zero errors on this toolchain, with its outputs separated from stock",
+      "the stock OpenFOAM-8 installation is byte-for-byte unchanged after the build (four md5s identical)",
+      "a case exercising the Peng-Robinson real-fluid property path meshes, initialises, and integrates to the requested end time with a normal termination",
+      "the solver that ran is the profile build, and its modified-physics libraries resolved from the profile directory rather than from stock"
+    ],
+    "not_supported": [
+      "the continuity values are first and last sampled entries only, not a history and not a maximum; they are the solver's `time step continuity errors`, which is not a linear-solver residual and not evidence of physical convergence",
+      "nothing about accuracy, grid convergence, or correctness of the real-fluid physics",
+      "nothing about trans- or super-critical combustion, which is the project's target; this is an isothermal-species advection case with no reactions and no flame",
+      "nothing about the containerised agent runtime; the solver ran in a host shell through the profile environment"
+    ]
+  },
+  "case_retention": {
+    "inputs": "case/ holds the system dictionaries, thermophysicalProperties, chemistryProperties, combustionProperties and the full 0/ initial and boundary fields",
+    "logs": "logs/run-tail.txt is an excerpt; the complete 5690-line solver log, and the blockMesh and setFields logs, remain with the retained case on the host",
+    "note": "the previous bundle deleted its case and kept only numbers. This one keeps the inputs so the run is exactly replayable."
+  }
+}

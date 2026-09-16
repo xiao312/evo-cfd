@@ -58,3 +58,4 @@ These bundles are public. Nothing in them may be genuinely secret:
 | --- | --- |
 | [`candidate-build-integration-001`](candidate-build-integration-001/) | Does the production candidate builder accept the *actual* evaluator output and publish a valid, bounded candidate? |
 | [`of8-environment-001`](of8-environment-001/) | Is the OF8 toolchain reproducible on an air-gapped host, and can the executable be bound to the source that built it? |
+| [`realfluid-baseline-001`](realfluid-baseline-001/) | Does the real-fluid solver build without touching stock OF8, and can a run be proven to use Peng-Robinson physics rather than ideal gas? |

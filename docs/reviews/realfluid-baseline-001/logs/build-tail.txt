@@ -1,0 +1,12 @@
+=== BUILD LOG TAIL ===
+    -L/data2/kexiao/of8/rf-profile/lib -lfiniteVolume -lfvOptions -lmeshTools -lsampling -lmomentumTransportModels -lfluidThermoMomentumTransportModels -lthermophysicalTransportModels -lpsiReactionThermophysicalTransportModels -lreactionThermophysicalModels -lspecie -lfluidThermophysicalModels -lchemistryModel -lODE -lcombustionModels -lOpenFOAM -ldl  \
+     -lm -o /data2/kexiao/of8/rf-profile/bin/realFluidReactingFoam
+RFALLWMAKE_DONE_0
+
+=== BUILD ERROR COUNT ===
+0
+
+=== ALLWMAKE STATUS ===
+RFALLWMAKE_DONE_0
+
+=== WARNINGS (first 5 non-deprecation) ===

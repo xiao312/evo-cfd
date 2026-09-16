@@ -1,0 +1,172 @@
+{
+  "bundle_id": "realfluid-baseline-001",
+  "generated": "2026-09-16",
+  "tested_code_commit": "63201da78f1bc0395f32f6b329ece3af44fcd2fb",
+  "tested_code_repo": "xiao312/evo-cfd",
+  "tested_code_branch": "main",
+  "working_tree_clean": true,
+  "files": [
+    {
+      "path": "README.md",
+      "transformation": "author-written narrative; no source data",
+      "sha256": "d7f571081e56600f60de51faff89487bd572972388105559c107337891392f78",
+      "bytes": 8295,
+      "export_sha256": "d7f571081e56600f60de51faff89487bd572972388105559c107337891392f78"
+    },
+    {
+      "path": "records/environment.json",
+      "transformation": "author-written from observed values",
+      "sha256": "310fed07dc57675597b07c1c58172a4562522d7ac73f635ede64e7041d22cd18",
+      "bytes": 2362,
+      "export_sha256": "310fed07dc57675597b07c1c58172a4562522d7ac73f635ede64e7041d22cd18"
+    },
+    {
+      "path": "records/identity-chain.json",
+      "transformation": "sha256 values measured on the compute host; library resolution read from ldd",
+      "sha256": "3baec0d7ea93a53393dd288ade34a0cbb66d30947cde2da9f51f57ffd374b6c9",
+      "bytes": 2956,
+      "export_sha256": "3baec0d7ea93a53393dd288ade34a0cbb66d30947cde2da9f51f57ffd374b6c9"
+    },
+    {
+      "path": "records/verification.json",
+      "transformation": "values read from the solver's own log",
+      "sha256": "50bd68c884864511f938a02b729c8673f3ff703e6d15ea92814f645dd2f30e01",
+      "bytes": 3540,
+      "export_sha256": "50bd68c884864511f938a02b729c8673f3ff703e6d15ea92814f645dd2f30e01"
+    },
+    {
+      "path": "logs/build-tail.txt",
+      "transformation": "excerpt of the build log: tail, error count, status marker",
+      "sha256": "4bcbcfc887fa58e0665b92c80531a052731d59885148cb1f66608af5dddae84d",
+      "bytes": 580,
+      "export_sha256": "4bcbcfc887fa58e0665b92c80531a052731d59885148cb1f66608af5dddae84d"
+    },
+    {
+      "path": "logs/run-tail.txt",
+      "transformation": "excerpt of the 5690-line solver log plus blockMesh and setFields tails; header, thermo selection, run tail, sampled times and continuity",
+      "sha256": "0e6fc1ce8aad0bac2c390245720efa6ebc39d317f25d031498c2b494dbb2b23f",
+      "bytes": 1640,
+      "export_sha256": "0e6fc1ce8aad0bac2c390245720efa6ebc39d317f25d031498c2b494dbb2b23f"
+    },
+    {
+      "path": "changes/separation.md",
+      "transformation": "author-written; md5 values measured on the compute host",
+      "sha256": "faeba7978caefc48b4dd322117f561223a327d7d70c613488206b9ee7bb501b4",
+      "bytes": 3049,
+      "export_sha256": "faeba7978caefc48b4dd322117f561223a327d7d70c613488206b9ee7bb501b4"
+    }
+  ],
+  "case_inputs": {
+    "note": "case/ holds the exact inputs as run, so the solver result is replayable rather than merely inspectable",
+    "paths": "case/system/*, case/0/*, case/thermophysicalProperties, case/chemistryProperties, case/combustionProperties",
+    "divergence_from_upstream": "endTime truncated from 0.02 to 0.002; the modified controlDict is the one retained",
+    "files": [
+      {
+        "path": "case/system/reactions",
+        "sha256": "9ce3b687b63cfe58bed32f2685c8c5efd67704123fca1c5ffdd18cebbd74d7a8",
+        "bytes": 303
+      },
+      {
+        "path": "case/system/fvSolution",
+        "sha256": "555cce9a18445308de6702783e27d1b3c76efa98fd450f3fa3d96ed2bf59aa3d",
+        "bytes": 1184
+      },
+      {
+        "path": "case/system/setFieldsDict",
+        "sha256": "b0d7584732e97d57b39bcc58357139945f4a1f3e8e3ff8981d900a6b1efa2b23",
+        "bytes": 1033
+      },
+      {
+        "path": "case/system/fvSchemes",
+        "sha256": "563336f6ff936b204e6174623b4381e423140acd91642ff8c79b1056e6adb3ee",
+        "bytes": 1481
+      },
+      {
+        "path": "case/system/controlDict",
+        "sha256": "ae4c376baed4ae213d1569c7bf0020992d820c83ea1eec10f9c0193c8ffcc930",
+        "bytes": 1217
+      },
+      {
+        "path": "case/system/blockMeshDict",
+        "sha256": "6bce98d1eef9554b1eddcf80d835bf946f843cc60dfeddee723c034a9653988f",
+        "bytes": 1645
+      },
+      {
+        "path": "case/thermophysicalProperties",
+        "sha256": "e1314e9986f619b1599385a51950e326365b378f5dd5af74ab49da617f186c7e",
+        "bytes": 1539
+      },
+      {
+        "path": "case/0/p.orig",
+        "sha256": "9f10b4c498175a633ab430a01e3f49657827e32be47f415543a657d18b0a87b8",
+        "bytes": 988
+      },
+      {
+        "path": "case/0/mag(U)",
+        "sha256": "8f2c05f128305552ba7f9391e1eb6d487df2fb844e9dd696d5a5f490b119cff8",
+        "bytes": 939
+      },
+      {
+        "path": "case/0/U.orig",
+        "sha256": "c538eeee3edf7ffd4912a35c34ee0780882bafdd39cb70a82e9db618127930b5",
+        "bytes": 992
+      },
+      {
+        "path": "case/0/H2.orig",
+        "sha256": "ffc1c80bab58b5c23bc6ceb0ecd74f8a58cdabcf8537fce169beff373904baea",
+        "bytes": 985
+      },
+      {
+        "path": "case/0/U",
+        "sha256": "f122bcfc4a103c20abfacf6a4b5100691ddbf9831ad6581e6998e50cc09f293b",
+        "bytes": 940
+      },
+      {
+        "path": "case/0/N2",
+        "sha256": "76bc048cd1c8e3a353d6b027e4189f38e06424c89c52180b1a220c2d84060616",
+        "bytes": 933
+      },
+      {
+        "path": "case/0/p",
+        "sha256": "d4ab01b011040b5c5779422301f330ef09c4171edb08f247d162e281741b37bb",
+        "bytes": 938
+      },
+      {
+        "path": "case/0/T.orig",
+        "sha256": "22249a175b4e63dc82c3c5d3b11b0b6ca4209cea92026db33b67725a618cbe0c",
+        "bytes": 985
+      },
+      {
+        "path": "case/0/Ydefault",
+        "sha256": "4f1bd2d533d90369caaa23b43026fda0234aaeb799bd4f91c835d5092e64755e",
+        "bytes": 986
+      },
+      {
+        "path": "case/0/T",
+        "sha256": "6eeff334a5d343f5397a256455a03a56b66cd7e78475be52b985ae4072a1f4b8",
+        "bytes": 9957
+      },
+      {
+        "path": "case/0/N2.orig",
+        "sha256": "3a31034beaa52accdd04e38801e3db52af6d0288e2a76b5d7c5c3fd0d2344e60",
+        "bytes": 987
+      },
+      {
+        "path": "case/chemistryProperties",
+        "sha256": "0655001c8b489d6063c960ae39f1ebca3a3868effd643abd915a9ac3ad35a799",
+        "bytes": 1274
+      },
+      {
+        "path": "case/combustionProperties",
+        "sha256": "5030ddebb65cea8bddf0b5447d5d5033b79454325f4997f978f6f4bb5c4b35a0",
+        "bytes": 730
+      }
+    ]
+  },
+  "notes": [
+    "No credentials and no secret material.",
+    "The digests in records/ identify public open-source builds on the compute host; they identify artefacts, they are not secrets.",
+    "No raw event stream and no agent episode: there is no LLM behaviour in this bundle.",
+    "Published material is no longer held-out evidence."
+  ]
+}

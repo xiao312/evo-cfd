@@ -52,7 +52,21 @@
         }
       },
       "executable": "realFluidReactingFoam",
-      "status": "openfoam-8 built and verified; realFluidReactingFoam not yet applied"
+      "status": "package built and isolated; real-fluid property path verified on a non-reacting case; realFluidReactingFoam not yet run on a case",
+      "package": {
+        "name": "realFluidFoam-8",
+        "upstream": "github.com/danhnam11/realFluidFoam-8",
+        "upstream_commit": "48506de20ce67f35279c5347b09dcd86865a4c39",
+        "upstream_commit_subject": "add c3.PR.LEMOS tutorial case",
+        "source_archive_sha256": "13073ca413d2bd73b8506fb77c42095fcb6e754bef72c59bda1c8934236048a4",
+        "local_modifications": "none; built exactly as upstream ships",
+        "source_root": "/data2/kexiao/of8/realFluidFoam-8",
+        "env_contract": "/data2/kexiao/of8/rf-profile-env.sh",
+        "output_appbin": "/data2/kexiao/of8/rf-profile/bin",
+        "output_libbin": "/data2/kexiao/of8/rf-profile/lib",
+        "separation": "profile-specific output dirs override FOAM_USER_APPBIN/FOAM_USER_LIBBIN; stock OF8 hashes verified unchanged after the build",
+        "review_bundle": "docs/reviews/realfluid-baseline-001/"
+      }
     },
     "of7-deepflame": {
       "executable": "dfLowMachFoam",
