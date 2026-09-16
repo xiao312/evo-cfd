@@ -63,10 +63,12 @@ const installation = resolveInstallation({
   defaultRoot: join(REPO_ROOT, "third_party", "RSI-Harness"),
 });
 
+let failed = false;
+
 function check(condition: boolean, message: string): void {
   if (!condition) {
     console.error(`FAIL  ${message}`);
-    process.exitCode = 1;
+    failed = true;
   } else {
     console.log(`ok    ${message}`);
   }
@@ -118,7 +120,7 @@ async function main(): Promise<void> {
   const parentDir = await defaultResolveGenomeDir(GENOMES_DIR, PARENT_ID);
   if (parentDir === null) {
     console.error(`FAIL  parent Genome ${PARENT_ID} not found`);
-    process.exitCode = 1;
+    failed = true;
     return;
   }
   const parentSnapshot = await buildHarnessSnapshot({
@@ -247,7 +249,11 @@ async function main(): Promise<void> {
 
 await main().catch((error) => {
   console.error(`FAIL  unexpected: ${(error as Error).message}`);
-  process.exitCode = 1;
+  failed = true;
 });
-if (process.exitCode === 0) console.log("\nintegration chain OK: real evaluator output -> evidence -> candidate");
-else console.error(`\nintegration chain failed (exitCode=${JSON.stringify(process.exitCode)})`);
+if (!failed) {
+  console.log("\nintegration chain OK: real evaluator output -> evidence -> candidate");
+} else {
+  console.error("\nintegration chain failed");
+  process.exitCode = 1;
+}
