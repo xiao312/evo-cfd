@@ -302,6 +302,16 @@ What exists:
   and only for the bundle it sits in, and `candidateLineage` recomputes every
   identity it walks and rejects a claim that does not match the bundle.
 
+Three real proposer episodes ran (see `docs/EXPERIMENTS.md`). All concluded
+`no_change`, correctly, because every real trial so far has passed. Three
+control Genomes were built to put a real deficiency into real evidence; all
+three trials passed anyway, because on this fixture the model follows verify
+and report unprompted and even an active misdirection was absorbed. The
+`propose` path is unit-tested against real bundles but not yet exercised by a
+real LLM run — the way to change that is a fixture where a skill-addressable
+deficiency actually fails a criterion, which is the first job of the fixture
+work rather than something to force.
+
 ### PR 7 — parent/candidate experiment
 
 ```text
