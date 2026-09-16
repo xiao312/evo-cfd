@@ -96,7 +96,7 @@ async function main(): Promise<void> {
     question:
       "The target solver realFluidReactingFoam now runs the reference case to its requested endTime, after adding two per-species div scheme entries its last sampled max temperature is 368.475 K against 368.537 K for the package's own reactingFoam on the same case. Is that 0.06 K difference the physically expected effect of the species-diffusion enthalpy flux terms the target solver carries, or a sign of an inconsistency I should chase before trusting this solver for the MASCOTTE comparison?",
     whyNow:
-      "The configuration gap is closed and the solver runs, so the remaining question is whether it runs the right equations. This case has no chemical reaction and no validation data, so the reactingFoam comparison is the only check available, and it is a single sampled comparison."
+      "The configuration gap is closed and the solver runs, so the remaining question is whether it runs the right equations. This case has no chemical reaction and no validation data, so the reactingFoam comparison is the only check available, and it is a single sampled comparison.",
     contract,
     state,
     items: [
@@ -249,14 +249,6 @@ async function main(): Promise<void> {
   console.log("");
   console.log("Carry the briefing and the permitted evidence to the chosen web chat.");
   console.log("Record what you added beyond transport when importing the answer.");
-}
-
-  try {
-    await stat(path);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 await main();
