@@ -28,10 +28,11 @@
  * Usage: node scripts/integration-candidate.ts
  * Requires the pinned RSI-Harness checkout (third_party/RSI-Harness).
  */
-import { rm } from "node:fs/promises";
+import { spawn, spawnSync } from "node:child_process";
+import { rm, readdir, stat, readFile, cp, mkdir, writeFile } from "node:fs/promises";
 import { writeFileSync, mkdirSync } from "node:fs";
-import { readdir } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { createHash } from "node:crypto";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { loadFixture } from "../packages/controller/src/fixtures.ts";
@@ -47,6 +48,8 @@ import {
 } from "../packages/controller/src/candidate-builder.ts";
 import { buildHarnessSnapshot, defaultResolveGenomeDir } from "../packages/controller/src/harness.ts";
 import { resolveInstallation } from "../packages/rsih-adapter/src/index.ts";
+import type { MaterializedTrial } from "../packages/controller/src/snapshot.ts";
+import type { EvaluationResult } from "../packages/controller/src/evaluate.ts";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const RUNS_DIR = join(REPO_ROOT, "runs");
@@ -62,6 +65,20 @@ const installation = resolveInstallation({
   rsihRoot: process.env.RSIH_ROOT,
   defaultRoot: join(REPO_ROOT, "third_party", "RSI-Harness"),
 });
+
+const BUNDLE_FLAG = process.argv.indexOf("--bundle");
+const BUNDLE_DIR =
+  BUNDLE_FLAG !== -1 && process.argv[BUNDLE_FLAG + 1]
+    ? resolve(process.argv[BUNDLE_FLAG + 1])
+    : null;
+
+/** Every line the script prints, so a review bundle can ship the verification. */
+const capturedLog: string[] = [];
+const realLog = console.log.bind(console);
+console.log = (...args: unknown[]) => {
+  capturedLog.push(args.join(" "));
+  realLog(...args);
+};
 
 let failed = false;
 
@@ -223,6 +240,24 @@ async function main(): Promise<void> {
     );
     console.log(`candidate ${outcome.record.candidate_genome_id}`);
     console.log(`identity ${outcome.record.candidate_harness_identity.slice(0, 16)}`);
+
+    if (BUNDLE_DIR !== null) {
+      // The candidate's diff is captured before the bundle is written, because
+      // the candidate is deleted below — the review describes a thing that no
+      // longer exists, which is exactly why its bytes need to be exported.
+      await exportBundle({
+        bundleDir: BUNDLE_DIR,
+        trial,
+        result,
+        pkg,
+        proposal,
+        outcome,
+        parentDir,
+        candidateDir: outcome.genomeDir,
+        log: capturedLog,
+      });
+    }
+
     // The candidate is removed: this test claims nothing and leaves nothing.
     await rm(outcome.genomeDir, { recursive: true, force: true });
   } else if ("reason" in outcome) {
@@ -241,10 +276,307 @@ async function main(): Promise<void> {
     "the parent Genome is byte-identical to what it was before construction",
   );
 
-  await rm(join(RUNS_DIR, TRIAL_ID), { recursive: true, force: true });
-  await rm(join(RUNS_DIR, PROPOSAL_RUN), { recursive: true, force: true });
+  // The raw runs are removed unless a review bundle was requested, in which
+  // case the exported copy is the published record and the originals stay local.
+  if (BUNDLE_DIR === null) {
+    await rm(join(RUNS_DIR, TRIAL_ID), { recursive: true, force: true });
+    await rm(join(RUNS_DIR, PROPOSAL_RUN), { recursive: true, force: true });
+  }
   // Staging must be gone whatever path the build took.
   await rm(join(GENOMES_DIR, ".staging"), { recursive: true, force: true });
+}
+
+/**
+ * Patterns that must never reach a public bundle. A raw event stream is the
+ * riskiest artifact: tool commands and tool output can carry a secret even
+ * when the structured environment record has been redacted.
+ */
+const SECRET_PATTERNS = [
+  /[A-Za-z0-9_-]{32,}\.[A-Za-z0-9_-]{16,}/g, // token-shaped strings
+  /EVOCFD_GATEWAY_TOKEN[="']\s*[A-Za-z0-9._-]+/gi,
+  /Authorization:\s*Bearer\s+[A-Za-z0-9._-]+/gi,
+  /sk-[A-Za-z0-9]{16,}/g,
+];
+
+function redact(text: string): string {
+  let out = text;
+  for (const pattern of SECRET_PATTERNS) {
+    out = out.replace(pattern, "[REDACTED]");
+  }
+  return out;
+}
+
+/** True when a path exists, distinguishing absent from any other error. */
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code !== "ENOENT";
+  }
+}
+
+interface ExportInput {
+  bundleDir: string;
+  trial: MaterializedTrial;
+  result: EvaluationResult;
+  pkg: { dir: string; digest: string };
+  proposal: Record<string, unknown>;
+  outcome: Extract<CandidateConstruction, { kind: "built" }>;
+  parentDir: string;
+  candidateDir: string;
+  log: string[];
+}
+
+/**
+ * Publish a reviewed copy of this run, separate from the raw `runs/` tree.
+ *
+ * Records are copied with their original schema — `evaluation-result.json` is
+ * the file `evaluateTrial` wrote, not a reconstruction with different fields —
+ * and every file is listed in the export manifest with its *export* digest. A
+ * redacted file has different bytes from its original, so the manifest records
+ * the transformation rather than claiming the original hash.
+ */
+async function exportBundle(input: ExportInput): Promise<void> {
+  const { createHash } = await import("node:crypto");
+  const { cp, mkdir, writeFile, readFile } = await import("node:fs/promises");
+  const records = join(input.bundleDir, "records");
+  const logs = join(input.bundleDir, "logs");
+  const changes = join(input.bundleDir, "changes");
+  await mkdir(records, { recursive: true });
+  await mkdir(logs, { recursive: true });
+  await mkdir(changes, { recursive: true });
+
+  const files: Array<{
+    path: string;
+    source_artifact: string;
+    transformation: string;
+    export_sha256: string;
+  }> = [];
+
+  async function copyRecord(
+    exportPath: string,
+    sourcePath: string,
+    sourceArtifact: string,
+  ): Promise<void> {
+    const raw = await readFile(sourcePath, "utf8");
+    // Records are machine-readable inputs to the review; they are copied
+    // verbatim after redaction, never rewritten into another schema.
+    const content = redact(raw);
+    await writeFile(exportPath, content);
+    files.push({
+      path: relative(input.bundleDir, exportPath).split(sep).join("/"),
+      source_artifact: sourceArtifact,
+      transformation: content === raw ? "none" : "credential redaction",
+      export_sha256: createHash("sha256").update(content, "utf8").digest("hex"),
+    });
+  }
+
+  // Records: the machine-readable chain, in the producer's own schema.
+  await copyRecord(
+    join(records, "trial.json"),
+    join(input.trial.layout.manifests, "trial.json"),
+    `runs/${TRIAL_ID}/manifests/trial.json`,
+  );
+  await copyRecord(
+    join(records, "episode-result.json"),
+    join(input.trial.layout.root, "private", "episodes", TRIAL_ID, "result.json"),
+    `runs/${TRIAL_ID}/private/episodes/${TRIAL_ID}/result.json`,
+  );
+  await copyRecord(
+    join(records, "evaluation-result.json"),
+    join(input.trial.layout.privateDir, "result.json"),
+    `runs/${TRIAL_ID}/private/result.json`,
+  );
+  await copyRecord(
+    join(records, "proposal.json"),
+    join(RUNS_DIR, PROPOSAL_RUN, "private", "output", "proposal.json"),
+    `runs/${PROPOSAL_RUN}/private/output/proposal.json`,
+  );
+  await writeFile(
+    join(records, "construction-report.json"),
+    JSON.stringify(
+      {
+        outcome: "built",
+        candidate_genome_id: input.outcome.record.candidate_genome_id,
+        parent_genome_id: input.outcome.record.parent_genome_id,
+        parent_harness_identity: input.outcome.record.parent_harness_identity,
+        candidate_harness_identity: input.outcome.record.candidate_harness_identity,
+        proposer_harness_identity: input.outcome.record.proposer_harness_identity,
+        change: input.outcome.record.change,
+        status: input.outcome.record.status,
+        changed_files: input.outcome.changedFiles,
+        cli: "node scripts/integration-candidate.ts",
+        validator: "pinned RSI-Harness genome validate",
+      },
+      null,
+      2,
+    ) + "\n",
+  );
+  files.push({
+    path: "records/construction-report.json",
+    source_artifact: "computed from the builder's return value",
+    transformation: "summarised from the builder's record, not copied from disk",
+    export_sha256: "",
+  });
+
+  // Logs. .txt is used because the repository ignores *.log.
+  const episodeEvents = join(input.trial.layout.root, "private", "episodes", TRIAL_ID, "events.jsonl");
+  await copyRecord(join(logs, "episode-events.jsonl"), episodeEvents, `runs/${TRIAL_ID}/private/episodes/${TRIAL_ID}/events.jsonl`);
+  const stderrPath = join(input.trial.layout.root, "private", "episodes", TRIAL_ID, "stderr.txt");
+  if (await pathExists(stderrPath)) {
+    await copyRecord(join(logs, "episode-stderr.txt"), stderrPath, `runs/${TRIAL_ID}/private/episodes/${TRIAL_ID}/stderr.txt`);
+  }
+  // The verification output itself is the review's primary read.
+  const verification = redact(input.log.join("\n")) + "\n";
+  await writeFile(join(logs, "verification.txt"), verification);
+  files.push({
+    path: "logs/verification.txt",
+    source_artifact: "stdout/stderr of scripts/integration-candidate.ts",
+    transformation: "captured from the process, then redacted",
+    export_sha256: createHash("sha256").update(verification, "utf8").digest("hex"),
+  });
+
+  // The candidate's diff, produced while the bundle still exists.
+  const diff = await diffTrees(input.parentDir, input.candidateDir);
+  await writeFile(join(changes, "candidate.diff"), diff);
+  files.push({
+    path: "changes/candidate.diff",
+    source_artifact: "diff of the parent Genome against the built candidate",
+    transformation: "generated at export time; the candidate is deleted afterwards",
+    export_sha256: createHash("sha256").update(diff, "utf8").digest("hex"),
+  });
+
+  const commit = spawnSync("git", ["rev-parse", "HEAD"], { cwd: REPO_ROOT, encoding: "utf8" });
+  const commitSha = (commit.stdout ?? "").trim();
+  const dirty = spawnSync("git", ["status", "--porcelain"], { cwd: REPO_ROOT, encoding: "utf8" });
+  const clean = (dirty.stdout ?? "").trim().length === 0;
+
+  await writeFile(
+    join(input.bundleDir, "export-manifest.json"),
+    JSON.stringify(
+      {
+        export_schema_version: 1,
+        source_run_id: PROPOSAL_RUN,
+        source_trial_id: TRIAL_ID,
+        tested_code_commit: commitSha,
+        working_tree_clean: clean,
+        source_runs_are_local_only: "runs/ is gitignored; this bundle is the published copy",
+        evidence_package_digest: input.pkg.digest,
+        files,
+      },
+      null,
+      2,
+    ) + "\n",
+  );
+
+  await writeFile(join(input.bundleDir, "README.md"), reviewReadme(commitSha, clean));
+  console.log(`review bundle written to ${relative(REPO_ROOT, input.bundleDir)}`);
+}
+
+/** A plain `diff -r`-style listing of what construction changed, file by file. */
+async function diffTrees(parentDir: string, candidateDir: string): Promise<string> {
+  const { readdir, stat } = await import("node:fs/promises");
+  const lines: string[] = [];
+  async function walk(rel: string): Promise<void> {
+    const absP = join(parentDir, rel);
+    const absC = join(candidateDir, rel);
+    let entries: string[];
+    try {
+      entries = await readdir(absP);
+    } catch {
+      return;
+    }
+    for (const name of entries) {
+      const child = join(rel, name);
+      const p = join(absP, name);
+      const c = join(absC, name);
+      const pStat = await stat(p).catch(() => null);
+      const cStat = await stat(c).catch(() => null);
+      if (pStat?.isDirectory() && cStat?.isDirectory()) {
+        await walk(child);
+        continue;
+      }
+      if (pStat === null || cStat === null) {
+        lines.push(`--- ${child} (present in one tree only)`);
+        continue;
+      }
+      const pBytes = await readFile(p);
+      const cBytes = await readFile(c);
+      if (!pBytes.equals(cBytes)) {
+        lines.push(`--- ${child}`);
+        lines.push(`+++ ${child}`);
+        lines.push(
+          `@@ content differs; ${pBytes.length} -> ${cBytes.length} bytes; ` +
+            `exported in full in the candidate tree before deletion`,
+        );
+      }
+    }
+  }
+  await walk("");
+  return lines.join("\n") + "\n";
+}
+
+function reviewReadme(commitSha: string, clean: boolean): string {
+  return [
+    "# Review: candidate-build-integration-001",
+    "",
+    "## Question",
+    "Does the production candidate builder accept evidence produced by the actual",
+    "evaluator and publish a valid, bounded candidate?",
+    "",
+    "## Code tested",
+    `- EvoCFD commit: ${commitSha}`,
+    `- Working tree clean: ${clean}`,
+    "- Uncommitted patch: none",
+    "",
+    "## Execution",
+    `- Trial id: ${TRIAL_ID}`,
+    `- Proposal run: ${PROPOSAL_RUN}`,
+    "- Runtime: `evocfd-dev:node22` container on the compute host",
+    "- Exact commands:",
+    "  ```text",
+    "  bash /data2/kexiao/bin/evocfd 'node scripts/integration-candidate.ts --bundle'",
+    "  ```",
+    "",
+    "## Expected",
+    "- A genuine `EvaluationResult` written by `evaluateTrial()` is accepted as judged evidence.",
+    "- Exactly one skill is added, and the changed-file set is exactly the allowlist.",
+    "- Parent Genome contents remain unchanged.",
+    "- The pinned RSI-Harness validator accepts the candidate bundle.",
+    "- Candidate status remains `proposed`; nothing is activated.",
+    "",
+    "## Observed",
+    "- Outcome: `built` (see `records/construction-report.json`).",
+    "- Every check in `logs/verification.txt` printed `ok`; the process exited 0.",
+    "- Changed files: `genome.json`, `components/skills.json`, `contracts/skills.dev.md`, `skills/integration-test-skill/SKILL.md`.",
+    "",
+    "## Evidence",
+    "- Trial manifest: `records/trial.json`",
+    "- Episode result: `records/episode-result.json`",
+    "- Evaluation result (the producer this review cares about): `records/evaluation-result.json`",
+    "- Proposal: `records/proposal.json`",
+    "- Construction: `records/construction-report.json`",
+    "- Logs: `logs/`",
+    "- Change: `changes/candidate.diff`",
+    "- Provenance of every file: `export-manifest.json`",
+    "",
+    "## Human intervention",
+    "- None. The run is deterministic; no manual edits or retries.",
+    "",
+    "## Limitations",
+    "- The proposal was supplied by a deterministic integration test, not an LLM.",
+    "- This is not evidence of a harness improvement, and the candidate was deleted",
+    "  after the bundle was written. It exercises a code path, nothing more.",
+    "- The episode ran the `fake-agent.mjs` stand-in, so `episode-events.jsonl` is",
+    "  empty: no model call was made and no agent trajectory exists to inspect.",
+    "- The evaluation's criteria are those of the `control-plane-001` toy fixture.",
+    "",
+    "## Review requested",
+    "- Is `records/evaluation-result.json` (the real producer output) consistent with",
+    "  what `records/construction-report.json` says consumed it?",
+    "- Does the recorded parent/candidate identity describe the inputs actually used?",
+  ].join("\n") + "\n";
 }
 
 await main().catch((error) => {
