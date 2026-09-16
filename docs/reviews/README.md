@@ -57,3 +57,4 @@ These bundles are public. Nothing in them may be genuinely secret:
 | Bundle | Question |
 | --- | --- |
 | [`candidate-build-integration-001`](candidate-build-integration-001/) | Does the production candidate builder accept the *actual* evaluator output and publish a valid, bounded candidate? |
+| [`of8-environment-001`](of8-environment-001/) | Is the OF8 toolchain reproducible on an air-gapped host, and can the executable be bound to the source that built it? |

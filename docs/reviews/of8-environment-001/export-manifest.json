@@ -1,0 +1,58 @@
+{
+  "bundle_id": "of8-environment-001",
+  "generated": "2026-09-16",
+  "tested_code_commit": "c2e0aa5f861a65ebf7df8ef0c78154e62fa3a26c",
+  "tested_code_repo": "xiao312/evo-cfd",
+  "tested_code_branch": "main",
+  "working_tree_clean": true,
+  "files": [
+    {
+      "path": "README.md",
+      "sha256": "17692ee265c55a0c9eb96e191b4937f5a136ebaf8d6dbcd2f7f593df5e4870cf",
+      "transformation": "author-written narrative; no source data",
+      "bytes": 9037
+    },
+    {
+      "path": "records/environment.json",
+      "sha256": "668f3df90cac4a6d964dfd9256931091bef98f2f646c534a84e0794e30d08615",
+      "transformation": "author-written from observed values",
+      "bytes": 2033
+    },
+    {
+      "path": "records/identity-chain.json",
+      "sha256": "674928959643a9bf080abadf49b03eb74e7a0208198091608a76e3c0332ae35c",
+      "transformation": "md5 values measured on the compute host",
+      "bytes": 1747
+    },
+    {
+      "path": "records/verification.json",
+      "sha256": "a83e147fdd400c5ed8fa913990a423507b892ba6278dc0f8e0d04052a285da9f",
+      "transformation": "values read from the solver's own log",
+      "bytes": 1737
+    },
+    {
+      "path": "logs/build-tail.txt",
+      "sha256": "5ac967ba9b786abbe794eb87de4d380d331c0c1120f6703a22258aec3d88c990",
+      "transformation": "excerpt of the 7009-line Allwmake log; head, tail and an error count, not the whole log",
+      "bytes": 1094
+    },
+    {
+      "path": "logs/smoke-tail.txt",
+      "sha256": "130785e69395822e6e576f55aa8fb4fc603ba257d6ffc720bdf0b47a64e5f7f1",
+      "transformation": "excerpt of the reactingFoam log; head, tail, time steps, Courant and continuity lines only",
+      "bytes": 1647
+    },
+    {
+      "path": "changes/nothing.md",
+      "sha256": "5d4731a14c90692244f039349c1d1a4bcd2857de46359a22127011f3b2d8ecff",
+      "transformation": "author-written; records that no source was modified",
+      "bytes": 1292
+    }
+  ],
+  "notes": [
+    "This bundle contains no credentials and no secret material.",
+    "The md5 values in records/identity-chain.json are digests of public open-source binaries and sources on the compute host; they identify a build, they are not secrets.",
+    "No raw event stream is involved: there is no agent episode in this bundle.",
+    "Published material is no longer held-out evidence."
+  ]
+}

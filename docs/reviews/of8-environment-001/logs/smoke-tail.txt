@@ -1,0 +1,54 @@
+=== BLOCKMESH_TAIL ===
+  patch 3 (start: 8140 size: 8000) name: frontAndBack
+
+End
+
+
+=== REACTINGFOAM_HEAD ===
+/*---------------------------------------------------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+Build  : 8
+Exec   : reactingFoam
+Date   : Sep 16 2026
+Time   : 17:36:29
+Host   : "server40902"
+PID    : 4014251
+I/O    : uncollated
+Case   : /data2/kexiao/of8/tut-smoke
+nProcs : 1
+sigFpe : Enabling floating point exception trapping (FOAM_SIGFPE).
+fileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 10)
+allowSystemOperations : Allowing user-supplied system call operations
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+Create time
+
+Create mesh for time = 0
+
+
+=== REACTINGFOAM_TAIL ===
+diagonal:  Solving for rho, Initial residual = 0, Final residual = 0, No Iterations 0
+time step continuity errors : sum local = 5.73148e-08, global = -7.92191e-10, cumulative = 9.18354e-05
+ExecutionTime = 0.49 s  ClockTime = 1 s
+
+End
+
+
+=== TIMESTEPS ===
+Time = 1.19999e-06
+Time = 2.63997e-06
+Time = 4.36788e-06
+Time = 0.000679113
+Time = 0.000815736
+Time = 0.000979683
+
+=== COURANT_AND_CONTINUITY ===
+Courant Number mean: 2.73409e-05
+Courant Number mean: 0.0817487
+time step continuity errors : sum local = 1.52479e-05
+time step continuity errors : sum local = 5.73148e-08

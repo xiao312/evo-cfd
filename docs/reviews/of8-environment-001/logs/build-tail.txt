@@ -1,0 +1,29 @@
+=== HEAD (first 15 lines) ===
+Compiling enabled on 112 cores
+Allwmake /data2/kexiao/of8/OpenFOAM-8
+gcc -m64 -Dlinux64 -DWM_ARCH_OPTION=64 -DWM_DP -DWM_LABEL_SIZE=32 -Wall -O3   -fPIC dirToString.c -o /data2/kexiao/of8/OpenFOAM-8/wmake/platforms/linux64Gcc/dirToString
+flex wmkdep.l; \
+gcc -m64 -Dlinux64 -DWM_ARCH_OPTION=64 -DWM_DP -DWM_LABEL_SIZE=32 -Wall -O3   -fPIC lex.yy.c -o /data2/kexiao/of8/OpenFOAM-8/wmake/platforms/linux64Gcc/wmkdep
+lex.yy.c:1288:16: warning: ‘input’ defined but not used [-Wunused-function]
+ 1288 |     static int input  (void)
+      |                ^~~~~
+lex.yy.c:1245:17: warning: ‘yyunput’ defined but not used [-Wunused-function]
+ 1245 |     static void yyunput (int c, char * yy_bp )
+      |                 ^~~~~~~
+
+========================================
+Start ThirdParty Allwmake
+========================================
+
+=== compile-error count ===
+0
+
+=== TAIL (last 8 lines) ===
+wmake topoSet
+wmake tabulatedWallFunction
+wmake transformPoints
+wmake zipUpMesh
+wmake surfaceToPatch
+wmake surfaceTransformPoints
+wmake snappyHexMesh
+ALLWMAKE_DONE_0

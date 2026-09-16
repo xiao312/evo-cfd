@@ -1,0 +1,50 @@
+{
+  "bundle_id": "of8-environment-001",
+  "bundle_type": "environment-inventory",
+  "tested_code_commit": "c2e0aa5f861a65ebf7df8ef0c78154e62fa3a26c",
+  "tested_code_repo": "xiao312/evo-cfd",
+  "involves_llm": false,
+  "involves_agent_episode": false,
+  "solver_profile": "of8-realfluid",
+  "openfoam": {
+    "version": 8,
+    "source": "github.com/OpenFOAM/OpenFOAM-8, master branch, archive tarball",
+    "source_archive_sha256": "42971595657a8426d4cf8e8b89372cd50e786b17dfc6996fe5fa6a6e84688acf",
+    "third_party": "github.com/OpenFOAM/ThirdParty-8, archive tarball",
+    "root": "/data2/kexiao/of8/OpenFOAM-8",
+    "third_party_root": "/data2/kexiao/of8/ThirdParty-8",
+    "build_log": "/data2/kexiao/of8/build.log",
+    "provenance": "archive tarball; never a git checkout on a case-insensitive host",
+    "git_identity_on_host": false,
+    "case_collisions_audited": 65,
+    "case_collision_note": "65 groups differ only by filename case; a git checkout on the case-insensitive Windows working tree silently loses one of each pair"
+  },
+  "build": {
+    "command": "./Allwmake -j",
+    "cores": 112,
+    "platform": "linux64GccDPInt32Opt",
+    "compiler": "gcc (Ubuntu 9.4.0-1ubuntu1~20.04.2) 9.4.0",
+    "mpi": "SYSTEMOPENMPI, Open MPI 4.0.3 (system)",
+    "wm_compiler": "Gcc",
+    "wm_arch": "linux64",
+    "wm_precision": "DP",
+    "wm_label_size": 32,
+    "wm_optimisation": "Opt",
+    "tmpdir": "/data2/kexiao/tmp",
+    "tmpdir_note": "root filesystem was 100% full; gcc temp files redirected to /data2",
+    "exit_code": 0,
+    "compile_errors": 0,
+    "log_lines": 7009,
+    "executables": 201,
+    "shared_libraries": 100,
+    "third_party_status": "scotch/ptscotch/metis built as dummy; not the real third-party libraries"
+  },
+  "host": {
+    "model": "Intel(R) Xeon(R) Gold 6330 CPU @ 2.00GHz",
+    "cores": 112,
+    "memory_gb_total": 251,
+    "constraint": "air-gapped; no registry, no github, no docker hub reachability",
+    "existing_environment_untouched": true,
+    "install_root": "/data2/kexiao/of8"
+  }
+}

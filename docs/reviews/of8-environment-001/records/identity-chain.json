@@ -1,0 +1,46 @@
+{
+  "bundle_id": "of8-environment-001",
+  "purpose": "bind the compiled executable to the source that produced it; the three objects below are not derivable from one another",
+  "chain": {
+    "declared_source": {
+      "what": "OpenFOAM-8 master branch, GitHub archive tarball",
+      "identity": "sha256 42971595657a8426d4cf8e8b89372cd50e786b17dfc6996fe5fa6a6e84688acf",
+      "note": "no git identity on the host; provenance rests on this archive digest"
+    },
+    "solver_source_file": {
+      "path": "applications/solvers/combustion/reactingFoam/reactingFoam.C",
+      "md5": "36a7e7a1bcd94a374545042a762cfbc4"
+    },
+    "compiled_executable": {
+      "path": "platforms/linux64GccDPInt32Opt/bin/reactingFoam",
+      "md5": "24b7472b872c5a5860bc0508002bd61e",
+      "note": "the binary actually invoked by the smoke test"
+    },
+    "loaded_libraries": {
+      "libOpenFOAM.so": "e8f9c47d9111e6d030692decdaf799e4",
+      "libfiniteVolume.so": "77aa24a1c2e847acbb8e824aa24bd829",
+      "libcombustionModels.so": "2cd3b20b8e67891ef62a8fa1ae61a57d"
+    }
+  },
+  "solver_capabilities_present": [
+    "reactingFoam",
+    "rhoReactingFoam",
+    "rhoReactingBuoyantFoam",
+    "simpleFoam",
+    "rhoSimpleFoam",
+    "icoFoam",
+    "blockMesh",
+    "decomposePar",
+    "snappyHexMesh",
+    "setFields",
+    "postProcess"
+  ],
+  "target_solver": {
+    "name": "realFluidReactingFoam",
+    "status": "not yet applied",
+    "note": "a source-level modification of reactingFoam; this bundle records the base it will modify"
+  },
+  "caveat": {
+    "build_settings": "compiler version and flags are recorded as strings, not as inputs to a reproducible digest; the same sources built with different flags would not be distinguishable by this chain"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "bundle_id": "of8-environment-001",
+  "what": "functional verification that the built OF8 toolchain produces a running solver with sane numerics",
+  "case": {
+    "source": "OpenFOAM-8 built-in tutorial tutorials/combustion/reactingFoam/laminar/counterFlowFlame2D",
+    "meshing": "blockMesh",
+    "solver": "reactingFoam (stock OF8, not realFluidReactingFoam)",
+    "divergence_from_upstream": "endTime truncated from 0.5 to 0.001 to bound wall time; this is recorded, not hidden",
+    "processors": 1
+  },
+  "result": {
+    "blockMesh_exit": 0,
+    "reactingFoam_exit": 0,
+    "reached_time": 0.000979683,
+    "first_time": 1.19999e-06,
+    "courant_mean_first": 2.73409e-05,
+    "courant_mean_last": 0.0817487,
+    "continuity_local_first": 1.52479e-05,
+    "continuity_local_last": 5.73148e-08,
+    "execution_time_s": 0.49
+  },
+  "interpretation": {
+    "supported": [
+      "the binary loads, its shared libraries resolve, and the case meshes and runs to the requested truncated end time",
+      "the continuity residual decreases by more than two orders of magnitude over the run, which is consistent with a solver converging rather than diverging",
+      "adaptive time stepping kept the mean Courant number below 0.1 throughout, so the time-step control is functioning"
+    ],
+    "not_supported": [
+      "nothing about accuracy, grid convergence, or correctness of the physics",
+      "nothing about trans- or super-critical regimes, which are the project's actual target",
+      "nothing about the realFluidReactingFoam modification, which was not built or run here"
+    ]
+  },
+  "cleanup": "the temporary case directory was deleted after the numbers were captured; only the log excerpt in logs/smoke-tail.txt remains"
+}
