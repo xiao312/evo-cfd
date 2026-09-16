@@ -148,6 +148,13 @@ come. Until they exist, the value called `trial_identity` is really a
 identifier. See `docs/ROADMAP.md` for the target composition and the order in
 which the remaining layers arrive.
 
+One caveat about model identity specifically: the recorded model is a string,
+and a **preview** model can change its weights behind that string without the
+identifier moving. Every episode so far ran `Atria-Dawn-Preview` through our
+own relay, which is fine for proving the machinery works and is not a
+reproducible scientific claim. A model identity that survives a silent weight
+swap is a separate problem, and it is not solved by recording the name.
+
 ## Proposer
 
 The improvement agent is frozen **within a cycle**, not forever: cycle *k*'s
@@ -304,3 +311,32 @@ the constraint, not disk space or tidiness.
 
 This avoids both failure modes: two buildable solvers with no learning loop, and
 an elaborate benchmark project that never reaches a real simulation.
+
+## Transfer and sync rules
+
+Two rules came out of incidents rather than out of preference, and both are
+operational constraints on the pipeline, not documentation niceties.
+
+**Case-sensitive trees never pass through the Windows host's working tree.**
+EvoCFD's own TypeScript repository is case-safe and may sync from Windows.
+OpenFOAM source and build trees are not: the OF8 clone onto the exFAT working
+tree collapsed `PointHit.H` and `pointHit.H` and silently lost 65
+case-colliding file groups, surfacing only as a compile error. Upstream trees
+move as archive tarballs of a pinned commit — downloaded, checksummed,
+transferred compressed, and extracted on the Linux filesystem, never extracted
+on a case-insensitive volume. The `no symlinks` limit of the rsync build in use
+applies to that repository sync path only; it must not become a universal rule
+for upstream solver and build trees, which routinely contain symlinks.
+
+**Sync never crosses an active run.** The order is fixed:
+
+```text
+synchronise the development checkout
+    → verify revision and content
+    → prepare immutable run inputs
+    → execute
+```
+
+Syncing `.git` is workable for a controlled development mirror, but it is not
+the mechanism for mutating inputs a running job is consuming. A trial's inputs
+are prepared after the sync and frozen before execution.

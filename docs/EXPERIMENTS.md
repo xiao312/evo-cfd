@@ -31,16 +31,36 @@ trials passed anyway.
 | `m1-control-noreport` | the `REPORT.md` requirement | `noreport-trial-001` | PASS |
 | `m1-control-misdirect` | replaces it with an active misdirection | `misdirect-trial-001` | PASS |
 
-Each is an honest negative result, and together they say something specific:
-on this fixture with this model, an instruction the model follows unprompted is
-not a deficiency the evidence can show. Removing "verify before you claim"
-changed nothing, because the agent verifies from its own tendencies. Removing
-the report requirement changed nothing, because the agent wrote a 300-character
-report unprompted and the criterion only requires non-empty. Even an active
+Each is an honest negative result, and together they say something specific —
+but the claim is narrower than it first looks, and the narrowing matters.
+
+`TASK.md` itself requires a corrected verifiable result and a `REPORT.md`, so
+the supported statement is not "the model verifies and reports with no
+instruction to do so". It is: **removing those instructions did not produce a
+failure when the task prompt still supplied the requirements.** The controls
+show the instructions were *redundant with what the task already demanded*, not
+that the model would have invented them. Distinguishing the two is the
+difference between a result about the harness and a flattering story about the
+model.
+
+What the controls do establish is that an instruction the model follows
+anyway is not a deficiency the evidence can expose: removing "verify before you
+claim" changed nothing, because the agent verifies from its own tendencies and
+the task asks for a verifiable result either way. Removing the report
+requirement changed nothing, because the agent wrote a 300-character report
+unprompted and the criterion only requires non-empty. Even an active
 misdirection — instructions that assert the program has a config-reading bug and
 must be corrected, when the real defect is a config-key mismatch and the program
 must stay byte-identical — did not cause a failure: the agent read the code,
 saw the mismatch, and fixed `config.json` anyway.
+
+This is also why a passing run does not forbid an improvement proposal. The
+distinction the reviewer asked to record: **admission** is a bounded,
+evidence-grounded hypothesis that a candidate *might* help; **promotion** is
+the subsequent experimental support for it. A control passing closes neither.
+A fixture with no skill-addressable deficiency admits no proposal, and that is
+the honest state of this one — not evidence that the harness cannot be
+improved.
 
 A deficiency that reaches the evidence has to be something the harness gets
 *wrong* in a way the model cannot absorb, not merely something the harness
