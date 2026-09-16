@@ -1,0 +1,40 @@
+{
+  "plan": {
+    "jobId": "1D-advection-001",
+    "profile": {
+      "id": "of8-realfluid",
+      "executable": "/data2/kexiao/of8/rf-profile/bin/reactingFoam",
+      "executableSha256": "14fd124a0e46d043cdad5f9b6b8e26ed23d0778084d55c609e9665d58799007c",
+      "envFile": "/data2/kexiao/of8/rf-profile-env.sh",
+      "libraryPaths": [
+        "/data2/kexiao/of8/rf-profile/lib",
+        "/data2/kexiao/of8/OpenFOAM-8/platforms/linux64GccDPInt32Opt/lib"
+      ],
+      "expectedProfileLibraries": [
+        "libreactionThermophysicalModels.so",
+        "libspecie.so",
+        "libchemistryModel.so",
+        "libcombustionModels.so"
+      ]
+    },
+    "caseDir": "runs/cfd-cases/1D-advection-001",
+    "args": [],
+    "budgetSeconds": 600,
+    "requestedEndTime": 0.002,
+    "ranks": 1,
+    "logFile": "log.react"
+  },
+  "state": {
+    "jobId": "1D-advection-001",
+    "state": "finished",
+    "submittedAt": 1789558210171,
+    "startedAt": null,
+    "finishedAt": 1789558210171,
+    "container": null,
+    "lastReportedTime": 0.002,
+    "terminatedNormally": true,
+    "stopReason": null,
+    "detail": "solver log ends with a normal End"
+  },
+  "planDigest": "969976d93670fd16944f23e9e5e4be8a3350e74fee33f378f731ac6bd768239c"
+}

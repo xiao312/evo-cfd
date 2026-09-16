@@ -1,0 +1,39 @@
+{
+  "bundle_id": "cfd-job-001",
+  "generated": "2026-09-16",
+  "tested_code_commit": "1530f37a0e2416db4eb3ca0d72ce7be112c8f807",
+  "tested_code_repo": "xiao312/evo-cfd",
+  "tested_code_branch": "main",
+  "working_tree_clean": true,
+  "files": [
+    {
+      "path": "README.md",
+      "transformation": "author-written narrative; no source data",
+      "sha256": "4938574b40af3c12a19a161efc74ac9c5d7df6142b1788302c7913f6b7705df5",
+      "bytes": 6222
+    },
+    {
+      "path": "records/execution.json",
+      "transformation": "author-written from observed values",
+      "sha256": "1005abfbc5bd734a0c882f3d34624b4d65e10709b7786cd2476f2105660c50c0",
+      "bytes": 2394
+    },
+    {
+      "path": "records/job-record.json",
+      "transformation": "copy of the controller's own write-once record; not reconstructed",
+      "sha256": "10bd4b06c4aa62e108e1d0d7dc60e098ae5a30db4161c971cf3cfef1830cc71a",
+      "bytes": 1231
+    },
+    {
+      "path": "logs/cfd-job-excerpt.txt",
+      "transformation": "the runner script, log head, thermo selection, log tail, sampled times and the full job record",
+      "sha256": "945432abf6009ca83cf6dcd00b497e9f22ae775375e41b4e571011d5b37cb081",
+      "bytes": 2887
+    }
+  ],
+  "notes": [
+    "No credentials and no secret material.",
+    "No raw event stream and no agent episode: there is no LLM behaviour in this bundle.",
+    "Published material is no longer held-out evidence."
+  ]
+}

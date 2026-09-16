@@ -1,0 +1,52 @@
+{
+  "bundle_id": "cfd-job-001",
+  "bundle_type": "execution-layer",
+  "involves_llm": false,
+  "involves_agent_episode": false,
+  "question": "Can EvoCFD's controller plan a real solver run, have it executed, and assess the outcome from evidence rather than from anyone's assertion?",
+  "answer": "Yes, through a three-phase split that exists because the controller and the solver cannot run in the same place.",
+  "phases": {
+    "plan": {
+      "where": "campaign container",
+      "what": "writes the write-once job record and a runner script containing the exact planned command",
+      "output": "runs/cfd-cases/1D-advection-001/job-record.json, runs/cfd-cases/1D-advection-001/run.sh"
+    },
+    "run": {
+      "where": "host, where the solver's libraries live",
+      "what": "executes the runner script",
+      "why_host": "the solver links libmpi.so.40, which the container does not provide"
+    },
+    "assess": {
+      "where": "campaign container",
+      "what": "derives the terminal state from the solver's log alone",
+      "note": "the controller does not take the host's word for the outcome; it reads the evidence"
+    }
+  },
+  "outcome": {
+    "state": "finished",
+    "terminatedNormally": true,
+    "lastReportedTime": 0.002,
+    "requestedEndTime": 0.002,
+    "reached_requested_time": true,
+    "thermophysical_path": {
+      "mixture": "PRchungKineticMixture",
+      "transport": "chungKinetic",
+      "thermo": "rfJanaf",
+      "equationOfState": "PengRobinson",
+      "specie": "rfSpecie"
+    }
+  },
+  "interpretation": {
+    "supported": [
+      "the controller can plan, execute through a boundary, and assess a real OpenFOAM solver run",
+      "the plan is recorded write-once before execution and the executed command is the one the record describes",
+      "assessment is derived from the solver's own log, so a run and its assessment cannot disagree about the outcome",
+      "the run used the real-fluid property path, not ideal gas"
+    ],
+    "not_supported": [
+      "this is one serial, non-reacting case; nothing about parallel decomposition, combustion, or accuracy",
+      "the container cannot run this solver build, so the controller and the solver are in different trust domains; a trial must record which one executed",
+      "the assess phase reports process facts only: it does not judge numerical quality, which is a separate concern"
+    ]
+  }
+}
