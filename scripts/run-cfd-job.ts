@@ -26,15 +26,15 @@
  *   node scripts/run-cfd-job.ts assess <job-dir>
  */
 import { join } from "node:path";
-import { mkdir, cp, rm, readFile, writeFile } from "node:fs/promises";
+import { mkdir, cp, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { randomBytes } from "node:crypto";
 
 import {
   buildCommand,
-  executePlan,
   planDigest,
   readJobRecord,
+  readLastTime,
+  readTerminatedNormally,
   resolveProfile,
   updateJobState,
   writeJobRecord,
@@ -126,21 +126,19 @@ async function phasePlan(casesRoot: string): Promise<void> {
   console.log(`   runner ${join(jobDir, RUNNER)}`);
 }
 
-async function phaseRun(jobDir: string): Promise<void> {
-  const record = await readJobRecord(jobDir);
-  if (!record) throw new Error(`no job record at ${jobDir}`);
-  const state = await executePlan(record.plan, jobDir, jobDir);
-  await updateJobState(jobDir, state);
-  console.log(`ok run finished, state ${state.state}`);
-  console.log(`   ${state.detail}`);
-  console.log(`   last reported time ${state.lastReportedTime}`);
-  console.log(`   terminated normally ${state.terminatedNormally}`);
-}
+/**
+ * The host executes the runner directly. There is no controller `run` phase on
+ * the host, because the host has no Node and the controller is what records;
+ * the runner is the plan's own command, and `assess` derives what happened
+ * from the log it left.
+ */
 
 async function phaseAssess(jobDir: string): Promise<void> {
   const record = await readJobRecord(jobDir);
   if (!record) throw new Error(`no job record at ${jobDir}`);
-  const { plan, state } = record;
+  const { plan } = record;
+  const state = await assessFromLog(jobDir, plan);
+
   const reached =
     state.state === "finished" &&
     state.terminatedNormally &&
@@ -157,6 +155,49 @@ async function phaseAssess(jobDir: string): Promise<void> {
   );
 }
 
+/**
+ * Derives the terminal state from the log the solver left.
+ *
+ * The host executed the runner script; the controller cannot observe that
+ * process and does not take the host's word for the outcome. The log is the
+ * evidence, and this is all of it: whether the solver reported time steps, and
+ * whether it ended normally.
+ */
+async function assessFromLog(
+  jobDir: string,
+  plan: CfdJobPlan,
+): Promise<CfdJobState> {
+  const logPath = join(jobDir, plan.logFile);
+  const lastTime = await readLastTime(logPath);
+  const normal = await readTerminatedNormally(logPath);
+  const state: CfdJobState = {
+    jobId: plan.jobId,
+    state: "submitted",
+    submittedAt: Date.now(),
+    startedAt: null,
+    finishedAt: Date.now(),
+    container: null,
+    lastReportedTime: lastTime,
+    terminatedNormally: normal,
+    stopReason: null,
+    detail: "",
+  };
+  if (normal) {
+    state.state = "finished";
+    state.detail = "solver log ends with a normal End";
+  } else if (lastTime !== null) {
+    state.state = "failed";
+    state.stopReason = "solver_error";
+    state.detail = "solver reported time steps but did not end normally";
+  } else {
+    state.state = "failed";
+    state.stopReason = "executor_error";
+    state.detail = "no solver output found; the runner did not produce a log";
+  }
+  await updateJobState(jobDir, state);
+  return state;
+}
+
 async function main(): Promise<void> {
   const phase = process.argv[2] ?? "all";
   // The case directory lives under the repository mount so both sides see it.
@@ -166,8 +207,14 @@ async function main(): Promise<void> {
   if (phase === "plan") {
     await phasePlan(casesRoot);
   } else if (phase === "run") {
+    // The run happens on the host with the runner the plan wrote. This entry
+    // point exists so the lifecycle is complete and testable where Node is
+    // available, but the real execution path is the runner script itself.
     const jobDir = process.argv[3] ?? join(casesRoot, JOB_ID);
-    await phaseRun(jobDir);
+    const record = await readJobRecord(jobDir);
+    if (!record) throw new Error(`no job record at ${jobDir}`);
+    console.log(`runner for ${record.plan.jobId} is ${join(jobDir, RUNNER)}`);
+    console.log("execute it on the host where the solver libraries live");
   } else if (phase === "assess") {
     const jobDir = process.argv[3] ?? join(casesRoot, JOB_ID);
     await phaseAssess(jobDir);
