@@ -53,7 +53,7 @@ const SKILLS_CONTRACT_TEMPLATE = join("config", "genome-templates", "skills-cont
  * allowlist because that *is* the change. What is never on one: the solver, the
  * evaluator, the model, the provider, or any component other than `skills`.
  */
-function allowedFiles(kind: "skill_upsert" | "skill_modify", skill: string): Set<string> {
+export function allowedFiles(kind: "skill_upsert" | "skill_modify", skill: string): Set<string> {
   const skillFile = `skills/${skill}/SKILL.md`;
   if (kind === "skill_modify") {
     return new Set(["genome.json", skillFile]);

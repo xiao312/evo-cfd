@@ -42,6 +42,7 @@ import { evaluateTrial } from "../packages/controller/src/evaluate.ts";
 import { assembleEvidencePackage, PROPOSER_OUTPUT_DIR } from "../packages/controller/src/evidence.ts";
 import {
   buildCandidate,
+  allowedFiles,
   type CandidateConstruction,
 } from "../packages/controller/src/candidate-builder.ts";
 import { buildHarnessSnapshot, defaultResolveGenomeDir } from "../packages/controller/src/harness.ts";
@@ -210,9 +211,13 @@ async function main(): Promise<void> {
       outcome.record.change.skill === SKILL,
       `the changed skill is ${outcome.record.change.skill}`,
     );
+    // The changed set must be exactly the allowlist: a change touching
+    // anything else would be an unbounded change wearing a bounded label.
+    const expected = allowedFiles("skill_upsert", SKILL);
+    const changed = new Set(outcome.changedFiles);
     check(
-      outcome.changedFiles.every((file) => file.startsWith("skills/") || file.endsWith("genome.json")),
-      `changed files are bounded: ${outcome.changedFiles.join(", ")}`,
+      changed.size === expected.size && [...changed].every((file) => expected.has(file)),
+      `changed files are exactly the allowlist: got [${outcome.changedFiles.join(", ")}]`,
     );
     console.log(`candidate ${outcome.record.candidate_genome_id}`);
     console.log(`identity ${outcome.record.candidate_harness_identity.slice(0, 16)}`);
