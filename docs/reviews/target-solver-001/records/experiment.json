@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "bundle_id": "target-solver-001",
+  "question": "Does the pinned realFluidReactingFoam build run at all on a correctly configured case, and what is the smallest defensible set of case changes required to exercise its intended equations?",
+  "status": "closed_by_experiment",
+  "conclusion": "Two per-species div-scheme entries in fvSchemes are sufficient. The target solver then integrates 200 time steps to the requested endTime with the Peng-Robinson property path and a normal End. The gap was configuration, not unsupported physics and not an implementation defect.",
+  "tested_commit": "7a5368e92b077d195ab9558c18a51f276648c164",
+  "environment": {
+    "host": "server40902",
+    "solver_root": "/data2/kexiao/of8",
+    "profile": "of8-realfluid (rf-profile)",
+    "solver": "/data2/kexiao/of8/rf-profile/bin/realFluidReactingFoam",
+    "solver_sha256": "2d2d98f7d7f6b53e0a4b145054ee0181c769ca26abb542af0cc863bec2ee989e",
+    "env_file": "/data2/kexiao/of8/rf-profile-env.sh",
+    "case_source": "/data2/kexiao/of8/rf-cases/1D_advection",
+    "where_solver_ran": "host",
+    "note": "The container cannot run the host-built solver (libmpi.so.40 absent), so both arms executed on the host under the profile env file, as in cfd-job-001."
+  },
+  "arms": {
+    "armA-as-shipped": {
+      "change": "none; the case as shipped, which specifies application reactingFoam",
+      "exit_code": 1,
+      "outcome": "FOAM FATAL IO ERROR: keyword div(((hei_O2*rho)*YVi_O2)) is undefined in .../system/fvSchemes/divSchemes",
+      "log": "records/armA-as-shipped.log",
+      "log_sha256": "8d82c5c73355581d1dd8097856a8fc0958122981f0d24c6ac30fff823340a463"
+    },
+    "armB-with-species-schemes": {
+      "change": "two lines added to divSchemes, see changes/fvSchemes.diff",
+      "exit_code": 0,
+      "outcome": "normal End; 200 time steps; last reported time 0.002 equals the requested endTime",
+      "property_path_selected": [
+        "PRchungKineticMixture",
+        "PengRobinson",
+        "chungKinetic",
+        "rfJanaf",
+        "rfSpecie",
+        "PRchungKineticStandardChemistryModel"
+      ],
+      "last_min_max_T_K": [139.214, 368.475],
+      "log": "records/armB-with-species-schemes.log",
+      "log_sha256": "87174d662e4222d57a6b569dabbd046a1f976e1331d4e029963f4d776f7be519"
+    }
+  },
+  "comparison": {
+    "baseline": "the package's own reactingFoam build on the same case, cfd-job-001",
+    "baseline_last_min_max_T_K": [139.214, 368.537],
+    "target_last_min_max_T_K": [139.214, 368.475],
+    "note": "First-and-last sampled values, not a time history. The 0.06 K difference at max T is in the direction and rough magnitude expected of the extra species-diffusion enthalpy flux terms that realFluidReactingFoam carries and reactingFoam does not; it is not here established to be that term, only that the two solvers do not diverge over 200 steps."
+  },
+  "hypotheses": {
+    "H1_configuration_gap": "supported — adding the two entries was sufficient",
+    "H2_needs_more_case_structure": "not supported — no further case change was required",
+    "implementation_defect": "not supported over this window — the solver integrates to the requested endTime without divergence"
+  },
+  "reviewer_caveats": [
+    "min/max(T) values are the last sampled line of the log, not a history, and cannot bound the field over the run",
+    "'time step continuity errors' is the solver's own term and is recorded as such, not read as a convergence proof",
+    "200 steps at deltaT 1e-5 to endTime 0.002 is a short window; it establishes that the equations can be exercised, not that the case is physically correct",
+    "the 0.06 K agreement is a single sampled comparison against one baseline run, not a statistic"
+  ]
+}

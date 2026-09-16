@@ -130,7 +130,7 @@ test("prepareConsultation writes a request, a manifest and the frozen evidence",
     runRoot: root,
     request,
     evidenceSources: [{ dir: jobDir, why: "the failing job's log", dest: "job-1" }],
-    sourceExcerpts: [{ file: join(sourceDir, "solvers", "EEqn.H"), why: "the term that fails to evaluate" }],
+    sourceExcerpts: [{ file: join(sourceDir, "solvers", "EEqn.H"), why: "the term that fails to evaluate", dest: "target/EEqn.H" }],
     caseInputs: [{ dir: caseDir, why: "the case as shipped" }],
   });
   assert.ok(result.digest.length > 0);
@@ -154,7 +154,7 @@ test("only the supplied artifacts appear; nothing is invented", async () => {
     runRoot: root,
     request: makeRequest(),
     evidenceSources: [],
-    sourceExcerpts: [{ file: join(sourceDir, "solvers", "EEqn.H"), why: "why" }],
+    sourceExcerpts: [{ file: join(sourceDir, "solvers", "EEqn.H"), why: "why", dest: "solvers/EEqn.H" }],
     caseInputs: [{ dir: caseDir, why: "why" }],
   });
   const manifest = JSON.parse(await readFile(join(result.dir, "manifest.json"), "utf8"));
@@ -469,6 +469,32 @@ test("no advisor response means the consultation stays pending", async () => {
   await assert.rejects(
     () => readFile(join(root, CONSULTATION_RESPONSE_DIR, "original-answer.md")),
     /ENOENT/,
+  );
+  await rm(root, { recursive: true, force: true });
+});
+
+test("two excerpts with the same destination fail loudly rather than overwrite", async () => {
+  const { root, sourceDir, caseDir } = await makeRun();
+  // The real defect this guards: realFluidReactingFoam/EEqn.H and
+  // reactingFoam/EEqn.H have the same basename. Flattening both to
+  // source-excerpts/EEqn.H shipped the second under a manifest entry
+  // written for the first, and the briefing became self-contradictory.
+  const target = join(sourceDir, "solvers", "EEqn.H");
+  const other = join(sourceDir, "solvers", "other-EEqn.H");
+  await writeFile(other, "the comparison equation, without the species term\n");
+  await assert.rejects(
+    () =>
+      prepareConsultation({
+        runRoot: root,
+        request: makeRequest(),
+        evidenceSources: [],
+        sourceExcerpts: [
+          { file: target, why: "the term that fails", dest: "EEqn.H" },
+          { file: other, why: "for comparison", dest: "EEqn.H" },
+        ],
+        caseInputs: [{ dir: caseDir, why: "the case" }],
+      }),
+    /two source excerpts share the destination EEqn.H/,
   );
   await rm(root, { recursive: true, force: true });
 });

@@ -225,7 +225,7 @@ export async function prepareConsultation(input: {
   /** Absolute directories whose contents are copied as evidence. */
   evidenceSources: { dir: string; why: string; dest: string }[];
   /** Absolute files copied for the advisor to read directly. */
-  sourceExcerpts: { file: string; why: string }[];
+  sourceExcerpts: { file: string; why: string; dest: string }[];
   caseInputs: { dir: string; why: string }[];
   now?: () => Date;
 }): Promise<{ dir: string; digest: string }> {
@@ -241,9 +241,20 @@ export async function prepareConsultation(input: {
       await mkdir(dirname(dest), { recursive: true });
       await copyTree(source.dir, dest);
     }
+    // Destinations are caller-supplied and must be unique: two equation
+    // files named EEqn.H in different solvers are different files, and
+    // flattening both to one destination would ship the second under a
+    // manifest entry written for the first. Detect, do not overwrite.
+    const seenDest = new Set<string>();
     for (const excerpt of input.sourceExcerpts) {
-      const dest = join(staging, SOURCE_EXCERPTS_DIR, basename(excerpt.file));
-      await mkdir(join(staging, SOURCE_EXCERPTS_DIR), { recursive: true });
+      if (seenDest.has(excerpt.dest)) {
+        throw new ConsultationError(
+          `two source excerpts share the destination ${excerpt.dest}; give each a unique path`,
+        );
+      }
+      seenDest.add(excerpt.dest);
+      const dest = join(staging, SOURCE_EXCERPTS_DIR, excerpt.dest);
+      await mkdir(dirname(dest), { recursive: true });
       await copyTree(excerpt.file, dest);
     }
     for (const caseInput of input.caseInputs) {
@@ -496,7 +507,7 @@ async function writeRequestManifest(
  */
 function describeWhy(input: {
   evidenceSources: { dir: string; why: string; dest: string }[];
-  sourceExcerpts: { file: string; why: string }[];
+  sourceExcerpts: { file: string; why: string; dest: string }[];
   caseInputs: { dir: string; why: string }[];
 }): Map<string, string> {
   const whys = new Map<string, string>();
@@ -504,7 +515,7 @@ function describeWhy(input: {
     whys.set(`${EVIDENCE_DIR}/${source.dest}`, source.why);
   }
   for (const excerpt of input.sourceExcerpts) {
-    whys.set(`${SOURCE_EXCERPTS_DIR}/${basename(excerpt.file)}`, excerpt.why);
+    whys.set(`${SOURCE_EXCERPTS_DIR}/${excerpt.dest}`, excerpt.why);
   }
   for (const caseInput of input.caseInputs) {
     whys.set(`${CASE_INPUTS_DIR}/${basename(caseInput.dir)}`, caseInput.why);

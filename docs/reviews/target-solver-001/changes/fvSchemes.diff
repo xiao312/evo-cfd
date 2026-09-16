@@ -1,0 +1,11 @@
+--- /data2/kexiao/of8/rf-cases/1D_advection/system/fvSchemes	2026-09-16 18:30:54.219928799 +0800
++++ /data2/kexiao/EvoCFD/runs/consultation-001/experiment/armB-with-species-schemes/system/fvSchemes	2026-09-16 23:34:52.599874261 +0800
+@@ -38,6 +38,8 @@
+     div(phi,epsilon) Gauss limitedLinear 1;
+     div(phi,k) Gauss limitedLinear 1;
+     div(((rho*nuEff)*dev2(T(grad(U))))) Gauss linear;
++    div(((hei_O2*rho)*YVi_O2))  Gauss linear;
++    div(((hei_N2*rho)*YVi_N2))  Gauss linear;
+ }
+ 
+ laplacianSchemes

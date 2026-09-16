@@ -10,16 +10,17 @@
  * The first real use is the target-solver case gap. `realFluidReactingFoam`
  * builds, but no upstream tutorial runs it: every shipped case specifies
  * `reactingFoam`, and the target solver requires per-species scheme entries the
- * tutorials do not declare. That is a real question an advisor can answer
- * better than a guess — what is the smallest defensible set of case changes to
- * exercise the intended equations — and it needs actual source and case
- * contents, not a summary.
+ * tutorials do not declare. That question is now closed by experiment
+ * (target-solver-001), so this script ships the two arms as verified evidence
+ * and asks the question that remains open: is the small difference between the
+ * target solver and the package’s reactingFoam the expected physical effect,
+ * or a sign of an inconsistency.
  *
  * Usage:
  *   node scripts/prepare-consultation.ts <run-root> [question-id]
  */
 import { join } from "node:path";
-import { mkdir, stat } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { argv, exit } from "node:process";
 
@@ -34,7 +35,7 @@ const SOLVER_ROOT = process.env.EVOCFD_SOLVER_ROOT ?? "/data2/kexiao/of8";
 const REPO_ROOT = process.env.EVOCFD_HOST_ROOT ?? ".";
 const SOLVER = join(SOLVER_ROOT, "rf-profile", "bin", "realFluidReactingFoam");
 const CASE_SOURCE = join(SOLVER_ROOT, "rf-cases", "1D_advection");
-const FAILING_LOG = join(REPO_ROOT, "runs", "cfd-cases", "1D-advection-001", "log.react");
+// Retained for reference; the experiment arms are the real evidence.
 const SOLVER_SOURCE = join(SOLVER_ROOT, "realFluidFoam-8", "applications", "solvers");
 
 async function sha256(file: string): Promise<string> {
@@ -93,9 +94,9 @@ async function main(): Promise<void> {
   const request: ConsultationRequest = {
     requestId: questionId,
     question:
-      "The target solver realFluidReactingFoam builds but fails at startup on the only reference case available, because the case's fvSchemes was written for the package's reactingFoam and lacks the per-species scheme entries the target solver looks up. Identify the smallest defensible set of case changes required to exercise the intended equations, and distinguish missing configuration from unsupported physics or an implementation defect.",
+      "The target solver realFluidReactingFoam now runs the reference case to its requested endTime, after adding two per-species div scheme entries its last sampled max temperature is 368.475 K against 368.537 K for the package's own reactingFoam on the same case. Is that 0.06 K difference the physically expected effect of the species-diffusion enthalpy flux terms the target solver carries, or a sign of an inconsistency I should chase before trusting this solver for the MASCOTTE comparison?",
     whyNow:
-      "This is the only obstacle between a pinned, verified solver build and a first run of the target solver. A wrong guess here means editing the wrong file.",
+      "The configuration gap is closed and the solver runs, so the remaining question is whether it runs the right equations. This case has no chemical reaction and no validation data, so the reactingFoam comparison is the only check available, and it is a single sampled comparison."
     contract,
     state,
     items: [
@@ -108,8 +109,20 @@ async function main(): Promise<void> {
       {
         id: "E2",
         label: "observation",
-        text: "Running the target solver on the reference case exits 1 at the first species-enthalpy term: `keyword div(((hei_O2*rho)*YVi_O2)) is undefined in fvSchemes`.",
-        source: "the failing run's log, recorded in cfd-job-001",
+        text: "Running the target solver on an unmodified disposable copy of the case exits 1 at the first enthalpy solve: `keyword div(((hei_O2*rho)*YVi_O2)) is undefined in .../system/fvSchemes/divSchemes`.",
+        source: "experiment/armA-as-shipped, attached; exit code 1 recorded",
+      },
+      {
+        id: "E5",
+        label: "observation",
+        text: "Adding exactly two div scheme entries for O2 and N2 makes the same case run: exit 0, 200 time steps at deltaT 1e-5, last reported time 0.002 equals the requested endTime, normal End.",
+        source: "experiment/armB-with-species-schemes, attached; the two-line diff is changes/fvSchemes.diff in target-solver-001",
+      },
+      {
+        id: "E6",
+        label: "observation",
+        text: "The target solver's last sampled min/max(T) is 139.214/368.475 K; the package's reactingFoam on the same case gives 139.214/368.537 K.",
+        source: "the last min/max(T) line of each log; first-and-last sampled values, not a history",
       },
       {
         id: "E3",
@@ -151,7 +164,8 @@ async function main(): Promise<void> {
     attempts: [
       "built the package with isolated outputs; stock OF8 verified unchanged",
       "ran the package's reactingFoam on the reference case; reached the requested end time",
-      "ran the target solver on the same case; failed at startup with the scheme error",
+      "ran the target solver on the unmodified case; failed at startup with the scheme error",
+      "added the two per-species div scheme entries; the target solver reached the requested end time",
     ],
     workerInterpretation:
       "The evidence points at a configuration gap rather than a solver defect: the same property path works under reactingFoam, and the missing term is exactly what the error names. I cannot confirm the gap is the only obstacle, and I have not established that the failing state was admissible.",
@@ -174,22 +188,26 @@ async function main(): Promise<void> {
     createdAt: new Date().toISOString(),
   };
 
-  const excerpts: { file: string; why: string }[] = [
+  const excerpts: { file: string; why: string; dest: string }[] = [
     {
       file: join(SOLVER_SOURCE, "realFluidReactingFoam", "EEqn.H"),
       why: "the equation file containing the term that fails to evaluate",
+      dest: "realFluidReactingFoam/EEqn.H",
     },
     {
       file: join(SOLVER_SOURCE, "realFluidReactingFoam", "createFields.H"),
       why: "declares the per-species YVi and hei fields the scheme entries must name",
+      dest: "realFluidReactingFoam/createFields.H",
     },
     {
       file: join(SOLVER_SOURCE, "realFluidReactingFoam", "realFluidReactingFoam.C"),
       why: "the solver's top-level loop, showing where the property update sits",
+      dest: "realFluidReactingFoam/realFluidReactingFoam.C",
     },
     {
       file: join(SOLVER_SOURCE, "reactingFoam", "EEqn.H"),
       why: "the corresponding equation without the species term, for comparison",
+      dest: "reactingFoam/EEqn.H",
     },
   ];
   const caseInputs = [
@@ -198,14 +216,21 @@ async function main(): Promise<void> {
       why: "the case as shipped: system/, constant/ and 0/ including fvSchemes and thermophysicalProperties",
     },
   ];
-  const evidenceSources: { dir: string; why: string; dest: string }[] = [];
-  if (await pathExists(FAILING_LOG)) {
-    evidenceSources.push({
-      dir: FAILING_LOG,
-      why: "the failing target-solver run's log, showing the exact startup error",
-      dest: "failing-log",
-    });
-  }
+  const evidenceSources: { dir: string; why: string; dest: string }[] = [
+    {
+      // The real failing target-solver run, captured by running the pinned
+      // solver on an unmodified disposable case copy. Not a reactingFoam run
+      // and not an inference from reading the source.
+      dir: join(runRoot, "experiment", "armA-as-shipped"),
+      why: "the failing target-solver run: exits 1 at the first enthalpy solve, naming the undefined scheme entry",
+      dest: "armA-failing-run",
+    },
+    {
+      dir: join(runRoot, "experiment", "armB-with-species-schemes"),
+      why: "the same case with two per-species div scheme entries added: reaches the requested endTime with a normal End",
+      dest: "armB-passing-run",
+    },
+  ];
 
   const prepared = await prepareConsultation({
     runRoot,
@@ -226,7 +251,6 @@ async function main(): Promise<void> {
   console.log("Record what you added beyond transport when importing the answer.");
 }
 
-async function pathExists(path: string): Promise<boolean> {
   try {
     await stat(path);
     return true;
