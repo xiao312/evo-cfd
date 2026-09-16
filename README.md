@@ -330,6 +330,29 @@ loop activates a candidate — that takes trials of its own, which is PR 7.
 The proposer runs under its own Genome, `evocfd:proposer`, which is outside the
 lineage it reviews. An instrument cannot be part of what it measures.
 
+## Comparing two trials
+
+`scripts/compare.ts` reads two judged trials and reports whether they differ and
+in which criteria:
+
+```bash
+node scripts/compare.ts m1-trial-001 misdirect-trial-001 \
+  evocfd:m1-baseline evocfd:m1-control-misdirect
+```
+
+The genome ids are needed only for trials that predate the manifest field that
+records them. The comparison recomputes each arm's identity from its bundle
+rather than trusting the manifest.
+
+Three situations are reported as `incomparable` rather than silently compared:
+arms over different fixtures, an arm with no recorded verdict, and arms whose
+evaluators report different criteria. The last matters because a criterion
+present on only one side would otherwise read as a gain.
+
+The script is deliberately unable to say which harness is better. One trial per
+arm has no power to support that, and the output says so. Replicates and a
+promotion rule are PR 7B.
+
 ## Working in this repository
 
 There is nothing to install. EvoCFD has no external dependencies, so running
