@@ -96,6 +96,7 @@ if (!MODE_JUDGE) {
     environment: {
       credential_ref: "gateway-token:default",
       harness_identity: snapshot ? harnessIdentityOf(snapshot) : null,
+      genome_id: GENOME_ID,
     },
   });
   console.log(`materialized ${TRIAL_ID} at ${trial.layout.root}`);

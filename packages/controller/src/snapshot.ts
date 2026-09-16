@@ -72,6 +72,12 @@ export interface TrialEnvironment {
    * under one harness is not the same trial as under another.
    */
   readonly harness_identity?: string;
+  /**
+   * The Genome id that ran, e.g. `evocfd:m1-baseline`. The identity hash is
+   * what content-addresses the harness; this is what names it, so a manifest
+   * is readable by a person and a comparison can attribute an arm.
+   */
+  readonly genome_id?: string;
 }
 
 export interface MaterializedTrial {
@@ -90,6 +96,8 @@ export interface MaterializedTrial {
   readonly credentialRef: string | null;
   /** Identity of the harness this trial runs under, if recorded. */
   readonly harnessIdentity: string | null;
+  /** The Genome id that ran, so an arm can be named and not only hashed. */
+  readonly genomeId: string | null;
   readonly manifests: Record<ManifestName, string>;
 }
 
@@ -333,6 +341,7 @@ export async function materializeFixture(input: {
         environment_identity: input.environment?.environment_identity ?? null,
         credential_ref: input.environment?.credential_ref ?? null,
         harness_identity: input.environment?.harness_identity ?? null,
+        genome_id: input.environment?.genome_id ?? null,
       },
       // Absolute paths are operational, not identity. They are recorded so a run
       // can be located, and excluded from every digest above.
@@ -368,6 +377,7 @@ export async function materializeFixture(input: {
           credential_ref: input.environment?.credential_ref ?? null,
           note: "environment identity is computed by the egress package at run time; secrets are never recorded",
           harness_identity: input.environment?.harness_identity ?? null,
+          genome_id: input.environment?.genome_id ?? null,
         },
         null,
         2,
@@ -437,7 +447,11 @@ export async function loadMaterializedTrial(
     workspace_digest: string;
     evaluator_digest: string;
     trial_identity: string;
-    environment: { credential_ref?: string | null; harness_identity?: string | null } | null;
+    environment: {
+      credential_ref?: string | null;
+      harness_identity?: string | null;
+      genome_id?: string | null;
+    } | null;
   };
   return {
     trialId: raw.trial_id,
@@ -449,6 +463,7 @@ export async function loadMaterializedTrial(
     trialIdentity: raw.trial_identity,
     credentialRef: raw.environment?.credential_ref ?? null,
     harnessIdentity: raw.environment?.harness_identity ?? null,
+    genomeId: raw.environment?.genome_id ?? null,
     manifests: manifestPaths(layout.root),
   };
 }
