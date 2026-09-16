@@ -286,3 +286,44 @@ property. Either is honest; pretending the tutorials exercise the target solver
 is not. The verified Peng-Robinson property path remains the strongest current
 evidence, and it came from the package's own `reactingFoam` build, which is a
 distinct binary from stock despite the shared name.
+
+## The container cannot run the solver, and that is the boundary the reviewer named
+
+Running a CFD job through the controller, inside the campaign container, fails
+in a way that is worth recording precisely because it is not a bug in our code:
+
+```text
+reactingFoam: error while loading shared libraries:
+  libmpi.so.40: cannot open shared object file: No such file or directory
+```
+
+The `evocfd-dev:node22` container is a Node toolchain. It has no OpenMPI and no
+C compiler — the solver was built on the *host* with system gcc 9.4 and system
+Open MPI 4.0.3, and its binaries dynamically link `libmpi.so.40`, which does not
+exist inside the container.
+
+This is the exact concern the reviewer raised: *mounting host-built binaries
+into a container is not, by itself, a demonstration that the runtime
+dependencies are compatible.* The mount succeeded, the binary was visible and
+executable, and it still could not run. The failure was silent at mount time
+and loud at execution time.
+
+**What this decides.** A CFD job is therefore a *host-side* execution, not a
+container-side one, and the invocation contract must say so. The controller
+records the plan and reads back the state; the solver runs where its libraries
+are. Two consequences follow, and both are recorded rather than smoothed over:
+
+1. The agent container and the solver runtime are different trust domains with
+   different toolchains. A trial that claims to have used the `of8-realfluid`
+   profile must record *where* the solver ran, and a controller that runs the
+   solver on the host is exercising a different path than one that runs it in a
+   container — even with an identical case and an identical executable digest.
+2. The alternative — rebuilding the solver inside a container that has MPI — is
+   a real option, but it is a *different build* with a different identity chain.
+   It is not a fix for this build; it is a second environment to record.
+
+For now the honest statement is: the job-lifecycle primitive works (it recorded
+the plan, executed, and correctly reported `failed` with the reason rather than
+silently succeeding), and the execution environment it needs is the host, not
+the container. The primitive's value is that it reported the incompatibility
+instead of hiding it.
