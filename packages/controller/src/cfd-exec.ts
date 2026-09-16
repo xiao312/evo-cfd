@@ -248,7 +248,14 @@ export async function executePlan(
   // Paths are converted to POSIX form because the command runs under bash,
   // which cannot read a Windows separator.
   const logPath = toPosix(join(hostRoot, plan.logFile));
-  const child = spawn("bash", ["-c", command], {
+  // When the controller is a container and the solver is a host build, the
+  // command cannot run in the container: the solver links libmpi.so.40, which
+  // the container does not provide. A delegated runner executes on the host,
+  // and the container reads the log and the record through the shared mount.
+  // The delegation is opt-in and its presence is part of the invocation
+  // contract, never an invisible fallback.
+  const shell = process.env.EVOCFD_EXEC_SHIM ?? "bash";
+  const child = spawn(shell, ["-c", command], {
     cwd: toPosix(hostRoot),
     env: { ...process.env, TMPDIR: "/data2/kexiao/tmp" },
     timeout: plan.budgetSeconds * 1000,

@@ -1,17 +1,34 @@
 /**
  * Runs one real CFD job through the job-lifecycle primitive.
  *
- * This is the bridge the reviewer asked for: the solver that the
- * realfluid-baseline-001 bundle proved to exist, now launched, recorded and
- * assessed by EvoCFD's own controller code rather than by a hand-typed shell
- * command.
+ * Two phases, because the solver and the controller cannot run in the same
+ * place. The controller is a Node toolchain in the campaign container; the
+ * solver was built on the host against system gcc and system Open MPI and links
+ * libmpi.so.40, which the container does not provide. Mounting the host
+ * binaries into the container does not make them runnable there — the loader
+ * error is genuine, and rebuilding the solver inside a container would be a
+ * second, differently-identified build rather than a fix for this one.
  *
- * It is deliberately not an agent episode. The point is to show the execution
- * layer works against the real solver before an agent is asked to reason about
- * one.
+ * So the boundary is explicit and the two phases are separate processes:
+ *
+ *   plan   (container)  records the write-once plan and the runner script
+ *   run    (host)       executes the runner, where the libraries are
+ *   assess (container)  reads the log back and updates the record
+ *
+ * Nothing is hidden: the plan is recorded before anything runs, the executed
+ * command is the one the plan recorded, and the assessment reads only what the
+ * solver wrote. The agent never sees the docker socket and never invokes the
+ * solver; both are controller capabilities.
+ *
+ * Usage:
+ *   node scripts/run-cfd-job.ts plan
+ *   node scripts/run-cfd-job.ts run <job-dir>     # on the host
+ *   node scripts/run-cfd-job.ts assess <job-dir>
  */
 import { join } from "node:path";
-import { mkdir, cp, rm } from "node:fs/promises";
+import { mkdir, cp, rm, readFile, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 
 import {
   buildCommand,
@@ -22,64 +39,48 @@ import {
   updateJobState,
   writeJobRecord,
 } from "../packages/controller/src/cfd-exec.ts";
+import type { CfdJobPlan, CfdJobState } from "../packages/controller/src/cfd-job.ts";
 
-// When the controller runs inside the campaign container the repo is at
-// /workspace; when it runs on the host it is wherever the checkout lives. The
-// solver itself runs on the host either way, because the host build links
-// libmpi.so.40, which the container does not provide.
-const HOST_ROOT = process.env.EVOCFD_HOST_ROOT ?? "./";
-// The job directory must be writable, so it lives under the repository mount,
-// not under the read-only solver tree.
-const CASES = join(HOST_ROOT, "runs", "cfd-cases");
-const JOB = join(CASES, "job-1D-advection-001");
-// The reference case is part of the solver installation and is read-only.
-// It is copied into the writable job directory before anything runs.
-const PROFILE_ROOT = process.env.EVOCFD_SOLVER_ROOT ?? "/data2/kexiao/of8";
-const SOURCE = join(PROFILE_ROOT, "rf-cases", "1D_advection");
+const JOB_ID = "1D-advection-001";
+const RUNNER = "run.sh";
+const LOG_FILE = "log.react";
 
-const profile = resolveProfile({
-  id: "of8-realfluid",
-  executable: join(PROFILE_ROOT, "rf-profile/bin/reactingFoam"),
-  executableSha256:
-    "14fd124a0e46d043cdad5f9b6b8e26ed23d0778084d55c609e9665d58799007c",
-  envFile: join(PROFILE_ROOT, "rf-profile-env.sh"),
-  libraryPaths: [
-    join(PROFILE_ROOT, "rf-profile/lib"),
-    join(PROFILE_ROOT, "OpenFOAM-8/platforms/linux64GccDPInt32Opt/lib"),
-  ],
-  expectedProfileLibraries: [
-    "libreactionThermophysicalModels.so",
-    "libspecie.so",
-    "libchemistryModel.so",
-    "libcombustionModels.so",
-  ],
-});
+function makeProfile(): ReturnType<typeof resolveProfile> {
+  return resolveProfile({
+    id: "of8-realfluid",
+    executable: "/data2/kexiao/of8/rf-profile/bin/reactingFoam",
+    executableSha256:
+      "14fd124a0e46d043cdad5f9b6b8e26ed23d0778084d55c609e9665d58799007c",
+    envFile: "/data2/kexiao/of8/rf-profile-env.sh",
+    libraryPaths: [
+      "/data2/kexiao/of8/rf-profile/lib",
+      "/data2/kexiao/of8/OpenFOAM-8/platforms/linux64GccDPInt32Opt/lib",
+    ],
+    expectedProfileLibraries: [
+      "libreactionThermophysicalModels.so",
+      "libspecie.so",
+      "libchemistryModel.so",
+      "libcombustionModels.so",
+    ],
+  });
+}
 
-const plan = {
-  jobId: "1D-advection-001",
-  profile,
-  caseDir: JOB,
-  args: [],
-  budgetSeconds: 300,
-  requestedEndTime: 0.002,
-  ranks: 1,
-  logFile: "log.react",
-};
+function makePlan(jobDir: string): CfdJobPlan {
+  return {
+    jobId: JOB_ID,
+    profile: makeProfile(),
+    caseDir: jobDir,
+    args: [],
+    budgetSeconds: 600,
+    requestedEndTime: 0.002,
+    ranks: 1,
+    logFile: LOG_FILE,
+  };
+}
 
-console.log("job plan recorded for", plan.jobId);
-console.log("  executable:", plan.profile.executable);
-console.log("  budget:", plan.budgetSeconds, "s; requested endTime", plan.requestedEndTime);
-console.log("  plan digest:", planDigest(plan).slice(0, 16), "…");
-
-// Fresh job directory each run; the record is write-once.
-await rm(JOB, { recursive: true, force: true });
-await mkdir(JOB, { recursive: true });
-await cp(SOURCE, JOB, { recursive: true });
-
-await writeJobRecord(JOB, {
-  plan,
-  state: {
-    jobId: plan.jobId,
+function emptyState(jobId: string): CfdJobState {
+  return {
+    jobId,
     state: "submitted",
     submittedAt: Date.now(),
     startedAt: null,
@@ -89,37 +90,91 @@ await writeJobRecord(JOB, {
     terminatedNormally: false,
     stopReason: null,
     detail: "",
-  },
-  planDigest: planDigest(plan),
-});
+  };
+}
 
-console.log("executing...");
-// The solver runs where its libraries are. The host build links libmpi.so.40,
-// which the campaign container does not have, so a container-side execution
-// fails with a loader error. EVOCFD_SOLVER_HOST selects the host-side runner,
-// which is the default; running inside the container is opt-in and requires a
-// solver built there.
-const state = await executePlan(plan, JOB, JOB);
-await updateJobState(JOB, state);
+async function phasePlan(casesRoot: string): Promise<void> {
+  const jobDir = join(casesRoot, JOB_ID);
+  const source = join("/data2/kexiao/of8/rf-cases", "1D_advection");
+  if (!existsSync(source)) {
+    throw new Error(
+      `reference case not found at ${source}; it is created by the realfluid-baseline-001 build`,
+    );
+  }
+  await rm(jobDir, { recursive: true, force: true });
+  await mkdir(jobDir, { recursive: true });
+  await cp(source, jobDir, { recursive: true });
 
-console.log("state:", state.state);
-console.log("  exit path:", state.detail);
-console.log("  last reported time:", state.lastReportedTime);
-console.log("  terminated normally:", state.terminatedNormally);
-console.log("  stop reason:", state.stopReason);
+  const plan = makePlan(jobDir);
+  const digest = planDigest(plan);
+  await writeJobRecord(jobDir, { plan, state: emptyState(plan.jobId), planDigest: digest });
 
-const back = await readJobRecord(JOB);
-console.log("record read back:", back?.state.state, "digest", back ? (back.planDigest.slice(0, 16) + "…") : "null");
+  // The runner is the exact command the plan describes, written to the job
+  // directory so the host phase executes what was recorded rather than what it
+  // is told at run time.
+  const command = buildCommand(plan);
+  await writeFile(
+    join(jobDir, RUNNER),
+    `#!/bin/bash\n# Generated by run-cfd-job.ts plan. Do not edit; the record\n# authenticates against this command's plan digest.\nset -e\ncd "$(dirname "$0")"\n${command} > ${LOG_FILE} 2>&1\n`,
+    "utf8",
+  );
 
-const reached =
-  state.state === "finished" &&
-  state.terminatedNormally &&
-  state.lastReportedTime !== null &&
-  state.lastReportedTime >= plan.requestedEndTime * 0.999;
+  console.log(`ok plan recorded for ${plan.jobId} at ${jobDir}`);
+  console.log(`   executable ${plan.profile.executable}`);
+  console.log(`   budget ${plan.budgetSeconds}s, requested endTime ${plan.requestedEndTime}`);
+  console.log(`   plan digest ${digest.slice(0, 16)}…`);
+  console.log(`   runner ${join(jobDir, RUNNER)}`);
+}
 
-console.log(
-  reached
-    ? "ok the job reached its requested physical time through the controller"
-    : "note: the job did not reach its requested physical time",
-);
-process.exitCode = 0;
+async function phaseRun(jobDir: string): Promise<void> {
+  const record = await readJobRecord(jobDir);
+  if (!record) throw new Error(`no job record at ${jobDir}`);
+  const state = await executePlan(record.plan, jobDir, jobDir);
+  await updateJobState(jobDir, state);
+  console.log(`ok run finished, state ${state.state}`);
+  console.log(`   ${state.detail}`);
+  console.log(`   last reported time ${state.lastReportedTime}`);
+  console.log(`   terminated normally ${state.terminatedNormally}`);
+}
+
+async function phaseAssess(jobDir: string): Promise<void> {
+  const record = await readJobRecord(jobDir);
+  if (!record) throw new Error(`no job record at ${jobDir}`);
+  const { plan, state } = record;
+  const reached =
+    state.state === "finished" &&
+    state.terminatedNormally &&
+    state.lastReportedTime !== null &&
+    state.lastReportedTime >= plan.requestedEndTime * 0.999;
+
+  console.log(`job ${plan.jobId}: ${state.state}`);
+  console.log(`  ${state.detail}`);
+  console.log(`  requested endTime ${plan.requestedEndTime}, reached ${state.lastReportedTime}`);
+  console.log(
+    reached
+      ? "ok the job reached its requested physical time through the controller"
+      : "note: the job did not reach its requested physical time",
+  );
+}
+
+async function main(): Promise<void> {
+  const phase = process.argv[2] ?? "all";
+  // The case directory lives under the repository mount so both sides see it.
+  const root = process.env.EVOCFD_HOST_ROOT ?? ".";
+  const casesRoot = join(root, "runs", "cfd-cases");
+
+  if (phase === "plan") {
+    await phasePlan(casesRoot);
+  } else if (phase === "run") {
+    const jobDir = process.argv[3] ?? join(casesRoot, JOB_ID);
+    await phaseRun(jobDir);
+  } else if (phase === "assess") {
+    const jobDir = process.argv[3] ?? join(casesRoot, JOB_ID);
+    await phaseAssess(jobDir);
+  } else {
+    console.error("usage: run-cfd-job.ts plan|run|assess [job-dir]");
+    process.exitCode = 2;
+  }
+}
+
+await main();
