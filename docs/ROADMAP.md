@@ -75,8 +75,8 @@ NOW
 ├─ PR 5     harness identity + candidates      ✅
 ├─ PR 6     bounded candidate generation       ✅
 ├─ PR 6.1   candidate-integrity hardening      ✅
-├─ PR 7A    minimal parent/candidate trial      ← the thinnest version that
-│          can say “this candidate is not the parent”
+├─ PR 6.2   producer-consumer contract repair   ✅
+├─ PR 7A    minimal parent/candidate trial      ✅
 │
 ├─ PR 8     OF8 + realFluid execution          ← the pivot
 ├─ CFD-001  provenance fixture
@@ -333,7 +333,6 @@ deficiency actually fails a criterion, which is the first job of the fixture
 work rather than something to force.
 
 ### PR 6.1 — candidate-integrity hardening  ✅ done
-
 PR 6's machinery was sound but its integrity guarantees were partly
 conventional. This PR makes them structural:
 
@@ -364,7 +363,45 @@ conventional. This PR makes them structural:
   console output: write-once, and carrying `no_change`/`duplicate`/`rejected`
   as first-class statuses rather than as the absence of an outcome.
 
-### PR 7A — the thinnest parent/candidate comparison
+### PR 6.2 — producer–consumer contract repair  ✅ done
+
+PR 6.1's grounding check read a `verdict` string that the evaluator never
+writes; `evaluateTrial()` produces `pass: boolean` and `criteria`. Every real
+evaluation therefore read back as unjudged, and **any proposal citing genuine
+evidence would have been refused — the propose → build path could not have
+completed.** No test caught it, because the candidate-builder fixture authored
+its own `{verdict: "pass"}` that matched the consumer's expectation, and every
+real episode so far had returned `no_change` before the grounding check ran.
+
+The parser now lives in the *producer* (`readJudgement` in `evaluate.ts`) and
+every consumer reads through it. A failed task is judged evidence — a repair
+proposal is what a failure is for; only an evaluator `error`, or a missing or
+malformed record, is unjudged.
+
+Three more construction defects, found in the same review:
+
+- `scripts/build-candidate.ts` omitted `rsihDir`, so the production CLI would
+  have thrown joining `undefined/src/cli.ts` — every test injected a stub.
+- The existing-skills branch called `writeSkills()` without awaiting, so the
+  write could land after the bundle was published.
+- Staging defaulted to `tmpdir()` with a `rename()` into the Genome tree — the
+  same cross-filesystem `EXDEV` failure as before, now staged on the
+  destination filesystem and removed in a `finally` that covers the `duplicate`
+  and identical-to-parent early returns too.
+
+The acceptance test is a real chain, not a unit test: `scripts/integration-candidate.ts`
+materializes a fixture, runs a deterministic agent through the real
+`runEpisode()`, judges it with the real `evaluateTrial()`, assembles the
+evidence package, and builds a candidate through the production CLI and the
+pinned validator. It is verified on the compute host and exports a review
+bundle at `docs/reviews/candidate-build-integration-001/`. **This is the first
+time the positive construction path has been exercised at all** — every real
+LLM episode so far concluded `no_change`.
+
+The lesson is recorded: a boundary tested from both sides against two
+different contracts is a boundary tested twice, not once.
+
+### PR 7A — the thinnest parent/candidate comparison, and the integration repair it exposed
 
 ```text
 Fixture reset
@@ -387,6 +424,12 @@ runnable and distinguishable from its parent — that the comparison machinery
 works end to end. It is not an experiment about the harness, and it must not be
 read as one: with n=1 there is no power to say anything about which harness is
 better.
+
+The construction half of this is done and verified: `integration-candidate-001`
+proves a built candidate is bounded, validated by the pinned runtime, and
+publishable, with the parent left byte-identical. The comparison half ran for
+real over `m1-trial-001` and `misdirect-trial-001` and reported `same` — no
+criterion moved, which is the honest result for two harnesses that both passed.
 
 If the toy fixture produces no candidate — which is what every real run so far
 has produced — PR 7A compares a control candidate against the baseline and says
