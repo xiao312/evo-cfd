@@ -1,0 +1,65 @@
+{
+  "export_schema_version": 1,
+  "source_run_id": "integration-proposal-001",
+  "source_trial_id": "integration-candidate-001",
+  "tested_code_commit": "e7d68eda3df54700504a65e0a68076117a9b643f",
+  "working_tree_clean": false,
+  "source_runs_are_local_only": "runs/ is gitignored; this bundle is the published copy",
+  "evidence_package_digest": "369238392da75ba6c31a84eec2099e17145b7a0dc9b664aa254e6cdb722fdd15",
+  "files": [
+    {
+      "path": "records/trial.json",
+      "source_artifact": "runs/integration-candidate-001/manifests/trial.json",
+      "transformation": "none",
+      "export_sha256": "15e907f0cbec52e6312745c73bc13ff729a2c3f2a4297f01d5dec939d27e801c"
+    },
+    {
+      "path": "records/episode-result.json",
+      "source_artifact": "runs/integration-candidate-001/private/episodes/integration-candidate-001/result.json",
+      "transformation": "none",
+      "export_sha256": "052a26349cb6293b7053ae351fea0309e1279f24b189721186cebbc3cda9b82e"
+    },
+    {
+      "path": "records/evaluation-result.json",
+      "source_artifact": "runs/integration-candidate-001/private/result.json",
+      "transformation": "none",
+      "export_sha256": "581067c30cd6fdf9b5868937a484e4abba769fd2fda4f540fe61dcf349b48ea2"
+    },
+    {
+      "path": "records/proposal.json",
+      "source_artifact": "runs/integration-proposal-001/private/output/proposal.json",
+      "transformation": "none",
+      "export_sha256": "7a0e3ee47b9e1053966f691e8df27fe0bad34e5215fdfc632e07d971c475dd7b"
+    },
+    {
+      "path": "records/construction-report.json",
+      "source_artifact": "computed from the builder's return value",
+      "transformation": "summarised from the builder's record, not copied from disk",
+      "export_sha256": ""
+    },
+    {
+      "path": "logs/episode-events.jsonl",
+      "source_artifact": "runs/integration-candidate-001/private/episodes/integration-candidate-001/events.jsonl",
+      "transformation": "none",
+      "export_sha256": "fd5f7b2df8a2b50888bba0acbc39933ff11095ebdb8fca8ebfb8339887454659"
+    },
+    {
+      "path": "logs/episode-stderr.txt",
+      "source_artifact": "runs/integration-candidate-001/private/episodes/integration-candidate-001/stderr.txt",
+      "transformation": "none",
+      "export_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "logs/verification.txt",
+      "source_artifact": "stdout/stderr of scripts/integration-candidate.ts",
+      "transformation": "captured from the process, then redacted",
+      "export_sha256": "95cd99c84eec20e67a0c37460418c176e0e8849199f736945f64618c836eb97f"
+    },
+    {
+      "path": "changes/candidate.diff",
+      "source_artifact": "diff of the parent Genome against the built candidate",
+      "transformation": "generated at export time; the candidate is deleted afterwards",
+      "export_sha256": "67ddf7bca50c3897533f0258da7f116af0b3eaa09c81269b463e7b27b9eba07f"
+    }
+  ]
+}

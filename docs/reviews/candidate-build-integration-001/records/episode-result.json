@@ -1,0 +1,57 @@
+{
+  "id": "integration-candidate-001",
+  "exitCode": 0,
+  "signal": null,
+  "timedOut": false,
+  "startedAt": "2026-09-16T06:16:31.122Z",
+  "endedAt": "2026-09-16T06:16:31.174Z",
+  "header": null,
+  "events": [],
+  "malformed": [
+    {
+      "kind": "malformed",
+      "raw": "fake agent: read the task (1220 characters)",
+      "error": "Unexpected token 'k', \"fake agent: \"... is not valid JSON"
+    },
+    {
+      "kind": "malformed",
+      "raw": "fake agent: config.json now sets units_per_kit=12",
+      "error": "Unexpected token 'k', \"fake agent: \"... is not valid JSON"
+    },
+    {
+      "kind": "malformed",
+      "raw": "fake agent: wrote REPORT.md",
+      "error": "Unexpected token 'k', \"fake agent: \"... is not valid JSON"
+    }
+  ],
+  "plan": {
+    "command": "/opt/node/bin/node",
+    "args": [
+      "/workspace/scripts/fake-agent.mjs",
+      "/workspace/runs/integration-candidate-001/agent/workspace"
+    ],
+    "cwd": "/workspace/runs/integration-candidate-001/agent/workspace",
+    "env": {
+      "HOSTNAME": "194824c7847f",
+      "EVOCFD_GATEWAY_TOKEN": "<redacted:EVOCFD_GATEWAY_TOKEN>",
+      "PWD": "/workspace",
+      "HOME": "/home/dfode",
+      "SHLVL": "1",
+      "PATH": "/opt/node/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "DEBIAN_FRONTEND": "noninteractive",
+      "_": "/opt/node/bin/node"
+    }
+  },
+  "recordedEnv": {
+    "HOSTNAME": "194824c7847f",
+    "EVOCFD_GATEWAY_TOKEN": "<redacted:EVOCFD_GATEWAY_TOKEN>",
+    "PWD": "/workspace",
+    "HOME": "/home/dfode",
+    "SHLVL": "1",
+    "PATH": "/opt/node/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "DEBIAN_FRONTEND": "noninteractive",
+    "_": "/opt/node/bin/node"
+  },
+  "evidencePath": "/workspace/runs/integration-candidate-001/private/episodes/integration-candidate-001/events.jsonl",
+  "stderrPath": "/workspace/runs/integration-candidate-001/private/episodes/integration-candidate-001/stderr.txt"
+}

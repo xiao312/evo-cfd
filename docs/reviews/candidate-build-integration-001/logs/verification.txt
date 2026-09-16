@@ -1,0 +1,14 @@
+materialized integration-candidate-001 (1498a76c56951e20)
+ok    the episode exited 0 (got 0)
+fake agent completed through runEpisode (0 events)
+ok    evaluateTrial judged the trial pass=true
+ok    the evaluation obtained a verdict with no evaluator error
+ok    the evaluation reports 4 criteria
+ok    the evidence package has a digest (369238392da75ba6)
+ok    the candidate was built (outcome: built)
+ok    the candidate is proposed, not activated (proposed)
+ok    the candidate's identity differs from its parent's
+ok    the changed skill is integration-test-skill
+ok    changed files are exactly the allowlist: got [components/skills.json, contracts/skills.dev.md, genome.json, skills/integration-test-skill/SKILL.md]
+candidate evocfd:m1-baseline--integration-test-skill--36179a4a
+identity ded8efcf88e75c87

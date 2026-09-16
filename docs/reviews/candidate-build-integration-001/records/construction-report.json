@@ -1,0 +1,23 @@
+{
+  "outcome": "built",
+  "candidate_genome_id": "evocfd:m1-baseline--integration-test-skill--36179a4a",
+  "parent_genome_id": "evocfd:m1-baseline",
+  "parent_harness_identity": "c3d4a76496e6b750017dc78aa269db65e29c5692c228016a5bb7f66f0222d20f",
+  "candidate_harness_identity": "ded8efcf88e75c87334d070f33991b6e4925a7a9a2256c870aeb82d52d1bb968",
+  "proposer_harness_identity": "1b759c0ed32b1f79cf8eb3171767e4971e1c6846e0354d12519b5fca02970088",
+  "change": {
+    "kind": "skill_upsert",
+    "skill": "integration-test-skill",
+    "rationale": "[INTEGRATION TEST] deterministic plumbing check, not an LLM proposal and not an observed deficiency: verify that real evaluator output grounds a candidate through the production builder.",
+    "proposer_episode": "integration-proposal-001"
+  },
+  "status": "proposed",
+  "changed_files": [
+    "components/skills.json",
+    "contracts/skills.dev.md",
+    "genome.json",
+    "skills/integration-test-skill/SKILL.md"
+  ],
+  "cli": "node scripts/integration-candidate.ts",
+  "validator": "pinned RSI-Harness genome validate"
+}

@@ -1,0 +1,26 @@
+{
+  "trial_id": "integration-candidate-001",
+  "fixture_id": "control-plane-001",
+  "fixture_version": 2,
+  "task_identity": "2bed0ae336f639e1729c430a32d58cc13b1c83e314261865c02234e5fe63369b",
+  "workspace_digest": "c9d4b36a8b86ef134fc08b268bac7206ed109970c8df0e0e6e1f434579deab8f",
+  "evaluator_digest": "93f03c8fad303a82ed50467d072380ba1a34181c416d669e004024d9b7fbf39a",
+  "trial_identity": "1498a76c56951e209f4256e0558bda28af47d356703ed766c1a28e589c0099d4",
+  "trial": {
+    "network_profile": "llm-only",
+    "max_agent_turns": 20,
+    "max_wall_seconds": 180
+  },
+  "environment": {
+    "environment_identity": null,
+    "credential_ref": "gateway-token:default",
+    "harness_identity": null,
+    "genome_id": "evocfd:m1-baseline"
+  },
+  "layout": {
+    "agent": "agent",
+    "workspace": "agent/workspace",
+    "evaluator": "private/evaluator",
+    "manifests": "manifests"
+  }
+}

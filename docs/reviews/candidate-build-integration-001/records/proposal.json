@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "decision": "propose",
+  "kind": "skill_upsert",
+  "skill": "integration-test-skill",
+  "rationale": "[INTEGRATION TEST] deterministic plumbing check, not an LLM proposal and not an observed deficiency: verify that real evaluator output grounds a candidate through the production builder.",
+  "hypothesis": "[INTEGRATION TEST] the construction path is exercised end to end.",
+  "expected_effect": "[INTEGRATION TEST] none claimed; this candidate is never activated.",
+  "risks": [],
+  "evidence_refs": [
+    "evidence/integration-candidate-001/evaluation/result.json",
+    "evidence/integration-candidate-001/episode/integration-candidate-001/events.jsonl"
+  ],
+  "skill_content": "---\nname: integration-test-skill\ndescription: [INTEGRATION TEST] placeholder skill that exists to prove the construction path.\n---\n# integration-test-skill\n\nThis skill exists only because an integration test needed a real file on a real\nallowlist. It states no procedure and should never be activated.\n"
+}

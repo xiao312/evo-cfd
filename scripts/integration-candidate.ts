@@ -46,7 +46,7 @@ import {
   allowedFiles,
   type CandidateConstruction,
 } from "../packages/controller/src/candidate-builder.ts";
-import { buildHarnessSnapshot, defaultResolveGenomeDir } from "../packages/controller/src/harness.ts";
+import { buildHarnessSnapshot, defaultResolveGenomeDir, harnessIdentity } from "../packages/controller/src/harness.ts";
 import { resolveInstallation } from "../packages/rsih-adapter/src/index.ts";
 import type { MaterializedTrial } from "../packages/controller/src/snapshot.ts";
 import type { EvaluationResult } from "../packages/controller/src/evaluate.ts";
@@ -97,11 +97,31 @@ async function main(): Promise<void> {
 
   // 1. A real fixture, freshly materialized.
   const fixture = await loadFixture(join(FIXTURE_ROOT, "control-plane-001"));
+  // 1. A real fixture, freshly materialized. The harness identity the trial
+  // records is the parent's, computed before anything ran — the historical
+  // claim a later comparison verifies against rather than reconstructs.
+  const parentDirForEnv = await defaultResolveGenomeDir(GENOMES_DIR, PARENT_ID);
+  if (parentDirForEnv === null) {
+    console.error(`FAIL  parent Genome ${PARENT_ID} not found`);
+    failed = true;
+    return;
+  }
+  const parentSnapshotForEnv = await buildHarnessSnapshot({
+    genomeDir: parentDirForEnv,
+    agentConfigDir: join(REPO_ROOT, "config", "agent-seed"),
+    rsihRevision: installation.revision,
+    piVersion: installation.piVersion,
+  });
+  const parentIdentityHash = harnessIdentity(parentSnapshotForEnv);
   const trial = await materializeFixture({
     fixture,
     trialId: TRIAL_ID,
     runsDir: RUNS_DIR,
-    environment: { credential_ref: "gateway-token:default", genome_id: PARENT_ID },
+    environment: {
+      credential_ref: "gateway-token:default",
+      genome_id: PARENT_ID,
+      harness_identity: parentIdentityHash,
+    },
   });
   console.log(`materialized ${TRIAL_ID} (${trial.trialIdentity.slice(0, 16)})`);
 
@@ -134,18 +154,8 @@ async function main(): Promise<void> {
   check(result.criteria.length > 0, `the evaluation reports ${result.criteria.length} criteria`);
 
   // 4. The evidence package a real proposer would receive.
-  const parentDir = await defaultResolveGenomeDir(GENOMES_DIR, PARENT_ID);
-  if (parentDir === null) {
-    console.error(`FAIL  parent Genome ${PARENT_ID} not found`);
-    failed = true;
-    return;
-  }
-  const parentSnapshot = await buildHarnessSnapshot({
-    genomeDir: parentDir,
-    agentConfigDir: join(REPO_ROOT, "config", "agent-seed"),
-    rsihRevision: installation.revision,
-    piVersion: installation.piVersion,
-  });
+  const parentDir = parentDirForEnv;
+  const parentSnapshot = parentSnapshotForEnv;
   const runRoot = join(RUNS_DIR, PROPOSAL_RUN);
   const pkg = await assembleEvidencePackage({
     runRoot,
@@ -474,31 +484,40 @@ async function exportBundle(input: ExportInput): Promise<void> {
   console.log(`review bundle written to ${relative(REPO_ROOT, input.bundleDir)}`);
 }
 
-/** A plain `diff -r`-style listing of what construction changed, file by file. */
+/**
+ * What construction changed, with content. Walks the *union* of both trees: a
+ * file present only in the candidate is an addition, and walking the parent
+ * alone would silently miss every file the change added.
+ */
 async function diffTrees(parentDir: string, candidateDir: string): Promise<string> {
-  const { readdir, stat } = await import("node:fs/promises");
   const lines: string[] = [];
   async function walk(rel: string): Promise<void> {
     const absP = join(parentDir, rel);
     const absC = join(candidateDir, rel);
-    let entries: string[];
-    try {
-      entries = await readdir(absP);
-    } catch {
-      return;
-    }
-    for (const name of entries) {
-      const child = join(rel, name);
+    const pEntries = await readdir(absP).catch(() => [] as string[]);
+    const cEntries = await readdir(absC).catch(() => [] as string[]);
+    const names = [...new Set([...pEntries, ...cEntries])].sort();
+    for (const name of names) {
+      const child = join(rel, name).split(sep).join("/");
       const p = join(absP, name);
       const c = join(absC, name);
       const pStat = await stat(p).catch(() => null);
       const cStat = await stat(c).catch(() => null);
-      if (pStat?.isDirectory() && cStat?.isDirectory()) {
-        await walk(child);
+      if (pStat === null && cStat === null) continue;
+      if (pStat === null) {
+        // Added by the change.
+        lines.push(`--- /dev/null`);
+        lines.push(`+++ ${child}`);
+        lines.push(indent(await readFile(c, "utf8"), "+"));
         continue;
       }
-      if (pStat === null || cStat === null) {
-        lines.push(`--- ${child} (present in one tree only)`);
+      if (cStat === null) {
+        lines.push(`--- ${child}`);
+        lines.push(`+++ /dev/null`);
+        continue;
+      }
+      if (pStat.isDirectory() && cStat.isDirectory()) {
+        await walk(join(rel, name));
         continue;
       }
       const pBytes = await readFile(p);
@@ -506,15 +525,22 @@ async function diffTrees(parentDir: string, candidateDir: string): Promise<strin
       if (!pBytes.equals(cBytes)) {
         lines.push(`--- ${child}`);
         lines.push(`+++ ${child}`);
-        lines.push(
-          `@@ content differs; ${pBytes.length} -> ${cBytes.length} bytes; ` +
-            `exported in full in the candidate tree before deletion`,
-        );
+        lines.push(indent(await readFile(p, "utf8"), "-"));
+        lines.push(indent(await readFile(c, "utf8"), "+"));
       }
     }
   }
   await walk("");
   return lines.join("\n") + "\n";
+}
+
+/** Prefix every line, so a pasted fragment stays inside its own hunk. */
+function indent(text: string, prefix: string): string {
+  return text
+    .trimEnd()
+    .split("\n")
+    .map((line) => `${prefix} ${line}`)
+    .join("\n");
 }
 
 function reviewReadme(commitSha: string, clean: boolean): string {

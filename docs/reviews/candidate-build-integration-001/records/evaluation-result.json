@@ -1,0 +1,39 @@
+{
+  "trial_id": "integration-candidate-001",
+  "fixture_id": "control-plane-001",
+  "pass": true,
+  "criteria": [
+    {
+      "criterion": "output",
+      "pass": true,
+      "detail": "app.cjs printed total=96"
+    },
+    {
+      "criterion": "structure",
+      "pass": true,
+      "detail": "app.cjs is byte-identical to the reference program"
+    },
+    {
+      "criterion": "config",
+      "pass": true,
+      "detail": "config.json sets units_per_kit=12"
+    },
+    {
+      "criterion": "report",
+      "pass": true,
+      "detail": "REPORT.md has 196 characters"
+    }
+  ],
+  "exit_code": 0,
+  "budget_seconds": 120,
+  "elapsed_seconds": 0.085,
+  "evaluator_digest": "93f03c8fad303a82ed50467d072380ba1a34181c416d669e004024d9b7fbf39a",
+  "workspace_digest": "4e1292d2078c46271933d2a33631c0c7dd64d54d7121d61ac93ea93b1b1c75ee",
+  "episode_id": "integration-candidate-001",
+  "episode_exit_code": 0,
+  "episode_timed_out": false,
+  "credential_ref": "gateway-token:default",
+  "harness_identity": null,
+  "trial_identity": "1498a76c56951e209f4256e0558bda28af47d356703ed766c1a28e589c0099d4",
+  "evaluated_at": "2026-09-16T06:16:31.272Z"
+}
