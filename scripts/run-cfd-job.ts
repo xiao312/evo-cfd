@@ -23,7 +23,11 @@ import {
   writeJobRecord,
 } from "../packages/controller/src/cfd-exec.ts";
 
-const HOST_ROOT = process.env.EVOCFD_HOST_ROOT ?? "/workspace";
+// When the controller runs inside the campaign container the repo is at
+// /workspace; when it runs on the host it is wherever the checkout lives. The
+// solver itself runs on the host either way, because the host build links
+// libmpi.so.40, which the container does not provide.
+const HOST_ROOT = process.env.EVOCFD_HOST_ROOT ?? "./";
 // The job directory must be writable, so it lives under the repository mount,
 // not under the read-only solver tree.
 const CASES = join(HOST_ROOT, "runs", "cfd-cases");
