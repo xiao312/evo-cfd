@@ -44,6 +44,10 @@ const FIXTURE_ID = process.argv[2] ?? "control-plane-001";
 const MODE_FAKE = process.argv.includes("--fake");
 const MODE_JUDGE = process.argv.includes("--judge");
 const TRIAL_ID = argValue("--trial-id") ?? `${FIXTURE_ID}-trial-001`;
+// The genome a trial runs under is the independent variable, so it is an
+// argument rather than a constant: a control variant is how a deficiency gets
+// into real evidence.
+const GENOME_ID = argValue("--genome") ?? "m1-baseline";
 
 function argValue(name: string): string | undefined {
   const index = process.argv.indexOf(name);
