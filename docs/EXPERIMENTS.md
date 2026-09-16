@@ -252,3 +252,37 @@ Two corrections from the reviewer changed the *workflow*, not only the docs:
 The previous bundle deleted its smoke case and kept only numbers, which made it
 inspectable but not replayable. This one retains the full case inputs and logs,
 and that is now the standing requirement.
+
+## A genuine compatibility gap: the tutorials do not serve the target solver
+
+The package builds three executables, but **all four of its tutorials specify
+`application reactingFoam`** — none of them runs the target
+`realFluidReactingFoam`. Trying the target solver on the `1D_advection` case
+fails at the first species-enthalpy term:
+
+```text
+--> FOAM FATAL IO ERROR:
+keyword div(((hei_O2*rho)*YVi_O2)) is undefined in dictionary
+  ".../system/fvSchemes/divSchemes"
+```
+
+The cause is in `applications/solvers/realFluidReactingFoam/EEqn.H`, which adds
+an explicit species-heat-diffusion term
+`fvc::div(hei[k]*rho*YVi[k])` that `reactingFoam` does not have. The tutorial's
+`fvSchemes` was written for `reactingFoam` and does not declare the per-species
+scheme entries that this term looks up.
+
+**This is a real finding about the upstream package, not a build error.** The
+target solver is built and its `-help` runs, but no shipped tutorial can execute
+it end to end. The gap is recorded rather than papered over: patching
+`fvSchemes` by hand would produce a run, but it would be *my* case
+configuration, not the package's, and it would silently misrepresent the
+package as ready-to-run.
+
+What this means for sequencing: the "one clean target-solver run" the reviewer
+asked for needs either a compatible case constructed deliberately, or a minimal
+`fvSchemes` extension identified as an EvoCFD adaptation rather than an upstream
+property. Either is honest; pretending the tutorials exercise the target solver
+is not. The verified Peng-Robinson property path remains the strongest current
+evidence, and it came from the package's own `reactingFoam` build, which is a
+distinct binary from stock despite the shared name.
