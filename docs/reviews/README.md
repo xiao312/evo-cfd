@@ -60,3 +60,4 @@ These bundles are public. Nothing in them may be genuinely secret:
 | [`of8-environment-001`](of8-environment-001/) | Is the OF8 toolchain reproducible on an air-gapped host, and can the executable be bound to the source that built it? |
 | [`realfluid-baseline-001`](realfluid-baseline-001/) | Does the real-fluid solver build without touching stock OF8, and can a run be proven to use Peng-Robinson physics rather than ideal gas? |
 | [`cfd-job-001`](cfd-job-001/) | Can the controller plan a real solver run, have it executed across the container boundary, and assess the outcome from evidence rather than assertion? |
+| [`target-solver-001`](target-solver-001/) | Does the pinned `realFluidReactingFoam` run at all on a correctly configured case, and what is the smallest defensible change to exercise its intended equations? |

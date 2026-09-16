@@ -347,3 +347,95 @@ the plan, executed, and correctly reported `failed` with the reason rather than
 silently succeeding), and the execution environment it needs is the host, not
 the container. The primitive's value is that it reported the incompatibility
 instead of hiding it.
+
+## The scientific consultation layer, and what preparing one exposed
+
+The reviewer's on-demand consultation layer is implemented
+(`packages/controller/src/consultation.ts`): a worker escalates one specific
+scientific question to a stronger reasoning model, with a frozen evidence
+package, and the returned advice is recorded as an *input* — never as an
+authority, never as a command. An imported response is bound to the digest of
+the evidence it was prepared against, and staleness is *measured* at decision
+time by re-hashing the solver and the case, not assumed.
+
+The division of responsibility is the design, and it is kept structurally rather
+than in prose: the advisor's original text and the controller's normalisation of
+it are separate files, so they can never become indistinguishable; a rejection
+must carry a rationale or it is refused; a consultation with no response stays
+*pending*, which is a different outcome from *no change needed*.
+
+Sixteen tests cover the reviewer's seven acceptance conditions.
+
+**The first real use caught two evidence-integrity defects, and this is the more
+interesting result.** Preparing the first consultation required every claimed
+observation to be backed by a real artifact. Two were not:
+
+1. **Two source excerpts collapsed into one.** `realFluidReactingFoam/EEqn.H`
+   and `reactingFoam/EEqn.H` share a basename, and the preparation step flattened
+   both to `source-excerpts/EEqn.H`. The second overwrote the first, so the
+   briefing shipped `reactingFoam/EEqn.H` under a manifest entry describing it as
+   the target solver's equation *containing the failing term*. The briefing had
+   become self-contradictory: an advisor reading it would have concluded the
+   worker's own evidence contradicted its hypothesis. Fixed by making excerpt
+   destinations caller-supplied and *unique* — a duplicate now fails loudly
+   instead of overwriting, with a regression test.
+
+2. **An observation that was an inference.** The item stated that running the
+   target solver "exits 1" with a named scheme error, sourced to a log. The log
+   attached was the *successful* package-`reactingFoam` run from `cfd-job-001`,
+   and the target solver had never been run at all. The claim was correct in
+   substance — it had been read off the source — but it was labelled an
+   observation when it was a prediction.
+
+Verifying item 2 was itself the discriminating experiment, and it closed the
+question before any advice was sent. That is the layer working as designed:
+advice must be verified through execution, and here verification happened first.
+
+### The experiment: target-solver-001
+
+Two disposable copies of the retained reference case, run on the host under the
+profile env file (the container still cannot run the host-built solver):
+
+| arm | change | exit | outcome |
+|---|---|---|---|
+| A as shipped | none | 1 | `keyword div(((hei_O2*rho)*YVi_O2)) is undefined in fvSchemes/divSchemes` |
+| B with species schemes | two lines | 0 | normal `End`, 200 steps, last reported time `0.002` = requested `endTime` |
+
+The change in full:
+
+```diff
+     div(((rho*nuEff)*dev2(T(grad(U))))) Gauss linear;
++    div(((hei_O2*rho)*YVi_O2))  Gauss linear;
++    div(((hei_N2*rho)*YVi_N2))  Gauss linear;
+```
+
+Both species are covered because `EEqn.H` loops over all of `Y`, not only the
+active species; the case carries O2 and N2. `Gauss linear` matches this case's
+own convention for explicit non-convective divergence terms — the `dev2` entry
+immediately above is the same class of term.
+
+**What this establishes.** The gap was configuration, not unsupported physics and
+not an implementation defect. The target solver runs, exercises the Peng-Robinson
+property path throughout, and its last sampled max T (368.475 K) sits 0.06 K from
+the package's `reactingFoam` on the same case (368.537 K). The two solvers do not
+diverge over 200 steps.
+
+**What it does not establish**, and the consultation record says so: the values
+are last-sampled, not a history, and cannot bound the field over the run; 200
+steps is a short window; the 0.06 K is a single unstatistical comparison; and the
+target solver's equations differ from the baseline's in *three* coupled places
+(species-diffusion enthalpy flux, the replaced heat-flux closure, and the
+mixture-averaged diffusion correction in `YEqn.H`), so the difference is not
+attributable to the one term the scheme error named.
+
+The closed loop is recorded at `runs/consultation-001`: a request frozen against
+digest `9dc96367…`, an advisor response imported and bound to that digest, and a
+decision recorded `admit` / `requires_human_decision` with `stale: false` because
+the solver and case digests were re-measured and unchanged. The response proposes
+a bounded experiment — smooth the interface, re-run both arms, sample the
+conserved sums over time — and declines to promote any explanation on a single
+sampled comparison.
+
+**Unblocked.** CFD-001 and the reacting-case path no longer depend on a guess
+about which file to edit. The next consultation has a question that is genuinely
+open.
