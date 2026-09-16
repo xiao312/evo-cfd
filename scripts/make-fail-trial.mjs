@@ -34,9 +34,12 @@ await mkdir(join(trialRoot, "private", "episodes"), { recursive: true });
 await mkdir(join(trialRoot, "private", "evaluator"), { recursive: true });
 
 // The task is the real one; only the agent's behaviour is synthetic.
-await cp(join(RUNS, SOURCE, "agent", "TASK.md"), join(trialRoot, "agent", "TASK.md"));
-await cp(join(RUNS, SOURCE, "workspace", "app.cjs"), join(trialRoot, "workspace", "app.cjs"));
-await cp(join(RUNS, SOURCE, "workspace", "config.json"), join(trialRoot, "workspace", "config.json"));
+// The task and the workspace come from the fixture, which is the source a real
+// trial is materialized from; a finished trial's workspace is not preserved.
+const FIXTURE = join(REPO_ROOT, "fixtures", "control-plane-001");
+await cp(join(FIXTURE, "TASK.md"), join(trialRoot, "agent", "TASK.md"));
+await cp(join(FIXTURE, "workspace", "app.cjs"), join(trialRoot, "workspace", "app.cjs"));
+await cp(join(FIXTURE, "workspace", "config.json"), join(trialRoot, "workspace", "config.json"));
 
 await writeFile(join(trialRoot, "manifests", "trial.json"), JSON.stringify({
   trial_id: TRIAL_ID,
