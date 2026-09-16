@@ -157,18 +157,53 @@ inspect candidate instructions as data, but never activate them while preparing
 or assessing the same proposal. Separation of state and authority matters more
 than assigning different model names.
 
+A proposer is not allowed to be subtly wrong about *what kind* of thing it is
+looking at. Its evidence package shows it results, never the evaluator that
+produced them, so it cannot tune a harness to a judge.
+
+## Failure taxonomy
+
+Every episode, proposal and trial that produces nothing usable gets one of
+these categories recorded against it. The point is not bookkeeping: a loop that
+cannot tell an infrastructure failure from a harness failure will "improve" the
+harness for outages, and a comparison that cannot distinguish them has no
+signal at all.
+
+| Category | Meaning | Owned by |
+|---|---|---|
+| `INFRASTRUCTURE` | The environment failed, not the agent: no egress, no credential, no container, no reachability. | operator |
+| `RUNTIME_INTEGRATION` | The harness could not start or stay up: bad launch plan, missing mount, wrong config dir, a crash before the first turn. | developer |
+| `HARNESS` | The Genome itself: instructions that misdirect, a skill that fires wrongly, a contract the bundle does not honour. | the loop |
+| `AGENT_REASONING` | The harness ran and the agent reasoned poorly: claimed without verifying, stopped early, chased the wrong goal. | the loop |
+| `TASK_FIXTURE` | The task is at fault: ambiguous prompt, missing input, an answer the fixture cannot check. | fixture owner |
+| `EVALUATOR` | The judgement is not trustworthy: criteria that cannot decide, a check that depends on the agent's exact wording. | evaluator owner |
+| `SOLVER_BUILD` | CFD only: the solver did not compile, link, or start. | solver profile |
+| `NUMERICAL` | CFD only: converged to the wrong thing, diverged, or the resolution is not what was asked. | solver profile |
+| `PHYSICAL_MODEL` | CFD only: the model is wrong for the regime — a real-gas effect that is not modelled, a boundary condition that is not physical. | modelling |
+| `UNKNOWN` | Reserved. Must shrink over time; a large `UNKNOWN` column is itself a finding. | — |
+
+The first two are never harness evidence. A trial that failed because the
+tunnel was down is a trial that did not happen, and a candidate proposed from
+one would be proposing a fix for the network. That is why `INFRASTRUCTURE` is
+the first category and not an afterthought.
+
 ## Module map
 
 `packages/controller/src/` — the machinery described above. `episode.ts`
 launches bounded agent runs; `fixtures.ts` materializes and resets executable
-investigation tasks; `evidence.ts` records incidents; `gate.ts` enforces
-authorization; `evaluate.ts` runs versioned checks; `select.ts` distinguishes
+investigation tasks; `snapshot.ts` digests bundles and trials into identities;
+`harness.ts` snapshots a harness and walks a candidate's lineage; `proposal.ts`
+and `evidence.ts` bound what a proposer may ask for and what it may see;
+`candidate-builder.ts` constructs a candidate deterministically or refuses it;
+`isolate.ts` is the authority boundary itself; `evaluate.ts` runs versioned
+checks; `gate.ts` will enforce authorization; `select.ts` will distinguish
 experimental use, provisional evidence, and default promotion.
 
 `packages/rsih-adapter/` — the narrow integration with RSI-Harness: loading a
-harness manifest, preparing a controlled worker environment, validating and
-applying harness patches against the real schemas. Only changes genuinely
-required in RSI-Harness itself go under `third_party/RSI-Harness/`.
+harness manifest, preparing a controlled worker environment, resolving an
+installation, and building the launch plan that drives RSI-Harness's own CLI.
+Only changes genuinely required in RSI-Harness itself go under
+`third_party/RSI-Harness/`.
 
 `packages/egress/` — the network boundary described under *Topology*. Owns
 nothing else: no campaign orchestration, no RSIH launch logic, no CFD code.
