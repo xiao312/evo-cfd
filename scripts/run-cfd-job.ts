@@ -90,6 +90,11 @@ await writeJobRecord(JOB, {
 });
 
 console.log("executing...");
+// The solver runs where its libraries are. The host build links libmpi.so.40,
+// which the campaign container does not have, so a container-side execution
+// fails with a loader error. EVOCFD_SOLVER_HOST selects the host-side runner,
+// which is the default; running inside the container is opt-in and requires a
+// solver built there.
 const state = await executePlan(plan, JOB, JOB);
 await updateJobState(JOB, state);
 
