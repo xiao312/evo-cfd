@@ -69,8 +69,11 @@ async function main(): Promise<void> {
   const lean = argv.includes("--lean");
   const leanSkip = (rel: string): boolean => {
     if (!lean) return false;
+    // Field directories are named 0, 0.001, ... and the mesh lives in polyMesh.
+    // Match at any depth, because an evidence directory nests them under the
+    // attempt name, so the top-level segment is not the field directory.
     const parts = rel.split("/");
-    return parts.includes("polyMesh") || parts[0] === "0" || parts[0] === "constant" && parts[1] === "polyMesh";
+    return parts.includes("polyMesh") || /^0(\.\d+)?$/.test(parts[parts.length - 2] ?? "");
   };
   for (const sub of ["evidence", "source-excerpts", "case-inputs"]) {
     const from = join(active.dir, sub);
