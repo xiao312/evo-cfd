@@ -34,6 +34,7 @@ import {
 const SOLVER_ROOT = "/data2/kexiao/of8";
 const PROFILE = join(SOLVER_ROOT, "rf-profile");
 const SOLVER = join(PROFILE, "bin", "realFluidReactingFoam");
+const SOLVER_SOURCE = join(SOLVER_ROOT, "realFluidFoam-8", "applications", "solvers");
 const PROFILE_LIBRARIES = [
   "libreactionThermophysicalModels.so",
   "libspecie.so",
@@ -142,25 +143,107 @@ async function main(): Promise<void> {
       "The execution machinery is now proven: a deadline stops a run and the receipt decides the outcome. What is not known is whether the slow physical-time advance and the sampled temperature behaviour are normal for this coupled real-fluid startup or indicate a thermodynamic inconsistency. Before spending a long run, the next diagnostic should be chosen by what would discriminate.",
     contract,
     state,
+    items: [
+      {
+        id: "O1",
+        label: "observation",
+        text: "A chemistry-off child of the agile MASCOTTE case initializes and advances under realFluidReactingFoam, reaching about 1.2e-7 s of a requested 1e-5 s before a 240 s wall-clock budget stopped it.",
+        source: "attempt-record.json and execution-receipt.txt of mascotte-agile-002, attached",
+      },
+      {
+        id: "O2",
+        label: "observation",
+        text: "The receipt records exit code 124 with wall_clock_seconds equal to budget_seconds, so the stop was the deadline and not a solver crash; the log ends mid-timestep with no normal End.",
+        source: "execution-receipt.txt, attached",
+      },
+      {
+        id: "O3",
+        label: "observation",
+        text: "The Peng-Robinson real-fluid property path is active throughout: PRchungKineticMixture, chungKinetic transport, rfJanaf thermo, rfSpecie.",
+        source: "the solver log, attached",
+      },
+      {
+        id: "O4",
+        label: "observation",
+        text: "The last sampled temperature extrema are the two inlet values, 85 K and 288.26 K, which is what chemistry-off flow at this operating point should show; the maximum drifts slowly upward across the sampled window.",
+        source: "temperature-samples.txt, attached; sampled values, not a time history",
+      },
+      {
+        id: "O5",
+        label: "observation",
+        text: "The adjustable time step grows during the run, from about 1.2e-8 to about 1.0e-7, so the solver is responding to the flow rather than stuck at the initial step.",
+        source: "deltat-history.txt, attached",
+      },
+      {
+        id: "H1",
+        label: "hypothesis",
+        text: "The slow advance in physical time is the coupled real-fluid startup at 5.59 MPa resolving the LOX/CH4 interface, not a pathology.",
+        source: "worker reading the logs; untested",
+      },
+      {
+        id: "H2",
+        label: "hypothesis",
+        text: "The slow upward temperature drift is wall or inlet coupling warming the domain.",
+        source: "worker reading the sampled series; untested, and the window is far too short to characterise a rate",
+      },
+      {
+        id: "N1",
+        label: "not_established",
+        text: "Whether the run would reach the requested end time given a full budget. Only about 1.2 percent of the interval was covered.",
+        source: "the budget stopped the run by design",
+      },
+      {
+        id: "N2",
+        label: "not_established",
+        text: "Whether the conserved sums hold: sum(Y), total enthalpy, and mass balance have not been examined in any run.",
+        source: "no conservation check has been made",
+      },
+      {
+        id: "N3",
+        label: "not_established",
+        text: "Whether the sampled temperature extrema verify both inlet boundary conditions; the extrema alone do not identify a cause for the drift.",
+        source: "only min/max(T) is sampled",
+      },
+    ],
+    attempts: [
+      "imported the MASCOTTE G2 case and validated it on the pinned build",
+      "materialised a chemistry-off child with the per-species scheme entries derived from the mechanism",
+      "ran the child through the shared execution backend with a 240 s budget",
+      "assessed the outcome from the receipt and the log together",
+    ],
+    workerInterpretation:
+      "The startup is real and the machinery is proven, but I have only sampled extrema and a very short window. I cannot tell whether the slow physical-time advance and the temperature drift are normal for this coupled real-fluid startup or indicate a thermodynamic inconsistency. Before spending a long run I want the next diagnostic chosen by what would discriminate.",
+    availableActions: [
+      "edit the case dictionaries in a disposable child attempt",
+      "choose what is sampled, including conserved sums and extrema over time",
+      "run a bounded serial solver job through the controller",
+      "enable chemistry for a diagnostic that isolates the flow/thermo coupling",
+    ],
+    limits: [
+      "the solver source is read-only for this consultation",
+      "the imported target case is immutable; changes belong in a child",
+      "the budget is one or two short serial runs",
+      "the stock OpenFOAM-8 installation must not change",
+    ],
+    responseRequested: [
+      "which conserved quantities or diagnostics would discriminate normal startup from a coupling problem, and why those",
+      "what each possible outcome would imply, so the diagnostic is informative either way",
+      "the smallest bounded run that carries that discrimination",
+      "any prerequisite or artifact I have not attached, rather than an inference",
+    ],
+    createdAt: new Date().toISOString(),
   };
 
   // Evidence the advisor needs: the attempt's own records, the receipt, the
-  // solver's equation set, and the case dictionaries. The workspace itself is
-  // excluded, as it is for the internal proposer's package.
+  // solver's equation set, and the case dictionaries.
   const excerpts = [
     {
-      file: join(
-        SOLVER_ROOT,
-        "realFluidFoam-8",
-        "src",
-        "realFluidReactingFoam",
-        "EEqn.H",
-      ),
+      file: join(SOLVER_SOURCE, "realFluidReactingFoam", "EEqn.H"),
       why: "the energy equation, where the real-fluid enthalpy flux terms enter",
       dest: "realFluidReactingFoam/EEqn.H",
     },
     {
-      file: join(SOLVER_ROOT, "realFluidFoam-8", "src", "realFluidReactingFoam", "YEqn.H"),
+      file: join(SOLVER_SOURCE, "realFluidReactingFoam", "YEqn.H"),
       why: "the species equation and its mixture-averaged diffusion correction",
       dest: "realFluidReactingFoam/YEqn.H",
     },
