@@ -185,28 +185,42 @@ async function main(): Promise<void> {
 
   await mkdir(dest, { recursive: true });
   const copied: { source: string; sha256: string }[] = [];
+  // Copy recursively: constant/polyMesh is a directory and the mesh lives in it.
+  // A files-only copy silently drops the mesh, and Allcheck then fails at
+  // checkMesh looking for "points".
+  const skipDir = (name: string) =>
+    name.startsWith("processor") || name === "sets" || name === "lagrangian";
+  async function copyTree(fromDir: string, relDir: string): Promise<void> {
+    for (const entry of await readdir(fromDir, { withFileTypes: true })) {
+      if (entry.isFile()) {
+        if (EXCLUDE_NAMES.has(entry.name)) continue;
+        const fromFile = join(fromDir, entry.name);
+        const relPath = relDir ? `${relDir}/${entry.name}` : entry.name;
+        const toFile = join(dest, relPath);
+        await mkdir(join(dest, relDir), { recursive: true });
+        await cp(fromFile, toFile);
+        const digest = await sha256(toFile);
+        const manifestRel = `cases/${variant}/${relPath}`;
+        const expected = manifest.find((e) => e.path === `./${manifestRel}`);
+        if (expected && expected.sha256 !== digest) {
+          throw new Error(
+            `copied input ${relPath} does not match the target manifest; the target or the copy is inconsistent`,
+          );
+        }
+        if (!manifestNames.has(`./${manifestRel}`)) {
+          throw new Error(`copied input ${relPath} is not listed in the target manifest`);
+        }
+        copied.push({ source: manifestRel, sha256: digest });
+      } else if (entry.isDirectory()) {
+        if (skipDir(entry.name)) continue;
+        await copyTree(join(fromDir, entry.name), relDir ? `${relDir}/${entry.name}` : entry.name);
+      }
+    }
+  }
   for (const dir of ADMITTED_INPUT_DIRS) {
     const from = join(sourceCase, dir);
     if (!existsSync(from)) continue;
-    for (const entry of await readdir(from, { withFileTypes: true })) {
-      if (!entry.isFile() || EXCLUDE_NAMES.has(entry.name)) continue;
-      const fromFile = join(from, entry.name);
-      const relPath = `${dir}/${entry.name}`;
-      const toFile = join(dest, dir, entry.name);
-      await mkdir(join(dest, dir), { recursive: true });
-      await cp(fromFile, toFile);
-      const digest = await sha256(toFile);
-      const expected = manifest.find((e) => e.path.endsWith(relPath));
-      if (expected && expected.sha256 !== digest) {
-        throw new Error(
-          `copied input ${relPath} does not match the target manifest; the target or the copy is inconsistent`,
-        );
-      }
-      if (!manifestNames.has(`./cases/${variant}/${relPath}`)) {
-        throw new Error(`copied input ${relPath} is not listed in the target manifest`);
-      }
-      copied.push({ source: `cases/${variant}/${relPath}`, sha256: digest });
-    }
+    await copyTree(from, dir);
   }
 
   // Derive the species from the mechanism actually selected, including the inert
