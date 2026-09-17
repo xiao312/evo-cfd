@@ -97,13 +97,14 @@ const EXTRACT = `
 })()
 `;
 
-async function evaluate(cdp: Cdp, expression: string): Promise<string> {
+async function evaluate<T>(cdp: Cdp, expression: string): Promise<T> {
   const res = (await cdp.send("Runtime.evaluate", { expression, returnByValue: true })) as {
-    result?: { value?: string };
+    result?: { value?: T };
     exceptionDetails?: { text?: string };
   };
   if (res.exceptionDetails) throw new Error(`page evaluation failed: ${res.exceptionDetails.text}`);
-  return res.result?.value ?? "";
+  // returnByValue already deserialises the result; it is not a JSON string.
+  return (res.result?.value ?? ("" as unknown as T));
 }
 
 // ------------------------------------------------------------------- main
@@ -132,21 +133,24 @@ async function main(): Promise<void> {
   let attempt = 0;
   for (;;) {
     attempt++;
-    const raw = await evaluate(cdp, EXTRACT);
-    let parsed: { text: string; generating: boolean; assistantCount: number; strategy: string; notes: string[] };
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      console.error(`poll ${attempt}: the page returned no JSON; is this a ChatGPT chat?`);
+    const parsed = await evaluate<{
+      text: string;
+      generating: boolean;
+      assistantCount: number;
+      strategy: string;
+      notes: string[];
+    }>(cdp, EXTRACT);
+    if (typeof parsed !== "object" || parsed === null) {
+      console.error(`poll ${attempt}: the page returned no object; is this a ChatGPT chat?`);
       await new Promise((r) => setTimeout(r, intervalMs));
       continue;
     }
-    const text = parsed.text.trim();
+    const text = (parsed.text || "").trim();
     if (dumpDom && attempt === 1) {
-      const dom = (await evaluate(
+      const dom = await evaluate<string>(
         cdp,
         `(() => { const r = document.querySelectorAll('[data-message-author-role]'); return r.length + ' roles; first 200 chars: ' + ((document.querySelector('main')||document.body).textContent||'').slice(0,200); })()`,
-      )) as string;
+      );
       console.error(`[dom] ${dom}`);
     }
     if (text === last && text.length > 0 && !parsed.generating) {

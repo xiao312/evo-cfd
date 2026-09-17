@@ -645,3 +645,94 @@ this: the containment guard compared a resolved absolute destination against a
 relative staging root and rejected every destination as an escape. The guard was
 right about the comparison and wrong about the operand; the staging root is now
 resolved once at creation.
+
+## The first external advisor answered — the loop is closed for real
+
+The consultation `external-diagnostic-selection` was answered by a genuinely
+separate model through the operator's ChatGPT web session, and imported. The
+decision is recorded as `admitted-pending-review`. Freshness was measured at
+decision time by re-hashing the profile libraries, not assumed.
+
+This is the first round trip that tests the layer's actual hypothesis: that a
+separate advisor materially improves the next decision. It did.
+
+### The transport worked as designed
+
+The operator never pasted file contents. The advisor read the evidence itself
+through the read-only bridge and cited it by file and line: `YEqn.H` lines
+20-78, `EEqn.H` lines 1-43, `execution-receipt.txt`, `checkMesh.current.log`,
+`constant/thermophysicalProperties`, `system/fvSchemes`. The receive side is now
+automated: `scripts/receive-advisor.ts` attaches to the chat tab through the
+Chrome debug port and extracts the completed answer by stability detection.
+The control message stays under a kilobyte; the evidence transfer is auditable.
+
+### The advisor corrected the request, in four places
+
+Every correction is recorded because each one is a defect in our own process.
+
+1. **A cited artifact was never attached.** The request described a sampled
+   temperature series and a 288.26 K maximum. The advisor searched the workspace
+   and found those filenames and that number only in the request documents. The
+   sampled series had never been generated for this attempt. The claim was
+   unsupported by the evidence actually released.
+2. **The property package was named for the wrong attempt.** The request named
+   the `PRchungKinetic` variants, which belong to the earlier baseline run. The
+   executed attempt's log, attempt record and dictionaries agree on
+   `PRchungTakaMixture`, `chungTaka`, `rfJanaf`, `PengRobinson`, `rfSpecie`,
+   `sensibleEnthalpy`.
+3. **The time-step growth was over-read.** The request treated a growing time
+   step as evidence that the LOX/CH4 interface imposes the step size. The
+   observed growth is 1.199e-8 to 2.967e-8 s, and the largest printed Courant
+   number is 7.3e-6 against a configured maxCo of 0.3. Stock OpenFOAM-8 caps
+   growth at 1.2x per step; the observed ~20% growth at negligible Courant is
+   consistent with that startup ramp. Hypothesis H1 is not established by this
+   evidence.
+4. **Physical time was reported loosely.** The last announced time
+   (1.187e-7 s) is an interrupted step; the last visibly completed step is
+   8.90e-8 s, about 0.89% of the requested interval.
+
+### The advisor's recommendation
+
+Remain chemistry-off and instrument the next run: volume-integrated mass,
+per-species inventories, and a complete energy ledger over a few fully
+completed steps, with colocated thermodynamic states and the actual time-step
+controls. The discriminating question is whether a changing inventory is
+explained by measured boundary fluxes and pressure work, or not. Neither
+constant temperature extrema nor a growing time step establishes that.
+
+The advisor was specific about what would *not* count: a species sum near one
+is partly algebraically enforced by the inert-species closure in `YEqn.H`, so
+nonnegative species do not prove conservation; `wallHeatFlux` is not equivalent
+to the custom energy equation's own fluxes; a same-library property round trip
+establishes internal consistency, not cryogenic accuracy.
+
+It also flagged a real property-data concern: `property-assumptions.json` marks
+the O2 polynomial range as starting at 200 K while the LOX inlet is 85 K, and
+`thermo.inputData` permits 50-5000 K. Widening the allowable bounds does not
+validate extrapolated coefficients.
+
+### Two export defects this exposed
+
+Both are recorded as the same class as the earlier provenance incidents: an
+evidence set is only as good as what it actually contains.
+
+- The lean export emptied `0/`. The advisor needs the initial and boundary
+  fields to verify pressure, inlet conventions, wall conditions and outlet
+  backflow. The lean filter was sized for an upload budget that the bridge
+  makes unnecessary — the advisor reads files, it does not receive an
+  attachment. Serving the full export through the bridge is the correct fix.
+- The sampled series were never generated for this attempt at all, while the
+  request cited them. The sampling step must be part of every attempt's record,
+  not an optional bundle extra.
+
+### What this establishes, and what it does not
+
+Established: the consultation loop works end to end with a real separate
+advisor, the transport is automated in both directions, and the advisor
+identified four unsupported or incorrect statements in our own request.
+
+Not established: anything about the solver's physics. The advisor was explicit
+that the present evidence establishes deadline behaviour and some startup
+advancement, and does not establish conserved transport, correct cryogenic
+thermodynamics, or the cause of any temperature drift. No case changes and no
+execution were performed by the advisor.
