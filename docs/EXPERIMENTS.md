@@ -501,3 +501,62 @@ immutable target. The README and AGENTS.md say so.
 With this asset, the loop has a target that is worth improving against: an
 experimental operating point, digitized OH\* reference fields, a mesh that passes
 `checkMesh`, and an acceptance gate that a candidate must survive.
+
+## MASCOTTE G2 runs under the target solver: mascotte-startup-001
+
+With the target imported and `target-solver-001` having proven the solver runs,
+the remaining question was whether the real case could be exercised at all.
+Answering it is the first use of the layer-5 asset, and it produced the
+`mascotte-startup-001` bundle.
+
+The run is a **bounded chemistry-off startup qualification** on `agile-80mm`:
+Allcheck passed on a child attempt, `realFluidReactingFoam` started and advanced
+20 time steps to `Time = 1.79e-06`, `deltaT` grew by a factor of ~24 showing the
+adjustable time step responding, and the last sampled `min/max(T)` was
+`85, 288.59 K` — the two inlet temperatures, which is what chemistry-off flow at
+this operating point should show. The Peng-Robinson property path is active in
+the log. Nothing in this bears on combustion accuracy; the window is a fraction
+of the case's own end time and the reaction source was off.
+
+The substantive contribution is the **child-attempt contract**, because the
+alternative was to modify the immutable target. The imported `Allcheck` writes
+`checkMesh.current.log` into the case it inspects and `Allrun` decomposes that
+case and writes solver results into it. `.gitignore` hides those from Git
+status, which is housekeeping, not protection — ignore rules do not prevent
+filesystem writes, and the README's agile example pointed `CASE_DIR` directly at
+the imported directory. `scripts/prepare-mascotte-attempt.ts` is the supported
+path: it refuses a destination inside the target tree, copies only admitted
+inputs, verifies every copied file against `mascotte-g2/SHA256SUMS`, and
+preserves a prior attempt rather than overwriting it.
+
+Five things that executing the run exposed, which reading the code did not:
+
+1. **A files-only copy dropped the mesh.** `constant/polyMesh` is a directory,
+   so the child had no `points` and `checkMesh` failed. The manifest comparison
+   was also suffix-based, letting a `cases/full-200mm` path satisfy an
+   expectation for `cases/agile-80mm`. Both fixed.
+2. **`set -e` aborted the OpenFOAM environment halfway.** `config.sh/aliases`
+   ends in `unalias wmRefresh`, which fails whenever that alias is undefined —
+   the normal non-interactive case. Under errexit the source aborted there,
+   leaving PATH and LD_LIBRARY_PATH half-configured. The symptom was a launcher
+   exiting 1 having printed nothing. The env is now sourced with errexit off and
+   the outcome verified by resolution: the launcher refuses to continue unless
+   both the solver and `checkMesh` actually resolve.
+3. **The generated launcher baked in a container-only path.** The attempt is
+   materialised in the container, where the repo is `/workspace`, but the
+   launcher executes on the host, where it is `/data2/kexiao/EvoCFD`. Allcheck
+   is now resolved relative to the launcher's own location.
+4. **The host's bash 5.2 cannot source the OF8 bashrc at all**
+   (`pop_var_context: head of shell_variables not a function context`), a second
+   independent reason the solver executes on the host — consistent with the
+   frozen three-phase boundary.
+5. **Stopping the launcher does not stop the solver.** SIGTERM to the
+   launcher's `bash` did not reach the `realFluidReactingFoam | tee` pipeline it
+   had spawned, and the run kept advancing for minutes after "stopped" was
+   reported. The budget is now enforced inside the launcher by `timeout`, the
+   process that actually owns the solver.
+
+Two standing corrections apply to the numbers above and are recorded as such in
+the bundle: the temperature and continuity figures are **last sampled values**,
+not bounds over the run, and "time step continuity errors" is the solver's own
+term rather than a residual or convergence measure.
