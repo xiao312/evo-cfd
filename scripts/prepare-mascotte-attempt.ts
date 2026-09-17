@@ -430,8 +430,8 @@ async function main(): Promise<void> {
       'test -f "$allcheck" || { echo "Allcheck not found at $allcheck" >&2; exit 1; }',
       'CASE_DIR="$root" bash "$allcheck" || { echo "Allcheck failed on the child" >&2; exit 1; }',
       ranks > 1
-        ? `decomposePar -force | tee log.decomposePar\nmpirun -np ${ranks} ${profileExe} -parallel | tee log.${executable}`
-        : `${profileExe} | tee log.${executable}`,
+        ? `decomposePar -force | tee log.decomposePar\ntimeout -s TERM -k 30 ${budget} mpirun -np ${ranks} ${profileExe} -parallel | tee log.${executable}`
+        : `timeout -s TERM -k 30 ${budget} ${profileExe} | tee log.${executable}`,
     ].join("\n") + "\n",
     "utf8",
   );
