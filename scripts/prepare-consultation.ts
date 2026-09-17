@@ -2,68 +2,90 @@
  * Prepare a scientific consultation and export it for a web chat.
  *
  * Route A of the reviewer's design: EvoCFD writes a frozen briefing, a human
- * carries it to the chosen web chat, and the answer comes back through
- * import-consultation.ts. This is deliberately not autonomous, and the
- * distinction is recorded rather than blurred: transporting an unchanged
- * response is a different contribution from adding scientific guidance.
+ * carries it to the chosen web application, and the answer comes back through
+ * import-consultation.ts. That is a genuine external consultation with human
+ * transport, not a substitute for one. The mode is recorded on import, so a
+ * same-model self-review can never be mistaken for an external advisor.
  *
- * The first real use is the target-solver case gap. `realFluidReactingFoam`
- * builds, but no upstream tutorial runs it: every shipped case specifies
- * `reactingFoam`, and the target solver requires per-species scheme entries the
- * tutorials do not declare. That question is now closed by experiment
- * (target-solver-001), so this script ships the two arms as verified evidence
- * and asks the question that remains open: is the small difference between the
- * target solver and the package’s reactingFoam the expected physical effect,
- * or a sign of an inconsistency.
+ * The first briefing asked which case changes the target solver needed. That
+ * question is closed by experiment: two per-species div scheme entries suffice
+ * for the two-species reference case to complete a short interval
+ * (target-solver-001). This briefing therefore asks the question that remains
+ * open — whether the small difference between the target solver and the
+ * package's reactingFoam is the physical effect of the different transport
+ * closures or a sign of inconsistency — and ships the species and energy
+ * equations of both solvers, because the difference lives in the species
+ * equation as much as in the energy equation.
  *
  * Usage:
  *   node scripts/prepare-consultation.ts <run-root> [question-id]
  */
 import { join } from "node:path";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { argv, exit } from "node:process";
 
-import { digestPath, prepareConsultation } from "../packages/controller/src/consultation.ts";
-import type {
-  ConsultationRequest,
-  ConsultationState,
-  ProblemContract,
+import {
+  digestPath,
+  prepareConsultation,
+  type ConsultationRequest,
+  type ConsultationState,
+  type ProblemContract,
 } from "../packages/controller/src/consultation.ts";
 
 const SOLVER_ROOT = process.env.EVOCFD_SOLVER_ROOT ?? "/data2/kexiao/of8";
 const REPO_ROOT = process.env.EVOCFD_HOST_ROOT ?? ".";
-const SOLVER = join(SOLVER_ROOT, "rf-profile", "bin", "realFluidReactingFoam");
+const PROFILE = join(SOLVER_ROOT, "rf-profile");
+const SOLVER = join(PROFILE, "bin", "realFluidReactingFoam");
 const CASE_SOURCE = join(SOLVER_ROOT, "rf-cases", "1D_advection");
-// Retained for reference; the experiment arms are the real evidence.
 const SOLVER_SOURCE = join(SOLVER_ROOT, "realFluidFoam-8", "applications", "solvers");
+const EXPERIMENT = join(REPO_ROOT, "runs", "consultation-001", "experiment");
+
+/** The profile libraries that decide which physics a run gets. */
+const PROFILE_LIBRARIES = [
+  "lib/libcombustionModels.so",
+  "lib/libreactionThermophysicalModels.so",
+  "lib/librfFluidThermophysicalModels.so",
+  "lib/libspecie.so",
+  "lib/libturbulenceModels.so",
+];
 
 async function sha256(file: string): Promise<string> {
-  const { readFile } = await import("node:fs/promises");
   return createHash("sha256").update(await readFile(file)).digest("hex");
 }
 
 async function main(): Promise<void> {
   const runRoot = argv[2];
   if (!runRoot) {
-    console.error("usage: prepare-consultation.ts <run-root>");
+    console.error("usage: prepare-consultation.ts <run-root> [question-id]");
     exit(2);
   }
-  const questionId = argv[3] ?? "target-solver-case-gap";
+  const questionId = argv[3] ?? "target-solver-consistency";
   await mkdir(runRoot, { recursive: true });
 
-  // Freeze the computational state: the solver executable, its digest, and a
-  // digest of the case inputs. Advice that arrives against a different state
-  // is flagged for revalidation rather than applied.
+  // Freeze the computational state: the executable, the case inputs, and the
+  // profile libraries. The libraries matter because the package ships
+  // libraries with stock-identical SONAMES, so an unchanged executable can
+  // resolve different physics depending on directory order.
   const solverDigest = await sha256(SOLVER);
   const caseDigest = await digestPath(CASE_SOURCE);
+  const libraryFiles = [];
+  for (const rel of PROFILE_LIBRARIES) {
+    const abs = join(PROFILE, rel);
+    try {
+      libraryFiles.push({ path: abs, digest: await sha256(abs) });
+    } catch {
+      console.error(`warning: profile library not measurable: ${abs}`);
+    }
+  }
   const state: ConsultationState = {
     solverExecutable: SOLVER,
     solverDigest,
     caseDir: CASE_SOURCE,
     caseDigest,
     profileId: "of8-realfluid",
-    relatedRunIds: ["1D-advection-001"],
+    libraryFiles,
+    relatedRunIds: ["1D-advection-001", "target-solver-001"],
   };
 
   const contract: ProblemContract = {
@@ -74,7 +96,6 @@ async function main(): Promise<void> {
     ],
     allowedChanges: [
       "the case dictionaries in a disposable copy",
-      "fvSchemes entries for per-species terms",
       "initialisation and case preparation steps",
     ],
     forbiddenChanges: [
@@ -88,15 +109,16 @@ async function main(): Promise<void> {
       "sensible enthalpy with a consistent reference",
       "mass fractions, species order as declared in the case",
       "a state read from a completed time step is not the same as an intermediate update",
+      "sampled extrema are not a time history",
     ],
   };
 
   const request: ConsultationRequest = {
     requestId: questionId,
     question:
-      "The target solver realFluidReactingFoam now runs the reference case to its requested endTime, after adding two per-species div scheme entries its last sampled max temperature is 368.475 K against 368.537 K for the package's own reactingFoam on the same case. Is that 0.06 K difference the physically expected effect of the species-diffusion enthalpy flux terms the target solver carries, or a sign of an inconsistency I should chase before trusting this solver for the MASCOTTE comparison?",
+      "On the same two-species case, the target solver realFluidReactingFoam and the package's reactingFoam both complete the requested interval, but their last sampled maxima differ by about 0.06 K in 368. The two solvers differ in three coupled places, not one: the species-diffusion enthalpy flux terms in the energy equation, the replaced heat-flux closure, and the mixture-averaged diffusion correction in the species equation. Given the attached sources and both runs, is this difference consistent with the different transport closures, or is it a sign of an inconsistency I should chase before trusting this solver? What bounded experiment would discriminate?",
     whyNow:
-      "The configuration gap is closed and the solver runs, so the remaining question is whether it runs the right equations. This case has no chemical reaction and no validation data, so the reactingFoam comparison is the only check available, and it is a single sampled comparison.",
+      "The startup configuration gap is closed, so the remaining question is whether the target solver runs the right equations rather than whether it runs at all. This case has no chemical reaction and no validation data, so the reactingFoam comparison is the only check available, and it is a single sampled comparison of two extrema.",
     contract,
     state,
     items: [
@@ -113,52 +135,46 @@ async function main(): Promise<void> {
         source: "experiment/armA-as-shipped, attached; exit code 1 recorded",
       },
       {
-        id: "E5",
-        label: "observation",
-        text: "Adding exactly two div scheme entries for O2 and N2 makes the same case run: exit 0, 200 time steps at deltaT 1e-5, last reported time 0.002 equals the requested endTime, normal End.",
-        source: "experiment/armB-with-species-schemes, attached; the two-line diff is changes/fvSchemes.diff in target-solver-001",
-      },
-      {
-        id: "E6",
-        label: "observation",
-        text: "The target solver's last sampled min/max(T) is 139.214/368.475 K; the package's reactingFoam on the same case gives 139.214/368.537 K.",
-        source: "the last min/max(T) line of each log; first-and-last sampled values, not a history",
-      },
-      {
         id: "E3",
         label: "observation",
-        text: "The term is EEqn.H's explicit `fvc::div(hei[k]*rho*YVi[k])`, which the package's reactingFoam does not have.",
-        source: "applications/solvers/realFluidReactingFoam/EEqn.H, attached",
+        text: "Adding two div scheme entries for O2 and N2 makes the same case run: exit 0, 200 time steps at deltaT 1e-5, last reported time 0.002 equals the requested endTime, normal End, Peng-Robinson property path throughout.",
+        source: "experiment/armB-with-species-schemes, attached; the two-line diff is in target-solver-001",
       },
       {
         id: "E4",
         label: "observation",
-        text: "The package's own reactingFoam build runs the same case to its requested end time with a normal End, selecting PRchungKineticMixture / PengRobinson.",
-        source: "realfluid-baseline-001, records/verification.json",
+        text: "The target solver's last sampled min/max(T) is 139.214/368.475 K; the package's reactingFoam on the same case gives 139.214/368.537 K.",
+        source: "the last min/max(T) line of each log",
+      },
+      {
+        id: "E5",
+        label: "observation",
+        text: "The two solvers' equations differ in three coupled places: `sumHeatDiffusion`/`sumHeatDiffusion2` in the target's energy equation, the removal of `thermophysicalTransport->divq(he)` in favour of an explicit laplacian, and the mixture-averaged diffusion correction in the target's species equation.",
+        source: "the attached EEqn.H and YEqn.H of both solvers",
       },
       {
         id: "H1",
         label: "hypothesis",
-        text: "The failure is a configuration gap: the case needs per-species div schemes that the shipped fvSchemes does not declare, and nothing more.",
-        source: "worker reading EEqn.H against the error message",
+        text: "The temperature difference is the combined effect of the different species and heat transport closures, not of one term.",
+        source: "worker reading the attached sources",
       },
       {
         id: "H2",
         label: "hypothesis",
-        text: "The target solver requires additional case structure beyond scheme entries, e.g. fields or initialisation that reactingFoam does not need.",
-        source: "the solver creates YVi and hei fields in createFields.H",
+        text: "The magnitude of the difference is set by the sharp interface in this 1D advection case, where every diffusion term acts with maximum strength, rather than by the bulk physics.",
+        source: "the case is by construction a discontinuity advection case",
       },
       {
         id: "N1",
         label: "not_established",
-        text: "Whether supplying the missing scheme entries is sufficient for the target solver to integrate.",
-        source: "no test has been run",
+        text: "Whether the difference would persist, shrink, or grow on a smoothed interface or a longer interval. Only first and last sampled values are available; no time history of any quantity has been examined.",
+        source: "no such run has been made",
       },
       {
         id: "N2",
         label: "not_established",
-        text: "Whether the failing run's state was thermodynamically admissible at the point of failure.",
-        source: "no property check was made",
+        text: "Whether the failing arm's state was thermodynamically admissible, and whether the conserved sums (sum(Y), total enthalpy, mass balance) hold in either run.",
+        source: "no conservation check has been made",
       },
     ],
     attempts: [
@@ -168,21 +184,22 @@ async function main(): Promise<void> {
       "added the two per-species div scheme entries; the target solver reached the requested end time",
     ],
     workerInterpretation:
-      "The evidence points at a configuration gap rather than a solver defect: the same property path works under reactingFoam, and the missing term is exactly what the error names. I cannot confirm the gap is the only obstacle, and I have not established that the failing state was admissible.",
+      "The startup gap is closed and is not in doubt. What I cannot do is attribute the 0.06 K: the two solvers differ in three coupled places, I have only two sampled extrema, and I have not checked the conserved sums. My working hypothesis is that the difference is the combined transport-closure effect modulated by the sharp interface, but that is a reading of the equations, not a measurement.",
     availableActions: [
       "edit the case dictionaries in a disposable copy",
-      "add per-species fvSchemes entries",
-      "run a short bounded target-solver job through the controller",
+      "run a short bounded solver job through the controller",
+      "smooth the initial interface in a disposable copy",
     ],
     limits: [
       "the solver source is read-only for this consultation",
-      "the budget is one short serial run",
+      "the budget is one or two short serial runs",
       "the stock installation must not change",
     ],
     responseRequested: [
       "ranked explanations with the evidence supporting and conflicting with each",
       "the smallest bounded experiment that would discriminate between them",
       "what each explanation predicts, so the result is informative either way",
+      "which conserved quantities I should sample over time, and why those",
       "any prerequisite or artifact I have not attached, rather than an inference",
     ],
     createdAt: new Date().toISOString(),
@@ -191,8 +208,13 @@ async function main(): Promise<void> {
   const excerpts: { file: string; why: string; dest: string }[] = [
     {
       file: join(SOLVER_SOURCE, "realFluidReactingFoam", "EEqn.H"),
-      why: "the equation file containing the term that fails to evaluate",
+      why: "the target solver's energy equation, with the species-diffusion enthalpy flux terms",
       dest: "realFluidReactingFoam/EEqn.H",
+    },
+    {
+      file: join(SOLVER_SOURCE, "realFluidReactingFoam", "YEqn.H"),
+      why: "the target solver's species equation, with the mixture-averaged diffusion correction; the difference from the baseline lives here as much as in the energy equation",
+      dest: "realFluidReactingFoam/YEqn.H",
     },
     {
       file: join(SOLVER_SOURCE, "realFluidReactingFoam", "createFields.H"),
@@ -200,14 +222,14 @@ async function main(): Promise<void> {
       dest: "realFluidReactingFoam/createFields.H",
     },
     {
-      file: join(SOLVER_SOURCE, "realFluidReactingFoam", "realFluidReactingFoam.C"),
-      why: "the solver's top-level loop, showing where the property update sits",
-      dest: "realFluidReactingFoam/realFluidReactingFoam.C",
+      file: join(SOLVER_SOURCE, "reactingFoam", "EEqn.H"),
+      why: "the baseline energy equation, without the species-diffusion enthalpy flux terms",
+      dest: "reactingFoam/EEqn.H",
     },
     {
-      file: join(SOLVER_SOURCE, "reactingFoam", "EEqn.H"),
-      why: "the corresponding equation without the species term, for comparison",
-      dest: "reactingFoam/EEqn.H",
+      file: join(SOLVER_SOURCE, "reactingFoam", "YEqn.H"),
+      why: "the baseline species equation, for side-by-side comparison of the diffusion closure",
+      dest: "reactingFoam/YEqn.H",
     },
   ];
   const caseInputs = [
@@ -218,16 +240,13 @@ async function main(): Promise<void> {
   ];
   const evidenceSources: { dir: string; why: string; dest: string }[] = [
     {
-      // The real failing target-solver run, captured by running the pinned
-      // solver on an unmodified disposable case copy. Not a reactingFoam run
-      // and not an inference from reading the source.
-      dir: join(runRoot, "experiment", "armA-as-shipped"),
+      dir: join(EXPERIMENT, "armA-as-shipped"),
       why: "the failing target-solver run: exits 1 at the first enthalpy solve, naming the undefined scheme entry",
       dest: "armA-failing-run",
     },
     {
-      dir: join(runRoot, "experiment", "armB-with-species-schemes"),
-      why: "the same case with two per-species div scheme entries added: reaches the requested endTime with a normal End",
+      dir: join(EXPERIMENT, "armB-with-species-schemes"),
+      why: "the passing target-solver run: reaches the requested endTime with a normal End",
       dest: "armB-passing-run",
     },
   ];
@@ -241,14 +260,17 @@ async function main(): Promise<void> {
   });
 
   console.log(`ok consultation prepared at ${runRoot}`);
-  console.log(`   question ${questionId}`);
+  console.log(`   question ${questionId}, revision ${prepared.revision}`);
   console.log(`   evidence digest ${prepared.digest.slice(0, 16)}…`);
   console.log(`   briefing ${join(prepared.dir, "QUESTION.md")}`);
   console.log(`   manifest ${join(prepared.dir, "manifest.json")}`);
-  console.log(`   solver digest ${solverDigest.slice(0, 16)}…  case digest ${caseDigest.slice(0, 16)}…`);
+  console.log(
+    `   solver ${solverDigest.slice(0, 16)}…  case ${caseDigest.slice(0, 16)}…  libs ${libraryFiles.length}`,
+  );
   console.log("");
-  console.log("Carry the briefing and the permitted evidence to the chosen web chat.");
-  console.log("Record what you added beyond transport when importing the answer.");
+  console.log("Carry the briefing and the permitted evidence to the chosen web application.");
+  console.log("On import, record the mode and, for an external round, the conversation");
+  console.log("reference. Record what you added beyond transport.");
 }
 
 await main();

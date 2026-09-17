@@ -6,10 +6,11 @@ project:
     - realFluidFoam-8 (realFluidReactingFoam, pinned of8-realfluid profile)
   role: EvoCFD layer 5 — case and evaluation
   purpose: >-
-    Provide the immutable physical target and the digitized evaluation evidence that
-    EvoCFD's agentic loop works against. A change to the harness, the numerics or the
-    models is admitted only when it is shown on this case, through the controller's
-    job-lifecycle primitive, and assessed from the solver's own log.
+    The application-level target for performance and physical-validation claims.
+    Candidate admission and intermediate regression testing may use smaller
+    fixtures. Application validation uses execution records, numerical fields and
+    diagnostics, and the defined experimental observation comparisons — not solver
+    logs alone.
   status: target-ready, not validated-result-ready
 contract: case-lock.yaml
 solver_identity: ../cfd-baseline/baseline.json

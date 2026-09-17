@@ -28,8 +28,8 @@
       "comment": [
         "The OpenFOAM-8 Foundation tree is built and verified on the host.",
         "The realFluidReactingFoam solver is still pending: it is a source-level",
-        "modification of reactingFoam, not yet applied.",
-        "Full inventory: docs/reviews/of8-environment-001/"
+        "Full inventory: docs/reviews/of8-environment-001/",
+        "reactingFoam in this profile is the package modification of stock reactingFoam: real-fluid property path, without the species-diffusion enthalpy flux terms."
       ],
       "openfoam": {
         "version": 8,
@@ -52,7 +52,7 @@
         }
       },
       "executable": "realFluidReactingFoam",
-      "status": "package built and isolated; real-fluid property path verified on a non-reacting case; realFluidReactingFoam not yet run on a case",
+      "status": "package built and isolated; real-fluid property path verified; realFluidReactingFoam has run (target-solver-001: exit 0, 200 steps to endTime 0.002 after two per-species div scheme entries were added to a child case copy)",
       "package": {
         "name": "realFluidFoam-8",
         "upstream": "github.com/danhnam11/realFluidFoam-8",

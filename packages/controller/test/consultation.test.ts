@@ -1,16 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile, rm, readFile } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, rm, readFile, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 
 import {
   CONSULTATION_DECISION_DIR,
   CONSULTATION_REQUEST_DIR,
-  CONSULTATION_RESPONSE_DIR,
   ConsultationError,
+  activeRequestDir,
   digestPath,
+  listResponses,
   prepareConsultation,
   readRequest,
   readRequestDigest,
@@ -21,7 +22,6 @@ import type {
   AdvisorResponse,
   ConsultationRequest,
   ConsultationState,
-  ProblemContract,
 } from "../src/consultation.ts";
 
 function makeState(solverDigest: string, caseDigest: string): ConsultationState {
@@ -31,6 +31,9 @@ function makeState(solverDigest: string, caseDigest: string): ConsultationState 
     caseDir: "/cases/1D_advection",
     caseDigest,
     profileId: "of8-realfluid",
+    libraryFiles: [
+      { path: "/opt/of8/lib/libspecie.so", digest: "libspecie-digest" },
+    ],
     relatedRunIds: ["job-1D-advection-001"],
   };
 }
@@ -38,25 +41,13 @@ function makeState(solverDigest: string, caseDigest: string): ConsultationState 
 function makeRequest(): ConsultationRequest {
   return {
     requestId: "consultation-001",
-    question:
-      "The target solver fails at startup on the supplied case. Identify the smallest defensible set of case changes required to exercise the intended equations.",
-    whyNow: "The case is the only obstacle between a pinned solver and a first run.",
+    question: "Is the small temperature difference the expected physical effect?",
+    whyNow: "The configuration gap is closed and the solver runs.",
     contract: {
-      fixedConstraints: [
-        "The Peng-Robinson real-fluid property path must be exercised",
-        "The species set and inlet conditions are mandatory",
-      ],
-      allowedChanges: ["case dictionaries", "scheme entries", "initialisation"],
-      forbiddenChanges: [
-        "solver source",
-        "the physical boundary conditions",
-        "the evaluator",
-      ],
-      conventions: [
-        "absolute, not gauge, pressure",
-        "sensible enthalpy with a consistent reference",
-        "mass fractions, species order as declared",
-      ],
+      fixedConstraints: ["the Peng-Robinson property path must be exercised"],
+      allowedChanges: ["case dictionaries", "scheme entries"],
+      forbiddenChanges: ["solver source", "the evaluator"],
+      conventions: ["absolute, not gauge, pressure"],
     },
     state: makeState("solverdigest".padEnd(16, "0"), "casedigest".padEnd(15, "0")),
     items: [
@@ -67,49 +58,27 @@ function makeRequest(): ConsultationRequest {
         source: "runs/cfd-cases/1D-advection-001/log.react line 412",
       },
       {
-        id: "E2",
-        label: "observation",
-        text: "The error names div(((hei_O2*rho)*YVi_O2)) as undefined in fvSchemes.",
-        source: "the same log",
-      },
-      {
         id: "H1",
         label: "hypothesis",
-        text: "The case's fvSchemes was written for reactingFoam and lacks the per-species entries the target solver looks up.",
+        text: "The case's fvSchemes lacks the per-species entries.",
         source: "worker reading EEqn.H",
       },
-      {
-        id: "N1",
-        label: "not_established",
-        text: "Whether the failure would persist if the missing scheme entries were supplied.",
-        source: "no test has been run",
-      },
     ],
-    attempts: [
-      "ran the target solver on the case as shipped; failed at startup",
-      "ran the package's reactingFoam on the same case; reached endTime",
-    ],
-    workerInterpretation:
-      "The evidence points at a configuration gap rather than a solver defect, but I cannot confirm that the missing entries are the only obstacle.",
-    availableActions: [
-      "edit the case dictionaries in a disposable copy",
-      "run a short bounded solver job",
-    ],
-    limits: [
-      "the solver source is read-only for this consultation",
-      "the budget is one short run",
-    ],
-    responseRequested: [
-      "ranked explanations with supporting and conflicting evidence",
-      "the next bounded experiment",
-      "what each explanation predicts",
-      "any prerequisite I have not listed",
-    ],
-    createdAt: "2026-09-16T12:00:00.000Z",
+    attempts: ["ran the target solver on the case as shipped; failed at startup"],
+    workerInterpretation: "The evidence points at a configuration gap.",
+    availableActions: ["edit the case dictionaries in a disposable copy"],
+    limits: ["the solver source is read-only for this consultation"],
+    responseRequested: ["ranked explanations", "the next bounded experiment"],
+    createdAt: "2026-09-17T12:00:00.000Z",
   };
 }
 
-async function makeRun(): Promise<{ root: string; caseDir: string; sourceDir: string; jobDir: string }> {
+async function makeRun(): Promise<{
+  root: string;
+  caseDir: string;
+  sourceDir: string;
+  jobDir: string;
+}> {
   const root = await mkdtemp(join(tmpdir(), "consult-"));
   const caseDir = join(root, "case");
   const sourceDir = join(root, "source");
@@ -117,211 +86,367 @@ async function makeRun(): Promise<{ root: string; caseDir: string; sourceDir: st
   await mkdir(join(caseDir, "system"), { recursive: true });
   await writeFile(join(caseDir, "system", "fvSchemes"), "div(phi,U) Gauss linear;\n");
   await mkdir(join(sourceDir, "solvers"), { recursive: true });
-  await writeFile(join(sourceDir, "solvers", "EEqn.H"), "sumHeatDiffusion2 += fvc::div(hei[k]*rho*YVi[k]);\n");
+  await writeFile(
+    join(sourceDir, "solvers", "EEqn.H"),
+    "sumHeatDiffusion2 += fvc::div(hei[k]*rho*YVi[k]);\n",
+  );
   await mkdir(jobDir, { recursive: true });
   await writeFile(join(jobDir, "log.react"), "Time = 0.002\nEnd\n");
   return { root, caseDir, sourceDir, jobDir };
 }
 
-test("prepareConsultation writes a request, a manifest and the frozen evidence", async () => {
-  const { root, caseDir, sourceDir, jobDir } = await makeRun();
-  const request = makeRequest();
-  const result = await prepareConsultation({
+function makeResponse(digest: string, overrides: Partial<AdvisorResponse> = {}): AdvisorResponse {
+  return {
+    requestId: "consultation-001",
+    answerText: "The case needs per-species scheme entries. Add them as follows...",
+    mode: "self_review",
+    provider: "pi (self-advisor)",
+    displayedModel: "Atria-Dawn-Preview",
+    toolsUsed: [],
+    conversationRef: "local review of runs/consultation-001",
+    humanContribution: "transported an unchanged response",
+    requestDigest: digest,
+    receivedAt: "2026-09-17T12:30:00.000Z",
+    ...overrides,
+  };
+}
+
+async function prepare(root: string, request = makeRequest(), supersedes = false) {
+  const { caseDir, sourceDir, jobDir } = await locate(root);
+  return prepareConsultation({
     runRoot: root,
     request,
     evidenceSources: [{ dir: jobDir, why: "the failing job's log", dest: "job-1" }],
-    sourceExcerpts: [{ file: join(sourceDir, "solvers", "EEqn.H"), why: "the term that fails to evaluate", dest: "target/EEqn.H" }],
+    sourceExcerpts: [
+      {
+        file: join(sourceDir, "solvers", "EEqn.H"),
+        why: "the term that fails to evaluate",
+        dest: "realFluidReactingFoam/EEqn.H",
+      },
+    ],
     caseInputs: [{ dir: caseDir, why: "the case as shipped" }],
+    supersedes,
   });
-  assert.ok(result.digest.length > 0);
+}
+
+/** Recreate the helper directories prepare() expects, in an existing root. */
+async function locate(root: string) {
+  const caseDir = join(root, "case");
+  const sourceDir = join(root, "source");
+  const jobDir = join(root, "runs", "job-1");
+  await mkdir(join(caseDir, "system"), { recursive: true });
+  await writeFile(join(caseDir, "system", "fvSchemes"), "div(phi,U) Gauss linear;\n");
+  await mkdir(join(sourceDir, "solvers"), { recursive: true });
+  await writeFile(
+    join(sourceDir, "solvers", "EEqn.H"),
+    "sumHeatDiffusion2 += fvc::div(hei[k]*rho*YVi[k]);\n",
+  );
+  await mkdir(jobDir, { recursive: true });
+  await writeFile(join(jobDir, "log.react"), "Time = 0.002\nEnd\n");
+  return { root, caseDir, sourceDir, jobDir };
+}
+
+test("prepare writes a request whose digest covers the structured request", async () => {
+  const root = await mkdtemp(join(tmpdir(), "consult-"));
+  const prepared = await prepare(root);
   const manifest = JSON.parse(
-    await readFile(join(result.dir, "manifest.json"), "utf8"),
+    await readFile(join(prepared.dir, "manifest.json"), "utf8"),
   );
   assert.equal(manifest.request_id, "consultation-001");
-  assert.equal(manifest.digest, result.digest);
-  assert.ok(manifest.contents.some((p: string) => p.includes("EEqn.H")));
-  assert.ok(manifest.contents.some((p: string) => p.includes("fvSchemes")));
-  const question = await readFile(join(result.dir, "QUESTION.md"), "utf8");
-  assert.ok(question.includes("OBSERVATION E1"));
-  assert.ok(question.includes("WORKER HYPOTHESIS H1"));
-  assert.ok(question.includes("NOT YET ESTABLISHED N1"));
+  assert.equal(manifest.digest, prepared.digest);
+  assert.equal(manifest.digest_scope, "all files except manifest.json");
+  // request.json is inside the digested payload.
+  const requestFile = JSON.parse(
+    await readFile(join(prepared.dir, "request.json"), "utf8"),
+  );
+  assert.equal(requestFile.requestId, "consultation-001");
+  const recomputed = await readRequestDigest(root);
+  assert.equal(recomputed, prepared.digest);
   await rm(root, { recursive: true, force: true });
 });
 
-test("only the supplied artifacts appear; nothing is invented", async () => {
-  const { root, caseDir, sourceDir, jobDir } = await makeRun();
-  const result = await prepareConsultation({
-    runRoot: root,
-    request: makeRequest(),
-    evidenceSources: [],
-    sourceExcerpts: [{ file: join(sourceDir, "solvers", "EEqn.H"), why: "why", dest: "solvers/EEqn.H" }],
-    caseInputs: [{ dir: caseDir, why: "why" }],
-  });
-  const manifest = JSON.parse(await readFile(join(result.dir, "manifest.json"), "utf8"));
-  // A file the request never authorised is not present.
-  assert.ok(!manifest.contents.some((p: string) => p.includes("secret")));
-  assert.ok(!manifest.contents.some((p: string) => p.includes("evaluator")));
+test("the digest changes when the structured request changes", async () => {
+  const root = await mkdtemp(join(tmpdir(), "consult-"));
+  const a = await prepare(root);
+  await rm(join(root, CONSULTATION_REQUEST_DIR), { recursive: true, force: true });
+  const altered = makeRequest();
+  altered.question = "a different question";
+  const b = await prepare(root, altered);
+  assert.notEqual(a.digest, b.digest);
   await rm(root, { recursive: true, force: true });
 });
 
-test("missing scientific evidence is recorded as missing, not invented", async () => {
-  const { root } = await makeRun();
-  const request = makeRequest();
-  // The request cites a job whose directory does not exist. Preparation must
-  // fail loudly rather than ship a briefing that implies evidence it lacks.
+test("an existing request is not silently replaced", async () => {
+  const root = await mkdtemp(join(tmpdir(), "consult-"));
+  const first = await prepare(root);
   await assert.rejects(
-    () =>
-      prepareConsultation({
-        runRoot: root,
-        request,
-        evidenceSources: [{ dir: join(root, "no-such-job"), why: "the failing job", dest: "job-1" }],
-        sourceExcerpts: [],
-        caseInputs: [],
-      }),
-    /ENOENT|no such file/i,
+    () => prepare(root),
+    /a request already exists/,
   );
+  // The original briefing survives intact.
+  const question = await readFile(join(first.dir, "QUESTION.md"), "utf8");
+  assert.ok(question.includes("Is the small temperature difference"));
   await rm(root, { recursive: true, force: true });
 });
 
-test("recordResponse binds an answer to the request it belongs to", async () => {
-  const { root, caseDir, jobDir } = await makeRun();
-  const request = makeRequest();
-  const prepared = await prepareConsultation({
-    runRoot: root,
-    request,
-    evidenceSources: [],
-    sourceExcerpts: [],
-    caseInputs: [{ dir: caseDir, why: "the case" }],
-  });
-  const response: AdvisorResponse = {
-    requestId: "consultation-001",
-    answerText: "The case needs per-species scheme entries. Add them as follows...",
-    provider: "web chat",
-    displayedModel: "Advisor Preview",
-    toolsUsed: [],
-    humanContribution: "transported an unchanged response",
-    receivedAt: "2026-09-16T12:30:00.000Z",
-  };
-  await recordResponse({ runRoot: root, response, requestDigest: prepared.digest });
-  const answer = await readFile(
-    join(root, CONSULTATION_RESPONSE_DIR, "original-answer.md"),
-    "utf8",
-  );
-  assert.equal(answer, response.answerText);
+test("a superseding request becomes a numbered revision linked to the prior digest", async () => {
+  const root = await mkdtemp(join(tmpdir(), "consult-"));
+  const first = await prepare(root);
+  const altered = makeRequest();
+  altered.question = "a narrowed follow-up question";
+  const second = await prepare(root, altered, true);
+  assert.equal(second.revision, 2);
+  assert.ok(second.dir.endsWith("request-r2"));
+  const manifest = JSON.parse(await readFile(join(second.dir, "manifest.json"), "utf8"));
+  assert.equal(manifest.revision, 2);
+  assert.equal(manifest.supersedes_digest, first.digest);
+  const active = await activeRequestDir(root);
+  assert.equal(active?.revision, 2);
+  assert.equal(active?.digest, second.digest);
   await rm(root, { recursive: true, force: true });
 });
 
-test("a response for a different request package is rejected", async () => {
-  const { root, caseDir, jobDir } = await makeRun();
-  const prepared = await prepareConsultation({
+test("a response binds to the request payload, recomputed from bytes", async () => {
+  const root = await mkdtemp(join(tmpdir(), "consult-"));
+  const prepared = await prepare(root);
+  const { responseId } = await recordResponse({
     runRoot: root,
-    request: makeRequest(),
-    evidenceSources: [],
-    sourceExcerpts: [],
-    caseInputs: [{ dir: caseDir, why: "the case" }],
+    response: makeResponse(prepared.digest),
   });
-  const response: AdvisorResponse = {
-    requestId: "consultation-001",
-    answerText: "answer",
-    provider: "web chat",
-    displayedModel: "Advisor Preview",
-    toolsUsed: [],
-    humanContribution: "transported an unchanged response",
-    receivedAt: "2026-09-16T12:30:00.000Z",
-  };
+  assert.equal(responseId, "r1");
+  const meta = JSON.parse(
+    await readFile(join(root, "response", "r1", "metadata.json"), "utf8"),
+  );
+  assert.equal(meta.request_id, "consultation-001");
+  assert.equal(meta.request_digest, prepared.digest);
+  await rm(root, { recursive: true, force: true });
+});
+
+test("a response whose digest does not match the payload is refused", async () => {
+  const root = await mkdtemp(join(tmpdir(), "consult-"));
+  await prepare(root);
   await assert.rejects(
-    () => recordResponse({ runRoot: root, response, requestDigest: "not-the-right-digest" }),
-    ConsultationError,
+    () => recordResponse({ runRoot: root, response: makeResponse("not-the-right-digest") }),
+    /re-hashed and the digest differs/,
+  );
+  assert.deepEqual(await listResponses(root), []);
+  await rm(root, { recursive: true, force: true });
+});
+
+test("tampering with the request payload after preparation invalidates the digest", async () => {
+  const root = await mkdtemp(join(tmpdir(), "consult-"));
+  const prepared = await prepare(root);
+  await writeFile(
+    join(prepared.dir, "source-excerpts", "realFluidReactingFoam", "EEqn.H"),
+    "tampered contents\n",
+  );
+  await assert.rejects(
+    () => recordResponse({ runRoot: root, response: makeResponse(prepared.digest) }),
+    /re-hashed and the digest differs/,
   );
   await rm(root, { recursive: true, force: true });
 });
 
-test("recordResponse refuses to overwrite an existing answer", async () => {
-  const { root, caseDir, jobDir } = await makeRun();
-  const prepared = await prepareConsultation({
-    runRoot: root,
-    request: makeRequest(),
-    evidenceSources: [],
-    sourceExcerpts: [],
-    caseInputs: [{ dir: caseDir, why: "the case" }],
-  });
-  const first: AdvisorResponse = {
-    requestId: "consultation-001",
-    answerText: "first answer",
-    provider: "web chat",
-    displayedModel: "Advisor Preview",
-    toolsUsed: [],
-    humanContribution: "transported an unchanged response",
-    receivedAt: "2026-09-16T12:30:00.000Z",
-  };
-  await recordResponse({ runRoot: root, response: first, requestDigest: prepared.digest });
-  // A second answer for the same request must not silently replace the first.
-  const raw = await readFile(join(root, CONSULTATION_RESPONSE_DIR, "original-answer.md"), "utf8");
-  assert.equal(raw, "first answer");
+test("a response for a different request id is refused", async () => {
+  const root = await mkdtemp(join(tmpdir(), "consult-"));
+  const prepared = await prepare(root);
+  const wrong = makeResponse(prepared.digest, { requestId: "some-other-request" });
+  await assert.rejects(
+    () => recordResponse({ runRoot: root, response: wrong }),
+    /does not match the active request/,
+  );
   await rm(root, { recursive: true, force: true });
 });
 
-test("a decision flags staleness when the solver or case changed", async () => {
-  const { root, caseDir, jobDir } = await makeRun();
-  const request = makeRequest();
-  const prepared = await prepareConsultation({
-    runRoot: root,
-    request,
-    evidenceSources: [],
-    sourceExcerpts: [],
-    caseInputs: [{ dir: caseDir, why: "the case" }],
+test("an external response must record a conversation reference", async () => {
+  const root = await mkdtemp(join(tmpdir(), "consult-"));
+  const prepared = await prepare(root);
+  const noRef = makeResponse(prepared.digest, {
+    mode: "external_web_manual",
+    conversationRef: "",
   });
-  const changed: ConsultationState = makeState("different".padEnd(16, "0"), request.state.caseDigest);
+  await assert.rejects(
+    () => recordResponse({ runRoot: root, response: noRef }),
+    /must record a conversation reference/,
+  );
+  const withRef = makeResponse(prepared.digest, {
+    mode: "external_web_manual",
+    conversationRef: "https://chat.openai.com/c/abc123",
+  });
+  const { responseId } = await recordResponse({ runRoot: root, response: withRef });
+  assert.equal(responseId, "r1");
+  await rm(root, { recursive: true, force: true });
+});
+
+test("a second response is numbered, never an overwrite", async () => {
+  const root = await mkdtemp(join(tmpdir(), "consult-"));
+  const prepared = await prepare(root);
+  await recordResponse({
+    runRoot: root,
+    response: makeResponse(prepared.digest, { answerText: "first answer" }),
+  });
+  const second = await recordResponse({
+    runRoot: root,
+    response: makeResponse(prepared.digest, { answerText: "second answer" }),
+  });
+  assert.equal(second.responseId, "r2");
+  assert.deepEqual(await listResponses(root), ["r1", "r2"]);
+  const first = await readFile(join(root, "response", "r1", "original-answer.md"), "utf8");
+  assert.ok(first.startsWith("first answer"));
+  const later = await readFile(join(root, "response", "r2", "original-answer.md"), "utf8");
+  assert.ok(later.startsWith("second answer"));
+  await rm(root, { recursive: true, force: true });
+});
+
+test("unmeasured state is recorded as unmeasured, not as fresh", async () => {
+  const root = await mkdtemp(join(tmpdir(), "consult-"));
+  const prepared = await prepare(root);
+  const { responseId } = await recordResponse({
+    runRoot: root,
+    response: makeResponse(prepared.digest),
+  });
   const decision = await recordDecision({
     runRoot: root,
     decision: {
       requestId: "consultation-001",
+      responseId,
       disposition: "admit",
       outcome: "propose_experiment",
       rationale: "the evidence supports a configuration gap",
       experimentPlan: null,
       deviations: [],
     },
-    currentState: async () => changed,
+    currentState: null,
   });
-  assert.equal(decision.stale, true);
+  assert.equal(decision.freshness, "unmeasured");
   await rm(root, { recursive: true, force: true });
 });
 
-test("a decision against an unchanged state is not stale", async () => {
-  const { root, caseDir, jobDir } = await makeRun();
+test("a changed solver state is stale; an unchanged one is fresh", async () => {
+  const root = await mkdtemp(join(tmpdir(), "consult-"));
   const request = makeRequest();
-  await prepareConsultation({
+  const prepared = await prepare(root, request);
+  const { responseId } = await recordResponse({
     runRoot: root,
-    request,
-    evidenceSources: [],
-    sourceExcerpts: [],
-    caseInputs: [{ dir: caseDir, why: "the case" }],
+    response: makeResponse(prepared.digest),
   });
+  const changed = makeState("different".padEnd(16, "0"), request.state.caseDigest);
+  const stale = await recordDecision({
+    runRoot: root,
+    decision: {
+      requestId: "consultation-001",
+      responseId,
+      disposition: "admit",
+      outcome: "propose_experiment",
+      rationale: "x",
+      experimentPlan: null,
+      deviations: [],
+    },
+    currentState: async () => changed,
+  });
+  assert.equal(stale.freshness, "stale");
+
+  const fresh = await recordDecision({
+    runRoot: root,
+    decision: {
+      requestId: "consultation-001",
+      responseId,
+      disposition: "admit",
+      outcome: "recommend_bounded_change",
+      rationale: "x",
+      experimentPlan: null,
+      deviations: [],
+    },
+    currentState: async () => request.state,
+  });
+  assert.equal(fresh.freshness, "fresh");
+  await rm(root, { recursive: true, force: true });
+});
+
+test("an unchanged executable with different libraries is stale", async () => {
+  const root = await mkdtemp(join(tmpdir(), "consult-"));
+  const request = makeRequest();
+  const prepared = await prepare(root, request);
+  const { responseId } = await recordResponse({
+    runRoot: root,
+    response: makeResponse(prepared.digest),
+  });
+  const swapped: ConsultationState = {
+    ...request.state,
+    libraryFiles: [
+      { path: "/opt/of8/lib/libspecie.so", digest: "a-different-libspecie" },
+    ],
+  };
   const decision = await recordDecision({
     runRoot: root,
     decision: {
       requestId: "consultation-001",
+      responseId,
       disposition: "admit",
-      outcome: "recommend_bounded_change",
-      rationale: "the change is bounded and within the contract",
+      outcome: "propose_experiment",
+      rationale: "x",
       experimentPlan: null,
       deviations: [],
     },
-    currentState: async () => makeState(request.state.solverDigest, request.state.caseDigest),
+    currentState: async () => swapped,
   });
-  assert.equal(decision.stale, false);
+  assert.equal(decision.freshness, "stale");
+  await rm(root, { recursive: true, force: true });
+});
+
+test("a decision without any recorded response is refused", async () => {
+  const root = await mkdtemp(join(tmpdir(), "consult-"));
+  await prepare(root);
+  await assert.rejects(
+    () =>
+      recordDecision({
+        runRoot: root,
+        decision: {
+          requestId: "consultation-001",
+          responseId: "r1",
+          disposition: "admit",
+          outcome: "propose_experiment",
+          rationale: "x",
+          experimentPlan: null,
+          deviations: [],
+        },
+        currentState: null,
+      }),
+    /which is not recorded/,
+  );
+  await rm(root, { recursive: true, force: true });
+});
+
+test("a decision naming a nonexistent response is refused", async () => {
+  const root = await mkdtemp(join(tmpdir(), "consult-"));
+  const prepared = await prepare(root);
+  await recordResponse({ runRoot: root, response: makeResponse(prepared.digest) });
+  await assert.rejects(
+    () =>
+      recordDecision({
+        runRoot: root,
+        decision: {
+          requestId: "consultation-001",
+          responseId: "r9",
+          disposition: "admit",
+          outcome: "propose_experiment",
+          rationale: "x",
+          experimentPlan: null,
+          deviations: [],
+        },
+        currentState: null,
+      }),
+    /which is not recorded/,
+  );
   await rm(root, { recursive: true, force: true });
 });
 
 test("a rejection must state its rationale", async () => {
-  const { root, caseDir, jobDir } = await makeRun();
-  await prepareConsultation({
+  const root = await mkdtemp(join(tmpdir(), "consult-"));
+  const prepared = await prepare(root);
+  const { responseId } = await recordResponse({
     runRoot: root,
-    request: makeRequest(),
-    evidenceSources: [],
-    sourceExcerpts: [],
-    caseInputs: [{ dir: caseDir, why: "the case" }],
+    response: makeResponse(prepared.digest),
   });
   await assert.rejects(
     () =>
@@ -329,6 +454,7 @@ test("a rejection must state its rationale", async () => {
         runRoot: root,
         decision: {
           requestId: "consultation-001",
+          responseId,
           disposition: "reject",
           outcome: "requires_human_decision",
           rationale: "",
@@ -342,79 +468,206 @@ test("a rejection must state its rationale", async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-test("a decision is not recorded when no request exists", async () => {
-  const root = await mkdtemp(join(tmpdir(), "consult-"));
-  await assert.rejects(
-    () =>
-      recordDecision({
-        runRoot: root,
-        decision: {
-          requestId: "consultation-001",
-          disposition: "admit",
-          outcome: "propose_experiment",
-          rationale: "x",
-          experimentPlan: null,
-          deviations: [],
-        },
-        currentState: null,
-      }),
-    /no consultation request/,
-  );
-  await rm(root, { recursive: true, force: true });
-});
-
 test("an admitted plan is written separately from the original answer", async () => {
-  const { root, caseDir, jobDir } = await makeRun();
-  const prepared = await prepareConsultation({
+  const root = await mkdtemp(join(tmpdir(), "consult-"));
+  const prepared = await prepare(root);
+  const { responseId } = await recordResponse({
     runRoot: root,
-    request: makeRequest(),
-    evidenceSources: [],
-    sourceExcerpts: [],
-    caseInputs: [{ dir: caseDir, why: "the case" }],
-  });
-  await recordResponse({
-    runRoot: root,
-    response: {
-      requestId: "consultation-001",
-      answerText: "a substantive analysis",
-      provider: "web chat",
-      displayedModel: "Advisor Preview",
-      toolsUsed: [],
-      humanContribution: "transported an unchanged response",
-      receivedAt: "2026-09-16T12:30:00.000Z",
-    },
-    requestDigest: prepared.digest,
+    response: makeResponse(prepared.digest),
   });
   await recordDecision({
     runRoot: root,
     decision: {
       requestId: "consultation-001",
+      responseId,
       disposition: "admit",
       outcome: "propose_experiment",
       rationale: "the experiment discriminates between the two hypotheses",
       experimentPlan: {
-        summary: "add the missing scheme entries in a disposable case copy and run briefly",
-        steps: ["copy the case", "add the entries", "run to a truncated end time"],
+        summary: "add the missing scheme entries in a disposable case copy",
+        steps: ["copy the case", "add the entries", "run briefly"],
         expectedObservations: [
           { hypothesisId: "H1", ifTrue: "the solver integrates", ifFalse: "it fails elsewhere" },
         ],
         prerequisites: ["the case copy is disposable"],
         risks: ["the entries may not be the only gap"],
-        stoppingConditions: ["the solver reaches the truncated end time", "any new fatal error"],
-        derivedFrom: "consultation-001 response",
+        stoppingConditions: ["the solver reaches the truncated end time"],
+        derivedFrom: "r1",
       },
-      deviations: ["the requested diagnostic was unavailable, so a shorter probe was used"],
+      deviations: ["the requested diagnostic was unavailable"],
     },
     currentState: null,
   });
   const plan = JSON.parse(
     await readFile(join(root, CONSULTATION_DECISION_DIR, "experiment-plan.json"), "utf8"),
   );
-  assert.equal(plan.derivedFrom, "consultation-001 response");
-  assert.equal(plan.expectedObservations[0].hypothesisId, "H1");
-  // The original answer remains intact and separate.
-  const answer = await readFile(join(root, CONSULTATION_RESPONSE_DIR, "original-answer.md"), "utf8");
-  assert.equal(answer, "a substantive analysis");
+  assert.equal(plan.derivedFrom, "r1");
+  const answer = await readFile(join(root, "response", "r1", "original-answer.md"), "utf8");
+  assert.ok(answer.startsWith("The case needs per-species scheme entries"));
+  await rm(root, { recursive: true, force: true });
+});
+
+test("missing evidence is missing, not invented", async () => {
+  const root = await mkdtemp(join(tmpdir(), "consult-"));
+  await mkdir(root, { recursive: true });
+  await assert.rejects(
+    () =>
+      prepareConsultation({
+        runRoot: root,
+        request: makeRequest(),
+        evidenceSources: [{ dir: join(root, "no-such-job"), why: "why", dest: "job-1" }],
+        sourceExcerpts: [],
+        caseInputs: [],
+      }),
+    /evidence source does not exist/,
+  );
+  await rm(root, { recursive: true, force: true });
+});
+
+test("attachments that normalize to the same destination are refused", async () => {
+  const root = await mkdtemp(join(tmpdir(), "consult-"));
+  const { caseDir, sourceDir } = await locate(root);
+  await assert.rejects(
+    () =>
+      prepareConsultation({
+        runRoot: root,
+        request: makeRequest(),
+        evidenceSources: [],
+        sourceExcerpts: [
+          {
+            file: join(sourceDir, "solvers", "EEqn.H"),
+            why: "first",
+            dest: "target/EEqn.H",
+          },
+          {
+            file: join(sourceDir, "solvers", "EEqn.H"),
+            why: "second",
+            dest: "target/sub/../EEqn.H",
+          },
+        ],
+        caseInputs: [{ dir: caseDir, why: "the case" }],
+      }),
+    /resolve to the same destination/,
+  );
+  await rm(root, { recursive: true, force: true });
+});
+
+test("a destination that escapes the request package is refused", async () => {
+  const root = await mkdtemp(join(tmpdir(), "consult-"));
+  const { caseDir, sourceDir } = await locate(root);
+  await assert.rejects(
+    () =>
+      prepareConsultation({
+        runRoot: root,
+        request: makeRequest(),
+        evidenceSources: [],
+        sourceExcerpts: [
+          {
+            file: join(sourceDir, "solvers", "EEqn.H"),
+            why: "why",
+            dest: "../../outside/EEqn.H",
+          },
+        ],
+        caseInputs: [{ dir: caseDir, why: "the case" }],
+      }),
+    /escapes the request package/,
+  );
+  await rm(root, { recursive: true, force: true });
+});
+
+test("a symlink in a selected directory is refused", async () => {
+  const root = await mkdtemp(join(tmpdir(), "consult-"));
+  const { caseDir } = await locate(root);
+  const target = join(root, "secrets.env");
+  await writeFile(target, "GATEWAY_TOKEN=never-export-this\n");
+  const linked = join(caseDir, "linked.env");
+  try {
+    await symlink(target, linked);
+  } catch {
+    // exFAT cannot create symlinks; the check is exercised where the platform allows it.
+    await rm(root, { recursive: true, force: true });
+    return;
+  }
+  await assert.rejects(
+    () =>
+      prepareConsultation({
+        runRoot: root,
+        request: makeRequest(),
+        evidenceSources: [{ dir: caseDir, why: "the case", dest: "case" }],
+        sourceExcerpts: [],
+        caseInputs: [],
+      }),
+    /refusing to export a symlink/,
+  );
+  await rm(root, { recursive: true, force: true });
+});
+
+test("a credential inside a selected directory is excluded and listed", async () => {
+  const root = await mkdtemp(join(tmpdir(), "consult-"));
+  const { sourceDir } = await locate(root);
+  const jobDir = join(root, "runs", "job-1");
+  await mkdir(jobDir, { recursive: true });
+  await writeFile(join(jobDir, "log.react"), "Time = 0.002\nEnd\n");
+  await writeFile(join(jobDir, ".env"), "GATEWAY_TOKEN=never-export-this\n");
+  await writeFile(join(jobDir, "credentials.json"), '{"token":"never-export-this"}\n');
+  const prepared = await prepareConsultation({
+    runRoot: root,
+    request: makeRequest(),
+    evidenceSources: [{ dir: jobDir, why: "the failing job's log", dest: "job-1" }],
+    sourceExcerpts: [
+      {
+        file: join(sourceDir, "solvers", "EEqn.H"),
+        why: "why",
+        dest: "realFluidReactingFoam/EEqn.H",
+      },
+    ],
+    caseInputs: [],
+  });
+  // The denied files were not exported...
+  const exported = await readFile(join(prepared.dir, "manifest.json"), "utf8");
+  const manifest = JSON.parse(exported);
+  assert.ok(!manifest.contents.some((p: string) => p.endsWith(".env")));
+  assert.ok(!manifest.contents.some((p: string) => p.endsWith("credentials.json")));
+  // ...and their exclusion is visible in the manifest, not silent.
+  const deniedNames = manifest.denied.map((d: { source: string }) => d.source);
+  assert.ok(deniedNames.some((n: string) => n.endsWith(".env")));
+  assert.ok(deniedNames.some((n: string) => n.endsWith("credentials.json")));
+  await rm(root, { recursive: true, force: true });
+});
+
+test("a reviewed allow-name exception overrides the deny policy", async () => {
+  const root = await mkdtemp(join(tmpdir(), "consult-"));
+  const { sourceDir } = await locate(root);
+  const jobDir = join(root, "runs", "job-1");
+  await mkdir(jobDir, { recursive: true });
+  await writeFile(join(jobDir, "log.react"), "Time = 0.002\nEnd\n");
+  await writeFile(join(jobDir, "secret-share.md"), "a reviewed, deliberately shared note\n");
+  const prepared = await prepareConsultation({
+    runRoot: root,
+    request: makeRequest(),
+    evidenceSources: [{ dir: jobDir, why: "the log", dest: "job-1" }],
+    sourceExcerpts: [
+      {
+        file: join(sourceDir, "solvers", "EEqn.H"),
+        why: "why",
+        dest: "realFluidReactingFoam/EEqn.H",
+      },
+    ],
+    caseInputs: [],
+    policy: { allowNames: ["secret-share.md"] },
+  });
+  const manifest = JSON.parse(await readFile(join(prepared.dir, "manifest.json"), "utf8"));
+  assert.ok(manifest.contents.some((p: string) => p.endsWith("secret-share.md")));
+  await rm(root, { recursive: true, force: true });
+});
+
+test("readRequest round-trips the request", async () => {
+  const root = await mkdtemp(join(tmpdir(), "consult-"));
+  await prepare(root);
+  const back = await readRequest(root);
+  assert.equal(back?.requestId, "consultation-001");
+  assert.equal(back?.contract.forbiddenChanges.length, 2);
+  assert.equal(back?.state.libraryFiles.length, 1);
   await rm(root, { recursive: true, force: true });
 });
 
@@ -424,77 +677,24 @@ test("readRequestDigest is null when nothing was asked", async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-test("readRequest round-trips the request", async () => {
-  const { root, caseDir, jobDir } = await makeRun();
-  const request = makeRequest();
-  await prepareConsultation({
-    runRoot: root,
-    request,
-    evidenceSources: [],
-    sourceExcerpts: [],
-    caseInputs: [{ dir: caseDir, why: "the case" }],
-  });
-  const back = await readRequest(root);
-  assert.equal(back?.requestId, "consultation-001");
-  assert.equal(back?.contract.forbiddenChanges.length, 3);
-  await rm(root, { recursive: true, force: true });
-});
-
 test("digestPath is stable for identical content", async () => {
   const root = await mkdtemp(join(tmpdir(), "consult-"));
-  await mkdir(root, { recursive: true });
   await writeFile(join(root, "a.txt"), "content\n");
   const a = await digestPath(root);
   const b = await digestPath(root);
   assert.equal(a, b);
   await writeFile(join(root, "a.txt"), "different content\n");
-  const c = await digestPath(root);
-  assert.notEqual(a, c);
+  assert.notEqual(a, await digestPath(root));
   await rm(root, { recursive: true, force: true });
 });
 
 test("no advisor response means the consultation stays pending", async () => {
-  const { root, caseDir, jobDir } = await makeRun();
-  await prepareConsultation({
-    runRoot: root,
-    request: makeRequest(),
-    evidenceSources: [],
-    sourceExcerpts: [],
-    caseInputs: [{ dir: caseDir, why: "the case" }],
-  });
-  // No response recorded. The request exists and the response directory does
-  // not: "no answer" is not the same outcome as "no change needed".
+  const root = await mkdtemp(join(tmpdir(), "consult-"));
+  await prepare(root);
   const back = await readRequest(root);
   assert.equal(back?.requestId, "consultation-001");
-  await assert.rejects(
-    () => readFile(join(root, CONSULTATION_RESPONSE_DIR, "original-answer.md")),
-    /ENOENT/,
-  );
+  assert.deepEqual(await listResponses(root), []);
   await rm(root, { recursive: true, force: true });
 });
 
-test("two excerpts with the same destination fail loudly rather than overwrite", async () => {
-  const { root, sourceDir, caseDir } = await makeRun();
-  // The real defect this guards: realFluidReactingFoam/EEqn.H and
-  // reactingFoam/EEqn.H have the same basename. Flattening both to
-  // source-excerpts/EEqn.H shipped the second under a manifest entry
-  // written for the first, and the briefing became self-contradictory.
-  const target = join(sourceDir, "solvers", "EEqn.H");
-  const other = join(sourceDir, "solvers", "other-EEqn.H");
-  await writeFile(other, "the comparison equation, without the species term\n");
-  await assert.rejects(
-    () =>
-      prepareConsultation({
-        runRoot: root,
-        request: makeRequest(),
-        evidenceSources: [],
-        sourceExcerpts: [
-          { file: target, why: "the term that fails", dest: "EEqn.H" },
-          { file: other, why: "for comparison", dest: "EEqn.H" },
-        ],
-        caseInputs: [{ dir: caseDir, why: "the case" }],
-      }),
-    /two source excerpts share the destination EEqn.H/,
-  );
-  await rm(root, { recursive: true, force: true });
-});
+void createHash;

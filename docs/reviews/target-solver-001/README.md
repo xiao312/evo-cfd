@@ -4,9 +4,10 @@
 configured case, and what is the smallest defensible set of case changes required to
 exercise its intended equations?
 
-**Status: closed by experiment.** Two per-species `div` scheme entries in `fvSchemes`
-are sufficient. The target solver then integrates 200 time steps to the requested
-`endTime` with the Peng-Robinson property path and a normal `End`.
+**Status: closed by experiment.** The observed startup failure was caused by missing
+per discretization entries; adding them was sufficient for this short test to complete.
+That does not rule out defects elsewhere in the solver, and it does not establish that
+the entries are the only change a full reacting MASCOTTE case would need.
 
 ## Why this was not obvious
 
@@ -52,17 +53,20 @@ species: the case carries O2 (active) and N2 (inert).
 
 ## What the result establishes
 
-- The gap was **configuration**, not unsupported physics and not an implementation
-  defect. Hypothesis H1 is supported; H2 (the target solver needs additional case
-  structure beyond scheme entries) is not supported; no defect appeared over this window.
+- The observed startup failure was caused by missing discretization entries, and
+  adding them was sufficient for this short test to complete. It does not rule out
+  defects elsewhere in the solver.
 - The Peng-Robinson property path is exercised, not merely selected:
   `PRchungKineticMixture`, `PengRobinson`, `chungKinetic`, `rfJanaf`, `rfSpecie`,
   `PRchungKineticStandardChemistryModel`.
 - Against the package's own `reactingFoam` on the same case (`cfd-job-001`), the last
-  sampled max T is 368.475 K against 368.537 K. The two solvers do not diverge over
-  200 steps, and the 0.06 K difference is in the rough direction expected of the
-  species-diffusion enthalpy flux terms that the target solver carries. **It is not
-  established here that the difference is that term** — only that the runs agree.
+  sampled max T is 368.475 K against 368.537 K — a difference of about 0.06 K. The two
+  solvers do not diverge over 200 steps. **The direction and magnitude of this
+  difference are not established as the expected effect of any particular term.** The
+  comparison changes solver implementations in three coupled places — the
+  species-diffusion enthalpy flux terms, the replaced heat-flux closure, and the
+  mixture-averaged diffusion correction in the species equation — and it compares two
+  scalar extrema rather than the full temperature fields.
 
 ## Caveats, stated as caveats
 

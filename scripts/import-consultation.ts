@@ -6,32 +6,37 @@
  * separately: an advisor may propose changing a boundary condition or a
  * physical assumption, but proposing it does not authorise it.
  *
+ * The mode is not a label. `self_review` is a local integration test;
+ * `external_web_manual` is a genuine external consultation carried by a human;
+ * `external_api` is an official API call. They are different evidence about
+ * different hypotheses, and an external mode requires a conversation reference
+ * the operator can resolve. There is deliberately no route by which an
+ * unavailable external advisor falls back to the executor while still being
+ * recorded as a successful external consultation.
+ *
  * Usage:
  *   node scripts/import-consultation.ts <run-root> <answer-file> \
- *     --provider "..." --model "..." [--human "..."]
+ *     --mode external_web_manual --provider "ChatGPT" --model "GPT-5" \
+ *     --conversation-ref "https://chat.openai.com/c/abc" [--human "..."]
  *
- * The answer file is the advisor's response text. The provider, displayed model
- * and human-contribution fields are recorded as metadata, because "the model
- * that was shown" and "what the human added" are both part of the scientific
- * record and neither can be reconstructed later.
+ * The freshness check re-measures the state recorded in the *request* itself,
+ * not a hard-coded path, so the importer is not tied to one case.
  */
 import { join } from "node:path";
-import { readFile, stat } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { argv, exit } from "node:process";
 
 import {
+  activeRequestDir,
+  digestPath,
   readRequest,
-  readRequestDigest,
   recordDecision,
   recordResponse,
+  type AdvisorMode,
   type AdvisorResponse,
   type ConsultationState,
 } from "../packages/controller/src/consultation.ts";
-import { digestPath } from "../packages/controller/src/consultation.ts";
-
-const SOLVER_ROOT = process.env.EVOCFD_SOLVER_ROOT ?? "/data2/kexiao/of8";
-const SOLVER = join(SOLVER_ROOT, "rf-profile", "bin", "realFluidReactingFoam");
-const CASE_SOURCE = join(SOLVER_ROOT, "rf-cases", "1D_advection");
 
 function arg(name: string): string | undefined {
   const i = argv.indexOf(name);
@@ -39,7 +44,6 @@ function arg(name: string): string | undefined {
 }
 
 async function sha256(file: string): Promise<string> {
-  const { createHash } = await import("node:crypto");
   return createHash("sha256").update(await readFile(file)).digest("hex");
 }
 
@@ -48,18 +52,18 @@ async function main(): Promise<void> {
   const answerFile = argv[3];
   if (!runRoot || !answerFile) {
     console.error(
-      "usage: import-consultation.ts <run-root> <answer-file> --provider <p> --model <m> [--human <h>]",
+      "usage: import-consultation.ts <run-root> <answer-file> --mode <m> --provider <p> --model <m> [--conversation-ref <url>] [--human <h>]",
     );
     exit(2);
   }
-  const request = await readRequest(runRoot);
-  if (!request) {
+  const active = await activeRequestDir(runRoot);
+  if (!active) {
     console.error(`no consultation request at ${runRoot}; prepare one first`);
     exit(1);
   }
-  const digest = await readRequestDigest(runRoot);
-  if (!digest) {
-    console.error(`no request digest at ${runRoot}`);
+  const request = await readRequest(runRoot);
+  if (!request) {
+    console.error(`the active request at ${active.dir} has no readable request.json`);
     exit(1);
   }
 
@@ -75,50 +79,83 @@ async function main(): Promise<void> {
     exit(1);
   }
 
+  const mode = (arg("--mode") ?? "self_review") as AdvisorMode;
   const provider = arg("--provider") ?? "unknown";
   const displayedModel = arg("--model") ?? "unknown";
+  const conversationRef = arg("--conversation-ref") ?? "";
   const toolsUsed = arg("--tools") ? arg("--tools")!.split(",") : [];
   const humanContribution =
     arg("--human") ??
-    "not stated; treat the response as transported, and record any added guidance separately";
+    (mode === "self_review"
+      ? "same-model self-review; no external participation"
+      : "operator-attested transport; the metadata records what was displayed, not a proof of backend identity");
 
+  // The digest the exporter measured, taken from the request package and
+  // re-hashed on import. This is what binds the answer to bytes.
   const response: AdvisorResponse = {
     requestId: request.requestId,
     answerText,
+    mode,
     provider,
     displayedModel,
     toolsUsed,
+    conversationRef,
     humanContribution,
+    requestDigest: active.digest,
     receivedAt: new Date().toISOString(),
   };
 
-  await recordResponse({ runRoot, response, requestDigest: digest });
-  console.log(`ok response recorded for ${request.requestId}`);
-  console.log(`   provider ${provider}, displayed model ${displayedModel}`);
-  console.log(`   original answer ${join(runRoot, "response", "original-answer.md")}`);
+  const { responseId } = await recordResponse({ runRoot, response });
+  console.log(`ok response ${responseId} recorded for ${request.requestId}`);
+  console.log(`   mode ${mode}, provider ${provider}, displayed model ${displayedModel}`);
+  if (conversationRef) console.log(`   conversation ${conversationRef}`);
+  console.log(`   original answer ${join(runRoot, "response", responseId, "original-answer.md")}`);
 
-  // Staleness is measured, not assumed. Re-measure the state the request was
-  // bound against, so advice that arrives after the solver or case changed is
-  // flagged rather than silently applied.
+  // Freshness is measured, not assumed, and the paths come from the request's
+  // own recorded state. Where the solver or case cannot be reached the result
+  // is `unmeasured`, which is a different fact from `fresh`.
   let currentState: (() => Promise<ConsultationState>) | null = null;
+  const unreachable: string[] = [];
+  const measured: ConsultationState = {
+    ...request.state,
+    libraryFiles: [],
+    solverDigest: "",
+    caseDigest: "",
+  };
   try {
-    await stat(SOLVER);
-    currentState = async () => ({
-      solverExecutable: SOLVER,
-      solverDigest: await sha256(SOLVER),
-      caseDir: CASE_SOURCE,
-      caseDigest: await digestPath(CASE_SOURCE),
-      profileId: "of8-realfluid",
-      relatedRunIds: request.state.relatedRunIds,
-    });
+    measured.solverDigest = await sha256(request.state.solverExecutable);
   } catch {
-    console.log("   note: the solver is not reachable here, so staleness is not measured");
+    unreachable.push(request.state.solverExecutable);
+  }
+  try {
+    measured.caseDigest = await digestPath(request.state.caseDir);
+  } catch {
+    unreachable.push(request.state.caseDir);
+  }
+  const libraries = [];
+  for (const lib of request.state.libraryFiles ?? []) {
+    try {
+      libraries.push({ path: lib.path, digest: await sha256(lib.path) });
+    } catch {
+      unreachable.push(lib.path);
+    }
+  }
+  measured.libraryFiles = libraries;
+
+  if (unreachable.length > 0) {
+    console.log(`   note: could not measure ${unreachable.length} state path(s), so`);
+    console.log("         freshness will be recorded as unmeasured, not fresh:");
+    for (const p of unreachable) console.log(`           ${p}`);
+    currentState = null;
+  } else {
+    currentState = async () => measured;
   }
 
   await recordDecision({
     runRoot,
     decision: {
       requestId: request.requestId,
+      responseId,
       // The response is admitted as evidence, not as an instruction. Whether
       // it becomes an experiment is a separate decision the human makes next.
       disposition: "admit",
@@ -133,7 +170,7 @@ async function main(): Promise<void> {
   console.log(`ok decision recorded as admitted-pending-review at ${runRoot}`);
   console.log("");
   console.log("The response is an input, not a command. Decide what to execute next,");
-  console.log("and record the decision with the same request id.");
+  console.log("and record the decision with the same request and response id.");
 }
 
 await main();

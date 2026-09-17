@@ -7,8 +7,11 @@ contract, not a result.
 ## What this case is for
 
 - The loop improves the **harness, skills, numerics and models** — never model
-  weights. A change is only admitted when it is shown on this case, through the
-  controller's job-lifecycle primitive, and assessed from the solver's own log.
+  weights. This case is the application-level target for performance and
+  physical-validation claims; candidate admission and intermediate regression
+  testing may use smaller fixtures, and application validation uses execution
+  records, numerical fields and diagnostics, and the defined experimental
+  observation comparisons — not solver logs alone.
 - The physical contract is [`case-lock.yaml`](case-lock.yaml). Read it, and
   [`README.md`](README.md), before proposing or launching anything.
 - The evaluation evidence is [`evidence/`](evidence/). Treat literature, experiment
@@ -18,8 +21,11 @@ contract, not a result.
 ## Rules that are easy to break
 
 - **Never develop results in this directory.** Copy a case into a child attempt
-  directory and work there. The target stays byte-identical so every attempt starts
-  from one identifiable state.
+  directory and work there, and run  on the *child*, not on the target.
+  The target stays byte-identical so every attempt starts from one identifiable
+  state. Note that  hides the outputs of an in-place run from Git
+  status; that is housekeeping, not protection, and it does not undo a write.
+  EvoCFD's supported launcher refuses paths inside this tree.
 - **Run `./Allcheck` before creating an attempt.** It checks that required fields and
   dictionaries exist and that the mesh still passes `checkMesh`.
 - **Change only entries marked `tunable`** in `case-lock.yaml`. A proposed geometry or

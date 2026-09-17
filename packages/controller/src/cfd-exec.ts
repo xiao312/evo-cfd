@@ -24,12 +24,23 @@ import type {
   SolverProfile,
 } from "./cfd-job.ts";
 
-/** Serialises a plan so its digest identifies it. */
+/**
+ * Serialises a plan so its digest identifies it.
+ *
+ * The digest must cover the whole runtime identity, not only the executable.
+ * Sourcing the env file is what selects the library set, and the package ships
+ * libraries with stock-identical SONAMES, so a plan that records only the
+ * executable does not record which physics it resolves. The library order and
+ * the libraries expected from the profile are part of the plan's identity.
+ */
 export function planDigest(plan: CfdJobPlan): string {
   const stable = JSON.stringify({
     jobId: plan.jobId,
     executable: plan.profile.executable,
     executableSha256: plan.profile.executableSha256,
+    envFile: plan.profile.envFile,
+    libraryPaths: plan.profile.libraryPaths,
+    expectedProfileLibraries: plan.profile.expectedProfileLibraries,
     caseDir: plan.caseDir,
     args: plan.args,
     budgetSeconds: plan.budgetSeconds,

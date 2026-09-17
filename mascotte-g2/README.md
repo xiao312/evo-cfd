@@ -14,6 +14,14 @@ directory, never by developing results here.
 
 EvoCFD's five layers are: LLM (used as-is), agent and harness, CFD solver, physical
 and numerical models, and **case and evaluation**. This directory is the fifth layer.
+
+This is the **application-level** target for performance and physical-validation
+claims. It is not a gate on every experiment: candidate admission and intermediate
+regression testing may use smaller fixtures, and valid improvements unrelated to
+this case are not excluded by it. Application validation uses execution records,
+numerical fields and diagnostics, and the defined experimental observation
+comparisons in [`evidence/`](evidence/) — not solver logs alone.
+
 Concretely:
 
 - The solver is the pinned `realFluidFoam-8` package built with isolated outputs
@@ -22,25 +30,40 @@ Concretely:
   what is tunable, and what may never appear in the target.
 - The evaluation evidence is [`evidence/`](evidence/): digitized experimental and
   paper fields, rights metadata, and the required result bundle.
-- A trial that claims to have improved the harness or the numerics must show it on
-  this case, through the controller's job-lifecycle primitive, and be assessed from
-  the solver's own log rather than from an assertion.
+- A claim that matters is shown here, through the controller's job-lifecycle primitive,
+  and assessed from measurements rather than from an assertion.
 
 ## Intended use
 
-1. Treat [`case-lock.yaml`](case-lock.yaml) as the physical contract.
-2. Run `./Allcheck` before creating an attempt.
-3. Copy a case directory to a new run directory. Never develop results in the target.
-4. Change only entries marked `tunable`. Any proposed geometry or experimental-BC
-   change creates a new target version and requires a written rationale.
-5. Keep large results outside this directory and record their lineage separately.
+The imported `Allrun` and `Allcheck` are retained as imported artifacts and are the
+reference for how the package expects to be launched. **Do not run them against this
+directory.** `Allcheck` writes `checkMesh.current.log` into the case it checks, and
+`Allrun` decomposes the case and writes solver results into it. `.gitignore` hides
+those outputs from Git status, which is housekeeping, not protection: ignore rules do
+not prevent filesystem writes, and an ignored file is still a modified target.
 
-Select the agile variant:
+The correct workflow is to materialize a child attempt and run there:
 
-```bash
-CASE_DIR="$PWD/cases/agile-80mm" ./Allcheck
-CASE_DIR="$PWD/cases/agile-80mm" NP=16 ./Allrun
+```text
+select the pinned target revision
+    -> copy only the admitted inputs into a new child attempt directory
+    -> verify the copied inputs against the manifest
+    -> run Allcheck on the child
+    -> apply the documented attempt changes
+    -> execute the child
 ```
+
+EvoCFD's supported launcher (`scripts/prepare-mascotte-attempt.ts`) does this: it
+refuses paths inside this tree, derives the per-species scheme entries from the
+selected mechanism, checks decomposition against the MPI rank count, and records the
+imported reference executable alongside the selected attempt executable.
+
+Within a child, the case contract still applies:
+
+1. Treat [`case-lock.yaml`](case-lock.yaml) as the physical contract.
+2. Change only entries marked `tunable`. Any proposed geometry or experimental-BC
+   change creates a new target version and requires a written rationale.
+3. Keep large results outside this directory and record their lineage separately.
 
 ## Which executable to run
 
