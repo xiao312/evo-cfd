@@ -237,8 +237,10 @@ async function main(): Promise<void> {
   let fvSchemes = await readFile(fvSchemesPath, "utf8");
   const needed = species.filter((s) => !fvSchemes.includes(`hei_${s}`));
   if (needed.length > 0) {
-    const anchor = "    div(((rho*nuEff)*dev2(T(grad(U))))) Gauss linear;\n";
-    if (!fvSchemes.includes(anchor)) {
+    // Match the anchor on content, tolerating whatever whitespace the case uses
+    // between the term and its scheme.
+    const anchor = /^([ \t]*div\(\(\(rho\*nuEff\)\*dev2\(T\(grad\(U\)\)\)\)\)[ \t]+Gauss \w+;)[ \t]*$/m;
+    if (!anchor.test(fvSchemes)) {
       throw new Error(
         "could not locate the anchor line in fvSchemes to append the per-species entries",
       );
@@ -246,7 +248,10 @@ async function main(): Promise<void> {
     const added = needed
       .map((s) => `    div(((hei_${s}*rho)*YVi_${s}))  Gauss linear;`)
       .join("\n");
-    fvSchemes = fvSchemes.replace(anchor, `${anchor}${added}\n`);
+    fvSchemes = fvSchemes.replace(
+      anchor,
+      (line) => `${line}\n${added}`,
+    );
     changes.push(
       `fvSchemes: added ${needed.length} per-species div(((hei_*rho)*YVi_*)) entries (${needed.join(", ")}) for ${executable}`,
     );
