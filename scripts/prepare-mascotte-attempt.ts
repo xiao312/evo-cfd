@@ -136,11 +136,12 @@ async function main(): Promise<void> {
   const ranks = Number(arg("--ranks", "1"));
   const executable = arg("--executable", "realFluidReactingFoam");
   const chemistry = arg("--chemistry", "on");
+  const endTimeOverride = arg("--end-time");
   const budget = Number(arg("--budget", "900"));
   const runsRoot = arg("--runs-root") ?? join(process.env.EVOCFD_HOST_ROOT ?? ".", "runs", "mascotte");
 
   if (!jobId) {
-    console.error("usage: prepare-mascotte-attempt.ts --job <id> --variant <v> --ranks <n> --executable <e>");
+    console.error("usage: prepare-mascotte-attempt.ts --job <id> --variant <v> --ranks <n> --executable <e> [--chemistry off] [--end-time T] [--budget S]");
     exit(2);
   }
   if (!Number.isFinite(ranks) || ranks < 1) {
@@ -229,6 +230,19 @@ async function main(): Promise<void> {
     );
   }
   await writeFile(controlDictPath, controlDict, "utf8");
+
+  if (endTimeOverride) {
+    // A startup qualification is bounded by physics, not only by wall clock.
+    // Cutting the run at the budget would answer "did it hang" but not "did it
+    // advance"; a short endTime answers both and is recorded as an attempt change.
+    controlDict = await readFile(controlDictPath, "utf8");
+    const priorEnd = readEntry(controlDict, "endTime");
+    controlDict = controlDict.replace(/^([ \t]*endTime[ \t]+)\S+;/m, "$1" + endTimeOverride + ";");
+    await writeFile(controlDictPath, controlDict, "utf8");
+    changes.push(
+      `controlDict endTime ${priorEnd} -> ${endTimeOverride} for a bounded startup qualification`,
+    );
+  }
 
   // The required adaptation for the selected solver: one div scheme entry per
   // species. Proven necessary in target-solver-001; derived here from the
