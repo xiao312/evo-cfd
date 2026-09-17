@@ -362,7 +362,10 @@ async function main(): Promise<void> {
   );
 
   // The child gets its own launcher. It refuses processor directories and runs
-  // Allcheck on the child, never on the target.
+  // Allcheck on the child, never on the target. Allcheck itself is the target's
+  // reviewed script, referenced by absolute path so it cannot pick up a
+  // different checker.
+  const allcheck = join(targetRoot, "Allcheck");
   await writeFile(
     join(dest, "Allrun-child"),
     [
@@ -376,7 +379,7 @@ async function main(): Promise<void> {
       '  echo "Refusing to run in an attempt containing processor directories." >&2',
       "  exit 1",
       "fi",
-      'CASE_DIR="$root" "$root/../Allcheck" || { echo "Allcheck failed on the child" >&2; exit 1; }',
+      `CASE_DIR="$root" bash ${allcheck} || { echo "Allcheck failed on the child" >&2; exit 1; }`,
       ranks > 1
         ? `decomposePar -force | tee log.decomposePar\nmpirun -np ${ranks} ${profileExe} -parallel | tee log.${executable}`
         : `${profileExe} | tee log.${executable}`,
