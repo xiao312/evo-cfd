@@ -1,0 +1,74 @@
+# Machine-readable ignition baseline for the preheated-methane-passage strategy.
+# See docs/IGNITION-STRATEGY.md for the rationale, the observed outcomes that led
+# to it, and the reconciliation notes that MUST be read before materializing.
+#
+# This is a child-attempt configuration. It changes nothing in the immutable
+# target: under case-lock.yaml, "ignition method and energy budget" and
+# "documented time-zero chamber fill" are tunable. A preparer materializes this
+# as a derived initialization in a disposable child attempt.
+
+schema_version: 1
+strategy: preheated-methane-passage-clean-start
+status: prescribed_next_baseline  # not a validated result
+document: docs/IGNITION-STRATEGY.md
+
+initialization:
+  chamber:
+    species: [CH4]
+    temperature_K: 288
+    pressure_Pa: 5610000
+    velocity: stationary
+    note: pressure differs from case-lock.yaml (5.59 MPa); see reconciliation note 1
+  lox_passage:
+    species: [O2]
+    temperature_K: 85
+    mass_flow_full_kg_s: 0.0441
+    inlet_velocity: derived_from_mass_flow_and_local_density
+    note: oxygen mass flow differs from case-lock.yaml (0.0444 kg/s); see note 1
+  ch4_passage:
+    species: [CH4]
+    temperature_K: 1400
+    mass_flow_full_kg_s: 0.1431
+    inlet_velocity: derived_from_mass_flow_and_local_density
+
+inlet_schedule:
+  ch4_inlet_temperature:
+    - { hold_K: 1400, duration_s: 30.0e-6 }
+    - { ramp_from_K: 1400, ramp_to_K: 288, duration_s: 200.0e-6 }
+    - { hold_K: 288, thereafter: true }
+
+chemistry:
+  mechanism: JL9
+  mode: finite_rate_no_tci
+  enabled_from_first_time_step: true
+
+time_step:
+  kind: fixed
+  deltaT_s: 5.0e-7
+  note: a fixed 5e-7 s step has crashed before; see reconciliation note 2
+
+# The hard constraint. Temperature, density, enthalpy and velocity must all be
+# consistent with the prescribed pressure and mass flow. Do not patch the
+# temperature while retaining 288 K density and velocity.
+thermodynamic_consistency:
+  required: true
+  density: derived_from_pinned_property_package
+  enthalpy: derived_from_pinned_property_package
+  inlet_velocity: derived_from_mass_flow_and_derived_density
+  record_derived_values_in: attempt-record.json
+  property_package:
+    equation_of_state: PengRobinson
+    calorics: rfJanaf sensible enthalpy
+    transport: Chung/Takahashi
+
+# Open tensions, recorded not resolved. A preparer must reconcile these before
+# materializing; they are expanded in docs/IGNITION-STRATEGY.md.
+reconciliation_required:
+  - id: 1
+    issue: operating point (5.61 MPa, 0.0441 kg/s O2) vs case-lock.yaml (5.59 MPa, 0.0444 kg/s O2)
+  - id: 2
+    issue: fixed 5e-7 s step previously crashed; advisor measured adaptive 1.2e-8 to 3.0e-8 s at max Courant 7.3e-6 vs maxCo 0.3
+  - id: 3
+    issue: the external advisor's chemistry-off conservation instrumentation remains open; a reacting baseline does not bypass it
+
+acceptance_gate: unchanged  # see README.md; sustained heat release after source removal, conservation, boundedness, experimental comparison

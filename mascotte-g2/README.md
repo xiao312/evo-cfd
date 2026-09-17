@@ -165,6 +165,11 @@ Therefore this package is **target-ready, not validated-result-ready**. A succes
 run must pass conservation and boundedness gates and then match the experimental and
 paper observables in [`evidence/`](evidence/).
 
+The selected next step toward a reacting result is the preheated-methane-passage
+strategy in [`docs/IGNITION-STRATEGY.md`](docs/IGNITION-STRATEGY.md), materialized
+as a child attempt. It is a prescribed baseline, not a validated result, and it does
+not change this package's target.
+
 ## Minimum acceptance gate
 
 - no NaN, solver abort, persistent limiter domination, or unphysical species sum;

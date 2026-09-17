@@ -38,13 +38,55 @@ The present target uses the CH4-fill time-zero construction because it was the l
 5. **Cold-field maturity:** ignition from an underdeveloped mixing field can fail even with an adequate mechanism.
 6. **Validation:** a hot field is not a flame. Require sustained heat release/OH after source removal plus experimental spatial comparison.
 
+## Ignition strategy selected, 2026-09-17
+
+The screens above converge on one distinction: heating the **inlet alone** has
+not worked, because the hot gas must first travel through the feed passage.
+Preheating the **entire CH4 passage** is more effective, since hot methane
+reaches the injector lip immediately and mixes with LOX from the beginning.
+Both hot-passage cases produced substantial temperature rise and OH.
+
+The selected next baseline is a clean time-zero start with a moderately
+preheated CH4 passage and a matching hot inlet, followed by a smooth inlet-
+temperature reduction after a flame kernel forms: chamber pure CH4 at 288 K and
+stationary, LOX passage pure O2 at 85 K, CH4 passage pure CH4 at about 1400 K,
+inlet velocities derived from the prescribed mass flows and the local densities,
+CH4 inlet held at 1400 K for about 30 µs then ramped to 288 K over about 200 µs,
+JL9 finite-rate/no-TCI from the first step, fixed 0.5 µs. 1400 K rather than
+1800 K because 1800 K is too aggressive for a clean start: at fixed mass flow
+hot methane needs about 446 m/s initial velocity, and in r470 that gave strong
+combustion with a steadily increasing pressure peak.
+
+The hard constraint is thermodynamic consistency: temperature, density, enthalpy
+and velocity must all be consistent with the prescribed pressure and mass flow.
+A temperature-only patch retaining 288 K density and velocity is not a physical
+initial condition.
+
+The full prescription, including three reconciliation notes that must be read
+before materializing, is in [`IGNITION-STRATEGY.md`](IGNITION-STRATEGY.md) and
+the machine-readable [`ignition-baseline.yaml`](../ignition-baseline.yaml). The
+three notes: the stated operating point (5.61 MPa, 0.0441 kg/s O2) differs from
+the case lock (5.59 MPa, 0.0444 kg/s); a fixed 0.5 µs step has crashed before
+and the advisor measured the adaptive startup step at 1.2e-8 to 3.0e-8 s; and
+the advisor's chemistry-off conservation instrumentation remains open.
+
+This is a prescribed next baseline, not a validated result. No reacting
+realFluidFoam result is currently accepted as a sustained MASCOTTE flame.
+
 ## Next defensible attempts
 
-- Establish conservation and stationarity of a cold CH4-fill run at the corrected 5.59 MPa / 44.4 g/s / 143.1 g/s operating point.
-- Quantify mixed-cell volume and residence time before choosing an ignition kernel.
-- Perform a compact, energy-conserving ignition sweep and continue every surviving kernel beyond source removal.
-- Compare JL9 with a detailed/skeletal mechanism only after the same cold checkpoint and ignition energy budget are held fixed.
-- Record mass, species-sum, pressure/density consistency, peak temperature, OH and integrated heat release at every written time.
+- Materialize the preheated-passage baseline above as a child attempt, after
+  reconciling its three notes against the case lock and the recorded history.
+- Establish conservation and stationarity of a cold CH4-fill run at the
+  case-lock operating point, with volume-integrated mass, per-species
+  inventories and a complete energy ledger over completed steps.
+- Quantify mixed-cell volume and residence time before choosing an ignition
+  kernel.
+- Continue every surviving kernel beyond source removal.
+- Compare JL9 with a detailed/skeletal mechanism only after the same cold
+  checkpoint and ignition energy budget are held fixed.
+- Record mass, species-sum, pressure/density consistency, peak temperature, OH
+  and integrated heat release at every written time.
 
 Full records remain in the originating internal investigation package and are not redistributed here. EvoCFD keeps its own records in `../docs/reviews/` and `../runs/`.
 

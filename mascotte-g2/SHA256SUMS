@@ -1,8 +1,8 @@
 a8aeb981ebf30417e651acf098de9c266ef83970887b756a51e29848698b216a *./.gitignore
-eee069c2ce057b1f9d3fb90834031e38241dc46dc87cc0f2916d71a31fcb6726 *./AGENTS.md
+821ecc17648f32ad424bed1a9e9acb85816cf582673f39a391716463ba68a2bb *./AGENTS.md
 f56669b8762b25e3cfe88e3ee572ca8602c0cec490013f8ff7909558e6897fe8 *./Allcheck
 4551d82d7f94266bef5305edba154a7b403b28415fbe554b852057177e183c9c *./Allrun
-a5139b401b90901db2f211b4f2e23601308e6dec32aee8ef7fdff0c56471edc1 *./README.md
+6b8aa95f2b5980661efd64c2c1cae6b2587b6e742f5cb7db11872314fa503226 *./README.md
 1e4cab40fd7d05b0debfaf0a60e46c1ac56dd4c2bf031b0c8b80175268a8ced6 *./case-lock.yaml
 23b3b26130c0db63aae6141b29a12841dc65304b18982d757f3271999b11d834 *./cases/agile-80mm/0/CH4
 29cd657a61ff8b03a6f69b47bb8c2ad7f70e1c511745e8f16ddfa415500025a9 *./cases/agile-80mm/0/CO
@@ -86,7 +86,7 @@ d84b53ac5688d08fdbb0eae9794cf8587118b999577fe27fcf35004a1c1c4644 *./cases/full-2
 dec890ce425120244c2b631a621e5332ff430b2a9304433c2b3c8f763f4ddc3a *./cases/full-200mm/system/decomposeParDict
 165535a8dd43fd32c7b5fef94aafdbbd5322e46f44e7dcc515d8bb2f3bdc06cf *./cases/full-200mm/system/fvSchemes
 63127783b894f7ffcf9c4674557c03742ccb168f4229d63489f02a286e74183c *./cases/full-200mm/system/fvSolution
-600cfcedc26f9416c288a1ef7dc2fc40b094105892fc23a405afaead1d60de12 *./docs/ATTEMPT-HISTORY.md
+343a60a34fd60a3d974c0661afec2dd213a989f841816e876edfdec376c8f89f *./docs/ATTEMPT-HISTORY.md
 c315e2769a9ca1fe1473bf718acda3e0fe9ab0ba9fed0fa37df630b22d63e0e5 *./docs/agile-80mm-build/README.md
 74402a79dd0ee6f06a03774b1ae486f85ec5ba6cf2fe102d380637df5516d442 *./docs/agile-80mm-build/subsetMesh.log
 51d4d7a64c71ba642d3483eca33f759f13fccd6c6da0acfac26f4c5af8ad2e72 *./docs/agile-80mm-build/topoSet.log
@@ -143,4 +143,7 @@ d61197da60c39fad9181a4a6010c9a7d3e950a34bc3c12f094d2f4f01cfac59c *./mechanisms/r
 fa07bab28654e21520723edba605c2d20e174443fe311ea78d18e7d3795e8f41 *./mechanisms/ramec17/openfoam8/reactions
 21e89fd9960fef5fd40c364248bd925afda4da3144aa841d857007deca5d3d36 *./mechanisms/ramec17/openfoam8/source.json
 55fe599bc2b6dc070e12d0cff594f27e9f68a3c910a95d9f6da803291e6086d3 *./mechanisms/ramec17/openfoam8/thermo.inputData
-dc3ff37f73055ead5549366ce9d0f58f33d41feae0c416a8d08abf22ea520be5 *./project.yaml
+362e12046141c8e5246cadace4b7226148638fe6fe19703797a539a8b7926a07 *./project.yaml
+da4370f4c5def4a29ed89c7f04d95f55c003f6cc3fa178f33765268c8b378bff *./docs/IGNITION-STRATEGY.md
+96fc080161f81050cbbecd6c38b2da84f427c4988f04220df88475dcc2636ceb *./ignition-baseline.yaml
+b926b05bc1b240b4cd8d599812f255460d33dba945ef6afbef34cd4d2176f3ab *./docs/MANIFEST-CHANGELOG.md

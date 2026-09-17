@@ -55,6 +55,15 @@ and from EvoCFD's own experiments. They are starting knowledge, not conclusions:
 - Chamber fill matters: CH4 fill was substantially better behaved than O2 fill. The
   experiment does not prescribe the fill; it is a documented numerical choice.
 - Mechanism complexity alone did not remove the ignition and coupling failure.
+- Inlet-only heating has not worked at either 1200 K or 1800 K: the hot gas must
+  first travel through the feed passage. Preheating the entire CH4 passage is
+  more effective, and both hot-passage cases produced substantial temperature
+  rise and OH. The selected next baseline is a clean start with a moderately
+  preheated CH4 passage (about 1400 K) and a matching hot inlet, then a smooth
+  ramp to 288 K after a kernel forms. See
+  [`docs/IGNITION-STRATEGY.md`](docs/IGNITION-STRATEGY.md) and
+  [`ignition-baseline.yaml`](ignition-baseline.yaml), and read its three
+  reconciliation notes before materializing.
 
 ## Failure modes worth remembering
 

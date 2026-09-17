@@ -736,3 +736,61 @@ that the present evidence establishes deadline behaviour and some startup
 advancement, and does not establish conserved transport, correct cryogenic
 thermodynamics, or the cause of any temperature drift. No case changes and no
 execution were performed by the advisor.
+
+## The ignition strategy is recorded in the case package
+
+The operator's conclusion from the ignition screens is now the package's
+prescribed next baseline: a clean time-zero start with a moderately preheated
+CH4 feed passage and a matching hot inlet, followed by a smooth inlet-temperature
+reduction once a flame kernel forms.
+
+It is recorded as `mascotte-g2/docs/IGNITION-STRATEGY.md` plus the
+machine-readable `mascotte-g2/ignition-baseline.yaml`, and it is wired into the
+package's own `AGENTS.md`, `README.md` and attempt history. It changes nothing
+in the immutable target: under `case-lock.yaml`, ignition method and energy
+budget, and the documented time-zero chamber fill, are both tunable. A preparer
+materializes it as a derived initialization in a disposable child attempt.
+
+Three things were deliberately recorded as tensions rather than resolved, so a
+preparer must confront them before materializing:
+
+1. The prescription states 5.61 MPa and 0.0441 kg/s oxygen; the case lock states
+   5.59 MPa and 0.0444 kg/s, sourced from Candel et al. 2006 Table 1. The case
+   lock was not re-locked by this document.
+2. A fixed 0.5 us time step has crashed before. Independently, the external
+   advisor measured the chemistry-off startup advancing at an adaptive step of
+   about 1.2e-8 to 3.0e-8 s with a largest printed Courant number of 7.3e-6
+   against a configured maxCo of 0.3. A fixed 0.5 us is 17 to 40 times larger,
+   and the near-injector mesh cannot satisfy maxCo at the resulting velocities.
+3. The advisor's chemistry-off conservation instrumentation remains open, and a
+   reacting baseline does not bypass it.
+
+The hard constraint is recorded as thermodynamic consistency: temperature,
+density, enthalpy and velocity must all be derived from the pinned property
+package at the prescribed pressure and mass flow. A temperature-only patch
+retaining 288 K density and velocity is not a physical initial condition.
+
+This is a prescribed baseline, not a validated result.
+
+## A manifest break was found and repaired
+
+Regenerating the package manifest to cover the new strategy documents exposed a
+pre-existing defect: the earlier review fixes to `README.md`, `AGENTS.md` and
+`project.yaml` had been committed without regenerating `SHA256SUMS`, so the
+manifest at HEAD no longer described those three files. The package's integrity
+record had been silently stale since then.
+
+Two editors had also introduced CRLF line endings into `README.md` and
+`AGENTS.md`, mixed with the surrounding LF, which is the same class of
+byte-level defect as the earlier case-collision and source-manifest incidents.
+
+All four files were regenerated, the CRLF was normalized to LF, and two new
+documents were added. Verification is now 149/149 with zero failures. The
+regeneration is recorded in a new `mascotte-g2/docs/MANIFEST-CHANGELOG.md`,
+which is itself manifested, so future regenerations form an auditable chain
+rather than silent supersessions. Prior digests remain recoverable from git
+history.
+
+The standing rule is now explicit: any edit to a manifested file must be
+followed by a regeneration recorded in the changelog. A stale manifest is a
+defect, not a formality.
