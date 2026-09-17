@@ -11,4 +11,5 @@ export * from "./report.ts";
 export * from "./compare.ts";
 export * from "./cfd-job.ts";
 export * from "./cfd-exec.ts";
+export * from "./runner.ts";
 export * from "./consultation.ts";

@@ -57,6 +57,60 @@ const RECEIPT_KEYS: readonly (keyof ExecutionReceipt)[] = [
 /** Exit code `timeout` uses when the deadline stops the process. */
 export const DEADLINE_EXIT_CODE = 124;
 
+/** Escape a value for a single-quoted shell context. */
+function escapeSingleQuotes(token: string): string {
+  return token.replace(/'/g, "'\\''");
+}
+
+/** Remove single-quote escaping applied by `escapeSingleQuotes`. */
+function unescapeSingleQuotes(token: string): string {
+  // The shell sequence '\'' decodes to a literal quote; any other backslash is
+  // not produced by the encoder and is left alone.
+  return token.replace(/'\\''/g, "'");
+}
+
+/**
+ * Encode an argument vector as one verbatim string for a key=value receipt.
+ *
+ * The value is single-quoted and escaped, and the reader below reverses that
+ * exactly. Writing the arguments unquoted lets the shell reinterpret them
+ * while the receipt is being written, so an argument containing `$(...)` would
+ * be expanded for the receipt while the executed process received it
+ * literally — the receipt would then describe a command that never ran.
+ */
+export function encodeArgv(argv: readonly string[]): string {
+  return argv.map((a) => `'${escapeSingleQuotes(a)}'`).join(" ");
+}
+
+/** Reverse `encodeArgv`. */
+export function decodeArgv(raw: string): string[] {
+  const out: string[] = [];
+  let i = 0;
+  while (i < raw.length) {
+    while (i < raw.length && raw[i] === " ") i++;
+    if (i >= raw.length) break;
+    if (raw[i] !== "'") throw new Error(`argv element ${out.length} is not quoted`);
+    i++;
+    let token = "";
+    for (;;) {
+      if (i >= raw.length) throw new Error(`argv element ${out.length} is unterminated`);
+      const ch = raw[i++];
+      if (ch === "'") {
+        // Only a '\'' sequence continues the token; a bare quote closes it.
+        if (raw.startsWith("'\\''", i - 1)) {
+          token += "'";
+          i += 3;
+          continue;
+        }
+        break;
+      }
+      token += ch;
+    }
+    out.push(token);
+  }
+  return out;
+}
+
 /**
  * The argument vector a deadline is applied to.
  *
@@ -121,7 +175,9 @@ export function buildRunnerScript(input: RunnerInput): string {
     "budget_seconds=" + input.budgetSeconds,
     "budget_enforced_by=timeout -s TERM -k 30",
     "exit_code=$CODE",
-    "command=" + input.argv.join(" "),
+    // Encoded, not interpolated: see encodeArgv. The executed argv and the
+    // recorded argv must be the same bytes.
+    "command=" + encodeArgv(input.argv),
   ];
 
   const lines: string[] = [
@@ -212,6 +268,9 @@ export function parseReceipt(raw: string): ReceiptRead {
     if (!RECEIPT_KEYS.includes(key as keyof ExecutionReceipt)) {
       return { status: "malformed", error: `unknown key '${key}'`, raw };
     }
+    if (map.has(key)) {
+      return { status: "malformed", error: `duplicate key '${key}'`, raw };
+    }
     map.set(key, value);
   }
   if (map.size === 0) return { status: "absent" };
@@ -233,6 +292,16 @@ export function parseReceipt(raw: string): ReceiptRead {
       raw,
     };
   }
+  let command: string;
+  try {
+    command = decodeArgv(map.get("command") as string).join(" ");
+  } catch (err) {
+    return {
+      status: "malformed",
+      error: `command field is not a quoted argv: ${(err as Error).message}`,
+      raw,
+    };
+  }
   return {
     status: "present",
     receipt: {
@@ -244,7 +313,7 @@ export function parseReceipt(raw: string): ReceiptRead {
       budget_seconds: budget,
       budget_enforced_by: map.get("budget_enforced_by") as string,
       exit_code: exitCode,
-      command: map.get("command") as string,
+      command,
     },
   };
 }
@@ -274,11 +343,19 @@ export interface SolverFacts {
  * nonzero, and a missing receipt is not a verified successful execution. A
  * deadline stop is reported as such, because the budget stopped the run rather
  * than the solver reaching its end.
+ *
+ * The receipt must also belong to the plan being assessed. A receipt from a
+ * different job or a stale plan describes some other execution; treating it as
+ * this one's evidence would let a reused directory mask a failed rerun.
  */
 export function assessExecution(input: {
   receipt: ReceiptRead;
   solver: SolverFacts;
   requestedEndTime: number;
+  /** The job id the caller expects this receipt to describe. */
+  expectedJobId: string;
+  /** The plan digest the caller expects this receipt to bind to. */
+  expectedPlanDigest: string;
 }): {
   state: "finished" | "failed";
   stopReason: string | null;
@@ -288,7 +365,7 @@ export function assessExecution(input: {
   exitCode: number | null;
   deadline: boolean;
 } {
-  const { receipt, solver, requestedEndTime } = input;
+  const { receipt, solver, requestedEndTime, expectedJobId, expectedPlanDigest } = input;
 
   if (receipt.status === "absent") {
     return {
@@ -315,6 +392,20 @@ export function assessExecution(input: {
   }
 
   const r = receipt.receipt;
+  if (r.job_id !== expectedJobId || r.plan_digest !== expectedPlanDigest) {
+    return {
+      state: "failed",
+      stopReason: "receipt_identity_mismatch",
+      detail:
+        `the receipt describes job ${r.job_id} with plan digest ${r.plan_digest.slice(0, 16)}…, ` +
+        `not the expected job ${expectedJobId} with plan digest ${expectedPlanDigest.slice(0, 16)}…; ` +
+        "the evidence does not belong to this execution",
+      startedAt: null,
+      finishedAt: null,
+      exitCode: null,
+      deadline: false,
+    };
+  }
   const deadline = r.exit_code === DEADLINE_EXIT_CODE;
 
   if (deadline) {

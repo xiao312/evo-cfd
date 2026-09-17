@@ -186,10 +186,14 @@ async function assessFromLog(
   const normal = await readTerminatedNormally(logPath);
   const receipt = await readReceiptFile(join(jobDir, "execution-receipt.txt"));
 
+  // The receipt must describe this plan, not whichever execution last happened
+  // to leave a file in this directory.
   const verdict = assessExecution({
     receipt,
     solver: { lastTime, terminatedNormally: normal },
     requestedEndTime: plan.requestedEndTime,
+    expectedJobId: plan.jobId,
+    expectedPlanDigest: planDigest(plan),
   });
 
   const state: CfdJobState = {

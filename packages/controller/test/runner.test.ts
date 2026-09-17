@@ -27,7 +27,9 @@ import {
   parseReceipt,
   assessExecution,
   readReceiptFile,
+  decodeArgv,
   DEADLINE_EXIT_CODE,
+  type ExecutionReceipt,
 } from "../src/runner.ts";
 
 let dir: string;
@@ -222,6 +224,8 @@ test("a hanging solver with a child is stopped at the deadline", async () => {
     receipt: parsed,
     solver: { lastTime: 1e-9, terminatedNormally: false },
     requestedEndTime: 1e-3,
+    expectedJobId: "dummy-hang",
+    expectedPlanDigest: "d",
   });
   expect.equal(assessment.state, "failed");
   expect.equal(assessment.stopReason, "budget_exceeded");
@@ -286,6 +290,8 @@ test("assessExecution: a normal log does not rescue a failed receipt", () => {
     },
     solver: { lastTime: 1e-3, terminatedNormally: true },
     requestedEndTime: 1e-3,
+    expectedJobId: "j",
+    expectedPlanDigest: "d",
   });
   expect.equal(ok.state, "finished");
 
@@ -307,6 +313,8 @@ test("assessExecution: a normal log does not rescue a failed receipt", () => {
     // The log looks fine. The receipt must win.
     solver: { lastTime: 1e-3, terminatedNormally: true },
     requestedEndTime: 1e-3,
+    expectedJobId: "j",
+    expectedPlanDigest: "d",
   });
   expect.equal(failed.state, "failed");
   expect.equal(failed.stopReason, "solver_error");
@@ -317,6 +325,8 @@ test("assessExecution: a missing receipt is not a successful execution", () => {
     receipt: { status: "absent" },
     solver: { lastTime: 1e-3, terminatedNormally: true },
     requestedEndTime: 1e-3,
+    expectedJobId: "j",
+    expectedPlanDigest: "d",
   });
   expect.equal(a.state, "failed");
   expect.equal(a.stopReason, "executor_error");
@@ -340,6 +350,8 @@ test("assessExecution: a clean run short of the requested interval is reported a
     },
     solver: { lastTime: 1.79e-6, terminatedNormally: true },
     requestedEndTime: 1e-4,
+    expectedJobId: "j",
+    expectedPlanDigest: "d",
   });
   expect.equal(a.state, "failed");
   expect.equal(a.stopReason, "short_interval");
@@ -383,4 +395,67 @@ test("a repeated submission is refused rather than merged", async () => {
   // Deterministic generation keeps the two identical, so a caller comparing
   // bytes can detect a repeat rather than guessing.
   expect.equal(before, after);
+});
+
+// A receipt must record the command that actually ran. The shell writes the
+// receipt through an unquoted heredoc, so an argument carrying a command
+// substitution would be expanded while the receipt is written even though the
+// process received it literally. The argv is now encoded, and the round trip
+// must be byte-exact.
+test("argv round-trips verbatim through the receipt, including shell metacharacters", () => {
+  const argv = buildArgv("/opt/solver/bin/run", ["-case", "/tmp/a$(id)/b `pwd` $HOME"], 1);
+  const script = buildRunnerScript({
+    jobId: "j-metachar",
+    planDigest: "d-metachar",
+    argv,
+    envFile: "",
+    budgetSeconds: 10,
+    logFile: "out.log",
+  });
+  const heredoc = script.slice(script.indexOf("cat > execution-receipt.txt"));
+  const commandLine = heredoc.split("\n").find((l) => l.startsWith("command="));
+  if (!commandLine) throw new Error("no command= line in the receipt");
+  const encoded = commandLine.slice("command=".length);
+  // Decoding must give back exactly the executed argv, not the shell's expansion.
+  assert.equal(decodeArgv(encoded).join(" "), argv.join(" "));
+  assert.ok(encoded.startsWith("'"), "the argv must be quoted so the shell cannot reinterpret it");
+});
+
+test("a receipt from a different job or plan is rejected as an identity mismatch", () => {
+  const receipt: ExecutionReceipt = {
+    job_id: "some-other-job",
+    plan_digest: "d-unrelated",
+    started_at: "2026-09-17T00:00:00+00:00",
+    finished_at: "2026-09-17T00:01:00+00:00",
+    wall_clock_seconds: 60,
+    budget_seconds: 60,
+    budget_enforced_by: "timeout -s TERM -k 30",
+    exit_code: 0,
+    command: "run",
+  };
+  const verdict = assessExecution({
+    receipt: { status: "present", receipt },
+    solver: { lastTime: 1, terminatedNormally: true },
+    requestedEndTime: 1,
+    expectedJobId: "my-job",
+    expectedPlanDigest: "d-mine",
+  });
+  assert.equal(verdict.state, "failed");
+  assert.equal(verdict.stopReason, "receipt_identity_mismatch");
+});
+
+test("a duplicate receipt key is malformed, not silently last-wins", () => {
+  const raw = [
+    "job_id=j",
+    "plan_digest=d",
+    "started_at=a",
+    "finished_at=b",
+    "wall_clock_seconds=1",
+    "budget_seconds=1",
+    "budget_enforced_by=timeout",
+    "exit_code=0",
+    "command='run'",
+    "exit_code=1",
+  ].join("\n");
+  assert.equal(parseReceipt(raw).status, "malformed");
 });
