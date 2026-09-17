@@ -1,8 +1,10 @@
 processor*/
 postProcessing/
 log.*
+checkMesh.current.log
 slurm-*.out
 slurm-*.err
+cases/*/constant/polyMesh/sets/
 cases/*/[1-9]*/
 cases/*/[0-9]*e-*/
 *.foam
