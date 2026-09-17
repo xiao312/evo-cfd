@@ -613,3 +613,35 @@ compared against the manifest including non-input files; the preflight could not
 find `checkMesh` because it sourced no environment; a helper constant was
 declared inside `main`; and `run-cfd-job.ts` carried a duplicated header from an
 earlier splice.
+
+## The first external consultation is prepared and exported
+
+The loop closes only when a genuinely separate advisor participates, so the first
+external consultation is now prepared, frozen and exported — not yet answered.
+
+The question is the next scientific decision, not a code review: given a
+chemistry-off child of the MASCOTTE agile case that reached about 1.2e-7 s of a
+requested 1e-5 s before a deliberate 240 s budget stopped it, what should the
+next bounded diagnostic measure to distinguish normal startup behaviour from a
+thermodynamic or coupling problem, and what would each outcome imply?
+
+The request binds to the attempt's own investigation record, so the advisor sees
+what is established and what is open as the campaign recorded it. The evidence
+set is the attempt records, both solver equation files, and the prepared case
+dictionaries. `scripts/prepare-external-consultation.ts` freezes it;
+`scripts/export-consultation.ts` produces the package; `--lean` omits the mesh
+and time-zero fields, which are 35 MB and carry no information about the
+question, leaving 32 KB that a web chat can accept.
+
+The transport is manual and outside the project by design: the operator submits
+through their own authenticated web session. No password, cookie or session
+token enters EvoCFD. The answer must come back declaring the request id and the
+digest the export printed, because the importer refuses one that does not —
+closing the association gap the review identified, where the importer previously
+supplied the identity itself and could therefore attach an unrelated answer.
+
+A relative `runRoot` was found to break evidence reservation while preparing
+this: the containment guard compared a resolved absolute destination against a
+relative staging root and rejected every destination as an escape. The guard was
+right about the comparison and wrong about the operand; the staging root is now
+resolved once at creation.
