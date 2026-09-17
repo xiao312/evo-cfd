@@ -22,6 +22,7 @@
  * Usage: node scripts/export-consultation.ts <run-root> <export-dir>
  */
 import { cp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
+import { relative } from "node:path";
 import { join } from "node:path";
 import { argv, exit } from "node:process";
 import { execFileSync } from "node:child_process";
@@ -58,11 +59,40 @@ async function main(): Promise<void> {
 
   // Attachments, flattened only in the sense that the request package's own
   // structure is preserved verbatim.
+  //
+  // `--lean` omits generated mesh and field data. A web chat takes attachments by
+  // size, and the mesh plus the time-zero fields account for essentially all of
+  // the package's bytes while carrying no information about which diagnostic to
+  // run next. What the advisor needs is the dictionaries, the records and the
+  // sampled series. A lean package says it did not include the mesh, so the
+  // recipient cannot mistake it for a complete case.
+  const lean = argv.includes("--lean");
+  const leanSkip = (rel: string): boolean => {
+    if (!lean) return false;
+    const parts = rel.split("/");
+    return parts.includes("polyMesh") || parts[0] === "0" || parts[0] === "constant" && parts[1] === "polyMesh";
+  };
   for (const sub of ["evidence", "source-excerpts", "case-inputs"]) {
     const from = join(active.dir, sub);
     if (existsSync(from)) {
-      await cp(from, join(exportDir, "attachments", sub), { recursive: true });
+      await cp(from, join(exportDir, "attachments", sub), {
+        recursive: true,
+        filter: (src) => !leanSkip(relative(from, src).split("\\").join("/")),
+      });
     }
+  }
+  if (lean) {
+    await writeFile(
+      join(exportDir, "LEAN.txt"),
+      [
+        "This is a lean export: the generated mesh (constant/polyMesh) and the",
+        "time-zero fields (0/) are omitted because they are large and carry no",
+        "information about the question. The dictionaries, records and sampled",
+        "series are complete. The full package can be exported without --lean.",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
   }
 
   // The identity an answer must declare. This is the part that closes the

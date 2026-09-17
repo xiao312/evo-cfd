@@ -1,0 +1,8 @@
+request_id=external-diagnostic-selection
+request_digest=55b1a40f34f53c5b9ba0b915deb87d51a5968cbc74390a8240faced05a30b334
+request_revision=1
+
+An answer to this consultation must declare the request_id and the
+request_digest above. Without them the importer cannot verify that the
+answer belongs to this request rather than to the request the importer
+happens to find active, and it will be refused.
