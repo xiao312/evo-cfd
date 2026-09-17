@@ -38,6 +38,9 @@ export interface ExecutionReceipt {
   budget_seconds: number;
   budget_enforced_by: string;
   exit_code: number;
+  /** The argument vector, with element boundaries preserved. */
+  argv: string[];
+  /** The argv rendered as one line, for display only. */
   command: string;
 }
 
@@ -164,20 +167,38 @@ export function buildRunnerScript(input: RunnerInput): string {
   if (input.argv.length === 0) {
     throw new Error("argv must contain at least the executable");
   }
+  // The receipt is line-based, so an argument containing a newline cannot be
+  // recorded faithfully. It is rejected here rather than truncated later.
+  const withNewline = input.argv.find((a) => a.includes("\n"));
+  if (withNewline !== undefined) {
+    throw new Error("an argv element contains a newline, which the receipt cannot record");
+  }
 
   const argv = input.argv.map((a) => quoteShell(a)).join(" ");
-  const receipt: string[] = [
+  // Immutable half: job identity, the budget and the exact argument vector.
+  // None of this is evaluated by the shell, so it is emitted through a quoted
+  // heredoc delimiter below and is therefore recorded verbatim.
+  const receiptStatic: string[] = [
     "job_id=" + input.jobId,
     "plan_digest=" + input.planDigest,
-    'started_at="$START_ISO"',
-    'finished_at="$END_ISO"',
-    "wall_clock_seconds=$((END_S - START_S))",
     "budget_seconds=" + input.budgetSeconds,
     "budget_enforced_by=timeout -s TERM -k 30",
-    "exit_code=$CODE",
-    // Encoded, not interpolated: see encodeArgv. The executed argv and the
-    // recorded argv must be the same bytes.
+    // The argv is data, not shell text. An argument containing $(...), backticks
+    // or quotes must reach the process and the receipt unchanged; quoting only
+    // the arguments would not help, because an unquoted heredoc delimiter
+    // expands the whole body regardless.
     "command=" + encodeArgv(input.argv),
+  ];
+
+  // Mutable half: timestamps, elapsed time and the exit code. These must be
+  // evaluated by the shell, so they are written separately with echo. Keeping
+  // them out of the static block is what allows that block's delimiter to be
+  // quoted at all.
+  const receiptDynamic: string[] = [
+    'echo "started_at=$START_ISO" >> execution-receipt.txt',
+    'echo "finished_at=$END_ISO" >> execution-receipt.txt',
+    'echo "wall_clock_seconds=$((END_S - START_S))" >> execution-receipt.txt',
+    'echo "exit_code=$CODE" >> execution-receipt.txt',
   ];
 
   const lines: string[] = [
@@ -231,9 +252,17 @@ export function buildRunnerScript(input: RunnerInput): string {
     "set -e",
     "END_S=$(date +%s)",
     "END_ISO=$(date -Is)",
-    "cat > execution-receipt.txt <<RECEIPT",
-    ...receipt,
-    "RECEIPT",
+    // The static half of the receipt is written through a *quoted* heredoc
+    // delimiter: the body is then never expanded, so an argument containing
+    // $(...), backticks or quotes is recorded exactly as the process received
+    // it. An unquoted delimiter would expand the body no matter how the
+    // arguments inside it were quoted, which is the failure this replaces.
+    // A quoted delimiter: the body below is never expanded, so the argv is
+    // recorded exactly as the process received it.
+    "cat > execution-receipt.txt <<'RECEIPT_STATIC'",
+    ...receiptStatic,
+    "RECEIPT_STATIC",
+    ...receiptDynamic,
     "exit $CODE",
   );
   return lines.join("\n") + "\n";
@@ -292,9 +321,9 @@ export function parseReceipt(raw: string): ReceiptRead {
       raw,
     };
   }
-  let command: string;
+  let argv: string[];
   try {
-    command = decodeArgv(map.get("command") as string).join(" ");
+    argv = decodeArgv(map.get("command") as string);
   } catch (err) {
     return {
       status: "malformed",
@@ -313,7 +342,8 @@ export function parseReceipt(raw: string): ReceiptRead {
       budget_seconds: budget,
       budget_enforced_by: map.get("budget_enforced_by") as string,
       exit_code: exitCode,
-      command,
+      argv,
+      command: argv.join(" "),
     },
   };
 }
