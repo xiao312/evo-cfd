@@ -262,8 +262,8 @@ async function main(): Promise<void> {
     evidenceSources: [
       {
         dir: attemptDir,
-        why: "the attempt directory: the receipt, the records, and the case as prepared",
-        dest: "attempt",
+        why: "the attempt records: the receipt, the job record and the investigation layer",
+        dest: "attempt-records",
       },
     ],
     sourceExcerpts: await readableExcerpts(excerpts),
