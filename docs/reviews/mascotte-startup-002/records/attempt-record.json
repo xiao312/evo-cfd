@@ -1,0 +1,223 @@
+{
+  "attempt_id": "mascotte-agile-002",
+  "created_at": "2026-09-17T06:02:24.351Z",
+  "target": {
+    "revision_dir": "mascotte-g2",
+    "variant": "agile-80mm",
+    "manifest": "mascotte-g2/SHA256SUMS"
+  },
+  "executables": {
+    "imported_reference": "realFluidFoam (the imported Allrun invokes this)",
+    "selected_for_this_attempt": "realFluidReactingFoam",
+    "selected_sha256": "2d2d98f7d7f6b53e0a4b145054ee0181c769ca26abb542af0cc863bec2ee989e",
+    "note": "The imported launcher is retained for provenance and is not executed. Changing only controlDict.application would not change what Allrun invokes, so the child records both and uses its own launcher."
+  },
+  "required_case_adaptation": [
+    "fvSchemes: added 10 per-species div(((hei_*rho)*YVi_*)) entries (CH4, O2, CO, H2, H2O, O, H, OH, CO2, N2) for realFluidReactingFoam"
+  ],
+  "other_changes": [
+    "controlDict application realFluidFoam -> realFluidReactingFoam (the imported reference launcher invokes realFluidFoam)",
+    "controlDict endTime 0.005 -> 1e-5 for a bounded startup qualification",
+    "chemistryProperties: chemistry on -> off for a startup-qualification attempt",
+    "decomposeParDict: numberOfSubdomains 16 -> 1, method scotch -> simple, n -> ( 1 1 1 )"
+  ],
+  "effective_configuration": {
+    "chemistry_solver": "EulerImplicit",
+    "chemistry_method": "PRchungTakaStandard",
+    "chemistry_active": "off",
+    "reaction_model": null,
+    "equation_of_state": "PengRobinson",
+    "thermo_mixture": "PRchungTakaMixture",
+    "transport": "chungTaka",
+    "turbulence_model": null,
+    "ddt_scheme": "Euler",
+    "application": "realFluidReactingFoam",
+    "species_count": "10"
+  },
+  "decomposition": {
+    "method": "simple",
+    "number_of_subdomains": 1,
+    "ranks": 1,
+    "ranks_match": true,
+    "note": "serial startup qualification; no decomposition is performed"
+  },
+  "species": [
+    "CH4",
+    "O2",
+    "CO",
+    "H2",
+    "H2O",
+    "O",
+    "H",
+    "OH",
+    "CO2",
+    "N2"
+  ],
+  "inputs": [
+    {
+      "source": "cases/agile-80mm/0/CH4",
+      "sha256": "23b3b26130c0db63aae6141b29a12841dc65304b18982d757f3271999b11d834"
+    },
+    {
+      "source": "cases/agile-80mm/0/CO",
+      "sha256": "29cd657a61ff8b03a6f69b47bb8c2ad7f70e1c511745e8f16ddfa415500025a9"
+    },
+    {
+      "source": "cases/agile-80mm/0/CO2",
+      "sha256": "2ac0dc4343b14394292fd0d19e77170661a23de8e1cd20f1574c88a2a27f0fc4"
+    },
+    {
+      "source": "cases/agile-80mm/0/H",
+      "sha256": "cdc3c7c4863f85a8bb4912fafa51436e222d9c92ae7116545af135f7db225e53"
+    },
+    {
+      "source": "cases/agile-80mm/0/H2",
+      "sha256": "aa677b07a5f4345d98155ca6b4389a66446a697b1f141315d64a0029c8e953f0"
+    },
+    {
+      "source": "cases/agile-80mm/0/H2O",
+      "sha256": "78097272d1aba69088ab1e1516214a5dd1f9ef9e593882d94f7d5f2c4d1145f9"
+    },
+    {
+      "source": "cases/agile-80mm/0/N2",
+      "sha256": "c146d86e373ebb5ef943ef679e345b6d89cebdd33cd4c500d4fd4fbc31f1e877"
+    },
+    {
+      "source": "cases/agile-80mm/0/O",
+      "sha256": "9315451f12877817206f36f2f00c5b797dbae658e6890ebdbfa285da4c4e268e"
+    },
+    {
+      "source": "cases/agile-80mm/0/O2",
+      "sha256": "c8579612fcf7fb52a8b6100ea2d9f92241dd094aa67f304c6dbc7c8e3c6d083e"
+    },
+    {
+      "source": "cases/agile-80mm/0/OH",
+      "sha256": "ea5f7cd887ae2f005e868b660cb75b775b7cefc765b75ce1c4948dd0efff7a82"
+    },
+    {
+      "source": "cases/agile-80mm/0/T",
+      "sha256": "054aad914bd02090cd35e2f4a8974db1bd022b96070c1c22926af13a85441249"
+    },
+    {
+      "source": "cases/agile-80mm/0/U",
+      "sha256": "0063e660b5b38098750af6065382631de4af17a1bb70d83d6fa00e5437acd78c"
+    },
+    {
+      "source": "cases/agile-80mm/0/alphat",
+      "sha256": "472f5667795e282d34e0d7aa97777539858c8856cebdcc8efe05ce2793aafc32"
+    },
+    {
+      "source": "cases/agile-80mm/0/epsilon",
+      "sha256": "01ccaab0231005c9f729c145b29944e1f6d0cb2c3e1475614f5ad9356a2141aa"
+    },
+    {
+      "source": "cases/agile-80mm/0/include/scalarWallsWedges",
+      "sha256": "5c0ed0b4f3d441f4edf7ed160c737a3ffecc5c097ec355b65ab93ecba22f0931"
+    },
+    {
+      "source": "cases/agile-80mm/0/k",
+      "sha256": "c6aa45a7f1b4363fe56df341fa5b07c42cafc6d2821a9a121d19243bd61287ad"
+    },
+    {
+      "source": "cases/agile-80mm/0/nut",
+      "sha256": "77b8662956fb229ec8386c425b1269961621629885a0c07ac22c8195cd137497"
+    },
+    {
+      "source": "cases/agile-80mm/0/p",
+      "sha256": "c9a0f956843d98e518e908bd6ac772c064f92340081ad8aa2341cfbfd4ac87e9"
+    },
+    {
+      "source": "cases/agile-80mm/constant/chemistryProperties",
+      "sha256": "83299156699cfae2063b4bb5dd30dc0df9492f690cbc8525aeb1ee691ec42c0c"
+    },
+    {
+      "source": "cases/agile-80mm/constant/combustionProperties",
+      "sha256": "5889c3d6635d66227831dd8a0764123957351f3dfdd0ab17644beeb0d3960059"
+    },
+    {
+      "source": "cases/agile-80mm/constant/mechanism-source.json",
+      "sha256": "c83aa360dcba251699638fa27963e30f5cf7b861d1edb901440b66c15345154c"
+    },
+    {
+      "source": "cases/agile-80mm/constant/momentumTransport",
+      "sha256": "83ae2f54d25bb9269f3062eca00990c376c4c00410549ef394d75fc8776e5aa6"
+    },
+    {
+      "source": "cases/agile-80mm/constant/polyMesh/boundary",
+      "sha256": "9ce7f0b46e661691a267f8b05d97acb779d3bbdf33431bfc5f000ff2813b8ae0"
+    },
+    {
+      "source": "cases/agile-80mm/constant/polyMesh/cellZones",
+      "sha256": "08a7514142c9dc35da99339ec372f7ad9c2837a2836f3621da29ee88db9d1001"
+    },
+    {
+      "source": "cases/agile-80mm/constant/polyMesh/faceZones",
+      "sha256": "684fb36dec901d801f995bd67eb0c248b7594e266cc983828ea2eb121ec9c2d9"
+    },
+    {
+      "source": "cases/agile-80mm/constant/polyMesh/faces",
+      "sha256": "fd57fa6de959a13ce2706d82b42c69e4effa4a3ec69884e799f8a0da5916c7c8"
+    },
+    {
+      "source": "cases/agile-80mm/constant/polyMesh/neighbour",
+      "sha256": "c63bdb32e21ad9fe898bfa908068bf10f050620840e51139f31f711f9f8f3813"
+    },
+    {
+      "source": "cases/agile-80mm/constant/polyMesh/owner",
+      "sha256": "c35232e64eeacc0417962331744935ecb27f12282efb88b93690211ddf802e15"
+    },
+    {
+      "source": "cases/agile-80mm/constant/polyMesh/pointZones",
+      "sha256": "888d24ae698789d586709f671a188b78348437420393fa6e8351a5ec76a8e32a"
+    },
+    {
+      "source": "cases/agile-80mm/constant/polyMesh/points",
+      "sha256": "a57ebb4429ce31dd964d80464a1371a1ed9fd1075a6f3d7db0dc0bd839dd38f8"
+    },
+    {
+      "source": "cases/agile-80mm/constant/property-assumptions.json",
+      "sha256": "175bbeb88ddb8f0980f9223a20ab6441176f55e5e285a59747c0a9673b7e20df"
+    },
+    {
+      "source": "cases/agile-80mm/constant/reactions",
+      "sha256": "251c7779fc292ae49836e4a29d01cef9cf8e68f8e3f9d1fb89a9abe8d858cc6d"
+    },
+    {
+      "source": "cases/agile-80mm/constant/thermo.inputData",
+      "sha256": "a8228eca235cc6fe6c2a6a0717b727d93f5e2384b9031d2bfe7b0a1c243e5529"
+    },
+    {
+      "source": "cases/agile-80mm/constant/thermophysicalProperties",
+      "sha256": "2c9c24868aeeb69a9ac17d2bf444bd8ac9aa3116125cd53a5da21f9d4bb0556e"
+    },
+    {
+      "source": "cases/agile-80mm/constant/thermophysicalTransport",
+      "sha256": "d84b53ac5688d08fdbb0eae9794cf8587118b999577fe27fcf35004a1c1c4644"
+    },
+    {
+      "source": "cases/agile-80mm/system/controlDict",
+      "sha256": "4a70ecab81fb02a7d05d9277eedf5337593ce3bf4b35e90ec65b35df3fb94ea6"
+    },
+    {
+      "source": "cases/agile-80mm/system/decomposeParDict",
+      "sha256": "dec890ce425120244c2b631a621e5332ff430b2a9304433c2b3c8f763f4ddc3a"
+    },
+    {
+      "source": "cases/agile-80mm/system/fvSchemes",
+      "sha256": "165535a8dd43fd32c7b5fef94aafdbbd5322e46f44e7dcc515d8bb2f3bdc06cf"
+    },
+    {
+      "source": "cases/agile-80mm/system/fvSolution",
+      "sha256": "63127783b894f7ffcf9c4674557c03742ccb168f4229d63489f02a286e74183c"
+    },
+    {
+      "source": "cases/agile-80mm/system/topoSetDict",
+      "sha256": "917527a89733ae0e62f84bcd5786f116bc653a74c35d49fa6193baef32b34778"
+    }
+  ],
+  "prepared_attempt": {
+    "digest": "a1b507c60f7615c7806dfb4e800e6de6555aa812088c09ef50ee4cb522a64d15",
+    "measured_after": "all documented changes were applied",
+    "note": "The imported-input digests above were taken before these changes; this digest covers the case that will run."
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "plan": {
+    "jobId": "mascotte-agile-002",
+    "profile": {
+      "id": "of8-realfluid",
+      "executable": "/data2/kexiao/of8/rf-profile/bin/realFluidReactingFoam",
+      "executableSha256": "2d2d98f7d7f6b53e0a4b145054ee0181c769ca26abb542af0cc863bec2ee989e",
+      "envFile": "/data2/kexiao/of8/rf-profile-env.sh",
+      "libraryPaths": [
+        "/data2/kexiao/of8/rf-profile/lib",
+        "/data2/kexiao/of8/OpenFOAM-8/platforms/linux64GccDPInt32Opt/lib"
+      ],
+      "expectedProfileLibraries": [
+        "libreactionThermophysicalModels.so",
+        "libspecie.so",
+        "libchemistryModel.so",
+        "libcombustionModels.so"
+      ]
+    },
+    "caseDir": "/workspace/runs/mascotte/mascotte-agile-002",
+    "args": [],
+    "budgetSeconds": 240,
+    "requestedEndTime": 0.00001,
+    "ranks": 1,
+    "logFile": "log.realFluidReactingFoam"
+  },
+  "state": {
+    "jobId": "mascotte-agile-002",
+    "state": "failed",
+    "submittedAt": 1789625238770,
+    "startedAt": "\"2026-09-17T14:02:36+08:00\"",
+    "finishedAt": "\"2026-09-17T14:06:36+08:00\"",
+    "container": null,
+    "lastReportedTime": 1.1869477e-7,
+    "terminatedNormally": false,
+    "stopReason": "budget_exceeded",
+    "detail": "the wall-clock budget (240s) stopped the run at 240s, not the solver; last reported time 1.1869477e-7"
+  },
+  "planDigest": "42cf761d60ab440b0e09b460c0d06ae54e0e14a00c8ea53053f0da00fd6b8bb3"
+}

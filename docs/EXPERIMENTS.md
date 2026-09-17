@@ -560,3 +560,56 @@ Two standing corrections apply to the numbers above and are recorded as such in
 the bundle: the temperature and continuity figures are **last sampled values**,
 not bounds over the run, and "time step continuity errors" is the solver's own
 term rather than a residual or convergence measure.
+
+## The host runner was broken; mascotte-startup-002 proves the repair
+
+The review of `dac3970` isolated four defects in the generic host runner, and
+reproduced them with a dummy solver. All four were real, and the reason they
+survived is that the generated runner had never been executed in a test — its
+text was asserted over, but not run.
+
+1. `run-cfd-job.ts` used `RECORD_FILE` and `readFile` without importing either.
+   Planning reached a `ReferenceError`; receipt reading returned `null` through
+   a catch-all, so a programming error was reported as an execution outcome.
+2. The deadline was applied to a shell expression. `buildCommand` returns
+   `source env && solver`, so `timeout 600 source env && solver` asks `timeout`
+   to exec a program named `source`, which does not exist; the solver was left
+   outside the deadline entirely.
+3. The receipt was invalid JSON: a comma followed the last property, so every
+   receipt was rejected by a parser, and the same catch-all turned the failure
+   into "receipt absent".
+4. The receipt did not influence the state. `assessFromLog` wrote a terminal
+   state from the log alone and only then printed the receipt, so a log ending
+   in `End` overrode a failed execution.
+
+The repair removed the cause of the divergence rather than patching each
+symptom: **there is now one execution backend**,
+`packages/controller/src/runner.ts`, and a generic job and a prepared MASCOTTE
+attempt both execute through it. `prepare-mascotte-attempt.ts` is a case
+preparer that writes a job record and generates `run.sh` from the same tested
+function; the thin `Allrun-child` wrapper keeps only the case-specific
+preflight, refusing processor directories and running the target's `Allcheck`.
+
+The backend is tested by executing the scripts it generates against
+deterministic dummy solvers — a fast success, a nonzero exit, a hanging solver
+with a child the deadline must collect, and a repeated submission. That is what
+caught defects 2 and 4, both invisible unless the generated script actually
+runs.
+
+`mascotte-startup-002` is the real proof. The budget was set to 240 s against a
+case needing far longer, so the deadline was expected to fire and did:
+`exit_code=124`, `wall_clock_seconds=240` of `budget_seconds=240`. The
+assessment attributed the stop to the budget, not to a solver error — and the
+log ends mid-timestep with no normal `End`, which under the old code would have
+been read as a crash.
+
+The attempt record now carries **two** identities: `inputs`, measured before any
+change, and `prepared_attempt`, a digest measured after all documented changes
+were applied. The receipt's `plan_digest` binds to the case that ran rather
+than the case that was imported.
+
+Four further defects were found by executing, each fixed: the completeness check
+compared against the manifest including non-input files; the preflight could not
+find `checkMesh` because it sourced no environment; a helper constant was
+declared inside `main`; and `run-cfd-job.ts` carried a duplicated header from an
+earlier splice.

@@ -62,3 +62,4 @@ These bundles are public. Nothing in them may be genuinely secret:
 | [`cfd-job-001`](cfd-job-001/) | Can the controller plan a real solver run, have it executed across the container boundary, and assess the outcome from evidence rather than assertion? |
 | [`target-solver-001`](target-solver-001/) | Does the pinned `realFluidReactingFoam` run at all on a correctly configured case, and what is the smallest defensible change to exercise its intended equations? |
 | [`mascotte-startup-001`](mascotte-startup-001/) | Can the imported MASCOTTE G2 case run at all under the pinned target solver, as a bounded chemistry-off startup qualification that never touches the immutable target? |
+| [`mascotte-startup-002`](mascotte-startup-002/) | Does the shared host backend enforce its deadline, write a valid receipt, and let that receipt decide the outcome — proven by a run the budget actually stopped? |
