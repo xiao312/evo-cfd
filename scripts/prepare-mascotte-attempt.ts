@@ -320,6 +320,7 @@ async function main(): Promise<void> {
   };
 
   const profileExe = `/data2/kexiao/of8/rf-profile/bin/${executable}`;
+  const ENV_FILE = "/data2/kexiao/of8/rf-profile-env.sh";
   let exeDigest = "unmeasured";
   try {
     exeDigest = await sha256(profileExe);
@@ -375,6 +376,11 @@ async function main(): Promise<void> {
       "set -euo pipefail",
       'root="$(cd "$(dirname "$0")" && pwd)"',
       'cd "$root"',
+      // The solver and checkMesh are host-built OpenFOAM binaries; the profile
+      // env is what resolves their libraries. Without it checkMesh is not found
+      // at all, and with the wrong library order a binary still runs with the
+      // wrong physics.
+      `source ${ENV_FILE}`,
       'if find . -maxdepth 1 -type d -name "processor*" | grep -q .; then',
       '  echo "Refusing to run in an attempt containing processor directories." >&2',
       "  exit 1",
