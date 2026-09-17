@@ -306,9 +306,23 @@ async function main(): Promise<void> {
   // the copy happened to visit. Iterating the source tree verifies the files
   // that are there; it says nothing about a file that is missing from the
   // target, or about an admitted directory the source no longer has.
+  // The expected set is the manifest entries that an admitted input
+  // directory can contribute. The manifest also lists files that are not case
+  // inputs -- a README, and the checkMesh log the target's own tooling writes --
+  // and those are excluded here by name rather than silently accepted as
+  // shipped. What must not happen is a real input being omitted unnoticed.
   const expectedAll = manifest
     .map((e) => e.path)
-    .filter((p) => p.startsWith(`./cases/${variant}/`));
+    .filter((p) => p.startsWith(`./cases/${variant}/`))
+    .filter((p) => {
+      const rel = p.slice(`./cases/${variant}/`.length);
+      const top = rel.split("/")[0];
+      if (!ADMITTED_INPUT_DIRS.includes(top)) return false;
+      if (EXCLUDE_NAMES.has(rel.split("/").pop() as string)) return false;
+      const parts = rel.split("/");
+      if (parts.slice(0, -1).some((part) => part.startsWith("processor") || part === "sets" || part === "lagrangian")) return false;
+      return true;
+    });
   const copiedSet = new Set(copied.map((c) => `./${c.source}`));
   const omitted = expectedAll.filter((p) => !copiedSet.has(p));
   if (omitted.length > 0) {
