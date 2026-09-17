@@ -590,3 +590,88 @@ task identity           environment identity     trial identity
 
 instead of treating a directory of files as "the benchmark." That distinction
 is what will eventually make credible self-improvement claims possible.
+
+# Milestone: Integrated Investigation Loop v1
+
+Review of `63345da` (checkpoint tag `checkpoint-2026-09-17-pre-consolidation`)
+concluded that EvoCFD has most of the necessary components, but the connections
+between them still depend on experiment-specific scripts, operator
+coordination, and manually maintained interpretations. The next milestone
+therefore stops feature expansion and makes one complete loop dependable.
+
+The loop to make dependable:
+
+```text
+read campaign state
+  -> construct the worker context
+  -> record question, plan and evaluation basis
+  -> prepare a bounded attempt
+  -> execute and assess it
+  -> decide whether consultation is needed
+  -> obtain and validate external advice
+  -> admit a bounded follow-up plan
+  -> execute the follow-up
+  -> update the investigation and selected experience
+  -> start the next episode with that experience
+```
+
+## Deliverables, in order
+
+1. **Integration contract and defect repair.** Wrong-response, stale-state,
+   mismatched-receipt and missing-evidence tests exercise real producers and
+   consumers. The five known connection defects are listed below.
+2. **Two-attempt investigation loop.** Attempt A's evidence, advice, decision
+   and selected experience visibly reach attempt B. Restart from disk does not
+   duplicate a solver job or an advisor request.
+3. **Advisor efficiency and numerical-R&D contract.** Versioned solver dossier
+   plus a small decision delta; measured retrieval and interaction overhead; an
+   algorithm-design request type with explicit transfer criteria.
+4. **Incremental refactor.** Behaviour and recorded identities stay valid; old
+   commands keep tested migration paths.
+5. **Development conventions.** Type checking over packages and entry points,
+   test discovery that cannot silently shrink, commit/PR conventions,
+   `CONTRIBUTING.md`.
+
+## The five known connection defects
+
+These are the initial hardening scope. Each is a real defect with a concrete
+failure mode, not a style preference.
+
+- **The receiver can accept an old answer or even a user message.** Text
+  stability is not evidence of completion or identity. The receiver must bind
+  capture to a recorded submission, validate a response envelope, keep a
+  deadline, and preserve an incomplete answer as incomplete. `textContent` also
+  discards markdown structure and code fences, so the original representation
+  must be preserved where the transport permits.
+- **Receive and import are not one transaction.** The receiver hard-codes the
+  request id and digest prefix; the importer takes them from arguments without
+  checking they were declared in the captured answer. A stale answer can be
+  labelled as current by the caller. No experiment id or digest belongs in the
+  receiver's source.
+- **Consultation preparation embeds obsolete experiment facts**, including ones
+  the external advisor already corrected. Preparation and import also define
+  `caseDigest` differently — the attempt record versus the case tree — so an
+  unchanged case can be reported stale. Measurable values must come from
+  records, not prose.
+- **The investigation layer is retrospective and drops actual changes.** The
+  record is written only after the outcome is known, so the plan cannot be shown
+  to precede execution, and `actual_changes` is hard-coded empty. The lifecycle
+  must split into plan -> prepared change -> execution -> assessment ->
+  interpretation, with the change bound to the preparer's own diff.
+- **Execution receipts are not bound to a plan.** `assessExecution` accepts a
+  receipt without comparing its job id or plan digest to the expected ones, and
+  the command is quoted for execution but written into the receipt heredoc
+  unquoted, so the shell can reinterpret it.
+
+## Rules for this milestone
+
+- Refactoring supports the loop; it is not a separate cosmetic exercise.
+  Directory moves happen only after behaviour is covered.
+- Do not retroactively broaden a frozen request. New advisor permissions get a
+  new request type.
+- A protocol test does not need to discover a superior numerical method. Report
+  loop completion and scientific improvement separately.
+- Preserve the exact tested source snapshot. Evidence must not depend only on a
+  disposable branch commit.
+- Separate functional fixes, mechanical moves, numerical changes and experiment
+  interpretation into different commits.
