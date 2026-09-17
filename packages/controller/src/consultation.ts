@@ -365,7 +365,11 @@ export async function prepareConsultation(input: {
     priorDigest = existing.digest;
   }
 
-  const staging = join(input.runRoot, `${CONSULTATION_REQUEST_DIR}.tmp`);
+  // Resolved to an absolute path: a relative runRoot would make `staging`
+  // relative while `resolve(staging, dest)` below is absolute, so the
+  // containment comparison would compare a relative prefix against an absolute
+  // path and reject every evidence destination as an escape.
+  const staging = resolve(join(input.runRoot, `${CONSULTATION_REQUEST_DIR}.tmp`));
   await rm(staging, { recursive: true, force: true });
   await mkdir(staging, { recursive: true });
 
