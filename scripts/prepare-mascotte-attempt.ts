@@ -29,6 +29,16 @@ import { existsSync } from "node:fs";
 import { basename, join, relative, resolve, sep } from "node:path";
 import { argv, exit } from "node:process";
 
+import {
+  buildArgv,
+  planDigest,
+  resolveProfile,
+  writeJobRecord,
+  RECORD_FILE,
+} from "../packages/controller/src/cfd-exec.ts";
+import { buildRunnerScript } from "../packages/controller/src/runner.ts";
+import type { CfdJobPlan } from "../packages/controller/src/cfd-job.ts";
+
 /** Directories admitted into a child attempt. Everything else stays in the target. */
 const ADMITTED_INPUT_DIRS = ["0", "constant", "system"];
 /** Files written by tooling, not case inputs. Never copied. */
@@ -128,6 +138,39 @@ interface AttemptRecord {
   };
   species: string[];
   inputs: { source: string; sha256: string }[];
+  prepared_attempt?: {
+    digest: string;
+    measured_after: string;
+    note: string;
+  };
+}
+
+/**
+ * A safe identifier for a directory name or a job id.
+ *
+ * This is not a sandbox escape policy, because the script also refuses any
+ * destination inside the target tree. It exists so that an agent-supplied value
+ * cannot silently become a path traversal or a nested directory.
+ */
+function isSafeIdentifier(value: string): boolean {
+  return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value) && value.length <= 128;
+}
+
+function isFiniteNumeric(value: string): boolean {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0;
+}
+
+/**
+ * Canonical containment: dest is inside base only if every step of the resolved
+ * dest path starts with the resolved base path. A lexical `startsWith` test is
+ * fooled by a sibling that shares a prefix.
+ */
+function isInside(base: string, dest: string): boolean {
+  const b = resolve(base);
+  const d = resolve(dest);
+  if (d === b) return true;
+  return d.startsWith(b + sep);
 }
 
 async function main(): Promise<void> {
@@ -144,8 +187,28 @@ async function main(): Promise<void> {
     console.error("usage: prepare-mascotte-attempt.ts --job <id> --variant <v> --ranks <n> --executable <e> [--chemistry off] [--end-time T] [--budget S]");
     exit(2);
   }
-  if (!Number.isFinite(ranks) || ranks < 1) {
-    console.error("--ranks must be a positive integer");
+  // These become agent-supplied arguments, so they are validated before the
+  // script does anything with them. `Number(2.5) < 1` is false but is not a rank
+  // count, and an identifier containing a path separator or space reaches into
+  // places this script does not intend to write.
+  if (!Number.isInteger(ranks) || ranks < 1) {
+    console.error(`--ranks must be a positive integer, got ${arg("--ranks", "1")}`);
+    exit(2);
+  }
+  if (!Number.isInteger(budget) || budget <= 0) {
+    console.error(`--budget must be a positive integer of seconds, got ${arg("--budget", "900")}`);
+    exit(2);
+  }
+  if (!isSafeIdentifier(jobId)) {
+    console.error(`--job must be a safe identifier (letters, digits, dash, dot), got ${JSON.stringify(jobId)}`);
+    exit(2);
+  }
+  if (!isSafeIdentifier(variant)) {
+    console.error(`--variant must be a safe identifier, got ${JSON.stringify(variant)}`);
+    exit(2);
+  }
+  if (endTimeOverride !== undefined && !isFiniteNumeric(endTimeOverride)) {
+    console.error(`--end-time must be a finite number, got ${JSON.stringify(endTimeOverride)}`);
     exit(2);
   }
 
@@ -162,11 +225,27 @@ async function main(): Promise<void> {
 
   const dest = resolve(runsRoot, jobId);
   // Refuse to write inside the target tree. A child that overwrites the target
-  // is not an attempt, it is a modified immutable reference.
-  const rel = relative(targetRoot, dest);
-  if (rel === "" || (!rel.startsWith("..") && !rel.startsWith(`..${sep}`))) {
+  // is not an attempt, it is a modified immutable reference. The check is
+  // canonical, on resolved paths, because a lexical prefix test is fooled by a
+  // sibling directory that shares a name prefix.
+  if (isInside(targetRoot, dest)) {
     console.error(
       `refusing to create an attempt inside the target tree: ${dest} is within ${targetRoot}`,
+    );
+    exit(1);
+  }
+  // A partial destination is not merged into. An existing record means a prior
+  // attempt, and a directory with no record but with case content is an
+  // abandoned materialisation whose provenance is unknown.
+  if (existsSync(join(dest, RECORD_FILE))) {
+    console.error(
+      `a job record already exists at ${join(dest, RECORD_FILE)}; a prior attempt is preserved. Use a new job id.`,
+    );
+    exit(1);
+  }
+  if (existsSync(dest) && (await readdir(dest)).length > 0) {
+    console.error(
+      `${dest} exists and is not empty; refusing to merge into a directory of unknown provenance. Use a new job id or remove it.`,
     );
     exit(1);
   }
@@ -221,6 +300,21 @@ async function main(): Promise<void> {
     const from = join(sourceCase, dir);
     if (!existsSync(from)) continue;
     await copyTree(from, dir);
+  }
+
+  // Completeness is checked against the expected set, not inferred from what
+  // the copy happened to visit. Iterating the source tree verifies the files
+  // that are there; it says nothing about a file that is missing from the
+  // target, or about an admitted directory the source no longer has.
+  const expectedAll = manifest
+    .map((e) => e.path)
+    .filter((p) => p.startsWith(`./cases/${variant}/`));
+  const copiedSet = new Set(copied.map((c) => `./${c.source}`));
+  const omitted = expectedAll.filter((p) => !copiedSet.has(p));
+  if (omitted.length > 0) {
+    throw new Error(
+      `the copy omitted ${omitted.length} file(s) the target manifest lists for this variant, including ${omitted.slice(0, 3).join(", ")}; refusing to ship a partial case`,
+    );
   }
 
   // Derive the species from the mechanism actually selected, including the inert
@@ -384,38 +478,83 @@ async function main(): Promise<void> {
     species,
     inputs: copied,
   };
+  // The imported-input identity above was measured before the changes. The
+  // prepared attempt is a different case, and the record must bind that too:
+  // imported-input identity + the exact preparation diff = prepared-attempt
+  // identity. The execution receipt references this digest, so an answer can be
+  // tied to the case that actually ran rather than to the one that was imported.
+  const preparedDigest = await digestPrepared(dest, changes);
+  record.prepared_attempt = {
+    digest: preparedDigest,
+    measured_after: "all documented changes were applied",
+    note:
+      "The imported-input digests above were taken before these changes; this digest covers the case that will run.",
+  };
   await writeFile(
     join(dest, "attempt-record.json"),
     JSON.stringify(record, null, 2) + "\n",
     "utf8",
   );
 
-  // The child gets its own launcher. It refuses processor directories and runs
-  // Allcheck on the child, never on the target. Allcheck itself is the target's
-  // reviewed script; it is located relative to the launcher itself because the
-  // launcher runs on the host while the attempt was materialised in the
-  // container, so the two see the repository under different roots.
-  const allcheck = join(targetRoot, "Allcheck");
+  // One execution backend. The deadline, the environment sourcing, the
+  // resolution check and the receipt are the same tested implementation a
+  // generic job uses, from packages/controller/src/runner.ts. What stays here is
+  // only the case-specific preflight: the child must not already hold processor
+  // directories, and it must pass the target's own structure and mesh checks
+  // before the solver is allowed to start.
+  const plan: CfdJobPlan = {
+    jobId,
+    profile: resolveProfile({
+      id: "of8-realfluid",
+      executable: profileExe,
+      executableSha256: exeDigest === "unmeasured" ? "" : exeDigest,
+      envFile: ENV_FILE,
+      libraryPaths: [
+        "/data2/kexiao/of8/rf-profile/lib",
+        "/data2/kexiao/of8/OpenFOAM-8/platforms/linux64GccDPInt32Opt/lib",
+      ],
+      expectedProfileLibraries: [
+        "libreactionThermophysicalModels.so",
+        "libspecie.so",
+        "libchemistryModel.so",
+        "libcombustionModels.so",
+      ],
+    }),
+    caseDir: dest,
+    args: [],
+    budgetSeconds: budget,
+    requestedEndTime: endTimeOverride !== undefined ? Number(endTimeOverride) : 0.005,
+    ranks,
+    logFile: `log.${executable}`,
+  };
+  const digest = planDigest(plan);
+  await writeJobRecord(dest, { plan, state: emptyJobState(jobId), planDigest: digest });
+
+  const argv = buildArgv(profileExe, plan.args, ranks);
+  await writeFile(
+    join(dest, "run.sh"),
+    buildRunnerScript({
+      jobId,
+      planDigest: digest,
+      argv,
+      envFile: ENV_FILE,
+      budgetSeconds: budget,
+      logFile: plan.logFile,
+    }),
+    "utf8",
+  );
+
+  // The preflight wrapper is deliberately small and stable. Everything that can
+  // go wrong with a deadline, a receipt or a library order lives in run.sh,
+  // which the same backend a generic job uses generates.
   await writeFile(
     join(dest, "Allrun-child"),
     [
       "#!/bin/bash",
-      "# Child-attempt launcher generated by prepare-mascotte-attempt.ts.",
-      "# The imported Allrun is retained in the target for provenance and is not used here.",
-      // OpenFOAM's environment files are written for interactive use: config.sh/aliases
-      // ends with `unalias wmRefresh`, which fails whenever that alias is not
-      // defined. Under errexit the source aborts there and leaves PATH and
-      // LD_LIBRARY_PATH half-configured -- checkMesh then vanishes, or the solver
-      // resolves the wrong libraries. So the env is sourced with errexit off and
-      // the result is verified by resolution rather than assumed from a return
-      // code.
-      "set -o pipefail",
-      "set +e",
-      `source ${ENV_FILE}`,
-      "set -e",
-      `command -v ${executable} >/dev/null 2>&1 || { echo "${executable} did not resolve after sourcing the profile env" >&2; exit 1; }`,
-      `command -v checkMesh >/dev/null 2>&1 || { echo "checkMesh did not resolve after sourcing the profile env" >&2; exit 1; }`,
-      "set -u",
+      "# Child-attempt preflight. The execution itself is run.sh, generated by",
+      "# the same backend a generic CFD job uses, so the deadline, the receipt",
+      "# and the library resolution behave identically.",
+      "set -euo pipefail",
       'root="$(cd "$(dirname "$0")" && pwd)"',
       'cd "$root"',
       'if find . -maxdepth 1 -type d -name "processor*" | grep -q .; then',
@@ -423,19 +562,16 @@ async function main(): Promise<void> {
       "  exit 1",
       "fi",
       // The attempt is at <repo>/runs/mascotte/<job>; the target's Allcheck is
-      // <repo>/mascotte-g2/Allcheck. Resolving from the launcher's own location
-      // keeps it correct on both the host and the container roots.
+      // <repo>/mascotte-g2/Allcheck. Resolved from the launcher's own location so
+      // the same file works under the host and the container roots.
       'repo="$(cd "$root/../../.." && pwd)"',
-      `allcheck="\$repo/${relative(repoRoot, allcheck)}"`,
+      `allcheck="$repo/${allcheckRel}"`,
       'test -f "$allcheck" || { echo "Allcheck not found at $allcheck" >&2; exit 1; }',
       'CASE_DIR="$root" bash "$allcheck" || { echo "Allcheck failed on the child" >&2; exit 1; }',
-      ranks > 1
-        ? `decomposePar -force | tee log.decomposePar\ntimeout -s TERM -k 30 ${budget} mpirun -np ${ranks} ${profileExe} -parallel | tee log.${executable}`
-        : `timeout -s TERM -k 30 ${budget} ${profileExe} | tee log.${executable}`,
+      'bash "$root/run.sh"',
     ].join("\n") + "\n",
     "utf8",
   );
-
   console.log(`ok attempt ${jobId} materialized at ${dest}`);
   console.log(`   variant ${variant}, species ${species.length}, ranks ${ranks}, chemistry ${chemistry}`);
   console.log(`   executable ${executable} (${exeDigest.slice(0, 16)}…)`);
@@ -446,6 +582,53 @@ async function main(): Promise<void> {
   console.log(`   budget ${budget}s; run with bash ${join(dest, "Allrun-child")}`);
 }
 
+function emptyJobState(jobId: string) {
+  return {
+    jobId,
+    state: "submitted" as const,
+    submittedAt: Date.now(),
+    startedAt: null,
+    finishedAt: null,
+    container: null,
+    lastReportedTime: null,
+    terminatedNormally: false,
+    stopReason: null,
+    detail: "",
+  };
+}
+
+/**
+ * Digests the prepared case as it will run.
+ *
+ * The dictionaries this script changed are hashed in their final state and the
+ * change list is included, so the digest moves if either the case or the stated
+ * changes move. This is a prepared-case identity, not a claim of bit-for-bit
+ * reproducibility from the target.
+ */
+async function digestPrepared(dest: string, changes: string[]): Promise<string> {
+  const h = createHash("sha256");
+  const files = [
+    "system/controlDict",
+    "system/fvSchemes",
+    "system/decomposeParDict",
+    "constant/chemistryProperties",
+    "constant/thermophysicalProperties",
+    "constant/thermo.inputData",
+  ].sort();
+  for (const f of files) {
+    try {
+      const raw = await readFile(join(dest, f));
+      h.update(f)
+        .update(":")
+        .update(createHash("sha256").update(raw).digest("hex"))
+        .update("\n");
+    } catch {
+      h.update(f).update(":absent\n");
+    }
+  }
+  h.update("changes:\n" + changes.join("\n"));
+  return h.digest("hex");
+}
 async function readManifest(path: string): Promise<{ path: string; sha256: string }[]> {
   const raw = await readFile(path, "utf8");
   return raw

@@ -15,6 +15,8 @@ import { createHash } from "node:crypto";
 import { open, readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
+import { buildArgv } from "./runner.ts";
+
 import type {
   CfdJobPlan,
   CfdJobRecord,
@@ -149,20 +151,16 @@ export async function updateJobState(
  * right executable with the wrong library set is not the job that was planned.
  */
 export function buildCommand(plan: CfdJobPlan): string {
+  // Kept for callers that need a single shell string. The runner does not use
+  // it: a shell string cannot be placed under a deadline, because GNU timeout
+  // execs a command rather than interpreting `source` or `&&`. Anything that
+  // enforces a budget must use buildArgv instead.
   const env = plan.profile.envFile;
-  const exe = toPosix(plan.profile.executable);
-  const args = plan.args.map(toPosix).join(" ");
-  if (plan.ranks > 1) {
-    return [
-      `source ${env}`,
-      `mpirun -np ${plan.ranks} ${exe} ${args}`,
-    ].join(" && ");
-  }
-  return [
-    `source ${env}`,
-    `${exe} ${args}`,
-  ].join(" && ");
+  const argv = buildArgv(plan.profile.executable, plan.args, plan.ranks);
+  return [`source ${env}`, argv.join(" ")].join(" && ");
 }
+
+export { buildArgv } from "./runner.ts";
 
 /** The last `Time = ...` value the solver printed, or null. */
 export async function readLastTime(logPath: string): Promise<number | null> {
