@@ -411,7 +411,7 @@ async function main(): Promise<void> {
       // The attempt is at <repo>/runs/mascotte/<job>; the target's Allcheck is
       // <repo>/mascotte-g2/Allcheck. Resolving from the launcher's own location
       // keeps it correct on both the host and the container roots.
-      'repo="$(cd "$root/../.." && pwd)"',
+      'repo="$(cd "$root/../../.." && pwd)"',
       `allcheck="\$repo/${relative(repoRoot, allcheck)}"`,
       'test -f "$allcheck" || { echo "Allcheck not found at $allcheck" >&2; exit 1; }',
       'CASE_DIR="$root" bash "$allcheck" || { echo "Allcheck failed on the child" >&2; exit 1; }',
