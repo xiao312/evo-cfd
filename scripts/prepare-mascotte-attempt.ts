@@ -39,6 +39,9 @@ import {
 import { buildRunnerScript } from "../packages/controller/src/runner.ts";
 import type { CfdJobPlan } from "../packages/controller/src/cfd-job.ts";
 
+/** The target's own structure and mesh check, relative to the repository root. */
+const ALLCHECK_REL = "mascotte-g2/Allcheck";
+
 /** Directories admitted into a child attempt. Everything else stays in the target. */
 const ADMITTED_INPUT_DIRS = ["0", "constant", "system"];
 /** Files written by tooling, not case inputs. Never copied. */
@@ -579,7 +582,7 @@ async function main(): Promise<void> {
       // <repo>/mascotte-g2/Allcheck. Resolved from the launcher's own location so
       // the same file works under the host and the container roots.
       'repo="$(cd "$root/../../.." && pwd)"',
-      `allcheck="$repo/${allcheckRel}"`,
+      `allcheck="$repo/${ALLCHECK_REL}"`,
       'test -f "$allcheck" || { echo "Allcheck not found at $allcheck" >&2; exit 1; }',
       'CASE_DIR="$root" bash "$allcheck" || { echo "Allcheck failed on the child" >&2; exit 1; }',
       'bash "$root/run.sh"',
