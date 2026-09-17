@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "investigation_id": "mascotte-agile-002",
+  "attempt_id": "mascotte-agile-002",
+  "prepared_attempt_digest": "a1b507c60f7615c7806dfb4e800e6de6555aa812088c09ef50ee4cb522a64d15",
+  "question": {
+    "text": "Does the shared host execution backend enforce its own deadline, and does the\nreceipt it writes decide the recorded outcome?",
+    "rationale": "The preceding revision claimed a bounded execution path, but the deadline was\napplied to a shell expression that `timeout` could not interpret, the receipt\nwas invalid JSON, and the state was decided from the log before the receipt was\nread. Three of the four behaviours the record asserted had never been observed.",
+    "prior_evidence": [
+      "mascotte-startup-001: the run was stopped by an operator, and stopping the launcher's bash left the solver running for several minutes more",
+      "the review of dac3970 reproduced all four defects with a dummy solver"
+    ],
+    "answerable_if": "The receipt exists, is parseable, and records an exit code and a wall clock\nagainst the declared budget.",
+    "falsified_if": "The receipt is absent or unparseable, so the outcome can only be guessed from a\nlog that ends mid-timestep."
+  },
+  "plan": {
+    "intervention": "Set the budget to 240 s against a case that needs far longer, so the deadline\nmust fire. Run the prepared MASCOTTE child through the same backend a generic\njob uses, then assess from the receipt and the log together.",
+    "expected_observations": [
+      "exit code 124, which is timeout's own code for a deadline stop",
+      "wall clock equal to the budget, to the second",
+      "no normal End in the solver log"
+    ],
+    "evaluation_method": "The receipt decides the terminal state. The log is read only to report the last\nphysical time reached. A truncated log without a receipt would be an execution\nerror, not a budget stop.",
+    "bounds": {
+      "budget_seconds": 240,
+      "requested_end_time": 0.00001,
+      "note": "The point is the deadline, so the physical interval is deliberately unreachable\nwithin the budget; a short interval is expected and is not a failure."
+    }
+  },
+  "actual_changes": [],
+  "outcome": {
+    "established": [
+      {
+        "claim": "The deadline fired and the receipt recorded it",
+        "evidence": "execution-receipt.txt: exit_code 124, wall_clock_seconds 240 of budget 240"
+      },
+      {
+        "claim": "The receipt decided the state, not the log",
+        "evidence": "the assessment reported budget_exceeded, not solver_error, on a log ending mid-timestep"
+      },
+      {
+        "claim": "The receipt is valid and parseable",
+        "evidence": "the line-based key=value format replaced the JSON heredoc that carried a trailing comma"
+      }
+    ],
+    "remains_open": [
+      "whether the solver reaches the requested end time given a full budget",
+      "whether the deadline also collects a solver that has forked children in the real case, as the dummy-solver test does"
+    ],
+    "hypotheses": [
+      {
+        "statement": "The slow wall-clock advance is the coupled real-fluid solve rather than a pathology",
+        "status": "untested"
+      }
+    ],
+    "completion": "cut_short",
+    "completion_detail": "The 240 s budget stopped the run at 240 s, as planned; the last reported time was 1.1869477e-7 of the requested 1e-5."
+  },
+  "experience": [
+    {
+      "lesson": "A truncated log is a budget stop rather than a crash only when the receipt says so",
+      "drawn_from": "the receipt's exit code",
+      "affects_next_question": "the next question may assume deadlines are enforceable and receipts authoritative"
+    },
+    {
+      "lesson": "There must be one execution backend; a second shell template drifts",
+      "drawn_from": "mascotte-startup-001 used its own launcher with no receipt",
+      "affects_next_question": "any new execution path must generate through the shared runner"
+    }
+  ],
+  "evidence_refs": [
+    {
+      "kind": "attempt record",
+      "path": "attempt-record.json"
+    },
+    {
+      "kind": "receipt",
+      "path": "execution-receipt.txt"
+    },
+    {
+      "kind": "solver log",
+      "path": "log.realFluidReactingFoam"
+    }
+  ],
+  "created_at": "2026-09-17T06:36:28.907Z"
+}

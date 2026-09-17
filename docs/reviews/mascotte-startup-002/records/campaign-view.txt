@@ -1,0 +1,48 @@
+==============================================================================
+Campaign view: runs/mascotte
+1 attempt(s), generated from their own records
+==============================================================================
+
+------------------------------------------------------------------------------
+mascotte-agile-002  mascotte-agile-002
+------------------------------------------------------------------------------
+status      assessed
+question    Does the shared host execution backend enforce its own deadline, and does the
+receipt it writes decide the recorded outcome?
+intended    Set the budget to 240 s against a case that needs far longer, so the deadline
+must fire. Run the prepared MASCOTTE child through the same backend a generic
+job uses, then assess from the receipt and the log together.
+digest      a1b507c60f7615c7806dfb4e800e6de6555aa812088c09ef50ee4cb522a64d15
+
+planned observations:
+  + exit code 124, which is timeout's own code for a deadline stop
+  + wall clock equal to the budget, to the second
+  + no normal End in the solver log
+actual changes:
+  (none recorded)
+
+completion  cut_short
+established:
+  = The deadline fired and the receipt recorded it
+  = The receipt decided the state, not the log
+  = The receipt is valid and parseable
+remains open:
+  ? whether the solver reaches the requested end time given a full budget
+  ? whether the deadline also collects a solver that has forked children in the real case, as the dummy-solver test does
+experience carried forward:
+  > A truncated log is a budget stop rather than a crash only when the receipt says so
+  > There must be one execution backend; a second shell template drifts
+
+==============================================================================
+Summary
+==============================================================================
+established : 3
+  = The deadline fired and the receipt recorded it
+  = The receipt decided the state, not the log
+  = The receipt is valid and parseable
+open        : 2
+  ? whether the solver reaches the requested end time given a full budget
+  ? whether the deadline also collects a solver that has forked children in the real case, as the dummy-solver test does
+experience  : 2
+  > A truncated log is a budget stop rather than a crash only when the receipt says so
+  > There must be one execution backend; a second shell template drifts
