@@ -697,4 +697,62 @@ test("no advisor response means the consultation stays pending", async () => {
   await rm(root, { recursive: true, force: true });
 });
 
+test("recordResponse binds to the active revision, not merely to the request id", async () => {
+  const root = await mkdtemp(join(tmpdir(), "consult-"));
+  await prepare(root);
+  const first = await activeRequestDir(root);
+  assert.ok(first);
+
+  // A second briefing supersedes the first: it is a new revision, and its
+  // payload digest differs.
+  const sharpened = makeRequest();
+  sharpened.question = "a sharpened question";
+  await prepare(root, sharpened, true);
+  const second = await activeRequestDir(root);
+  assert.ok(second);
+  assert.notEqual(first!.digest, second!.digest);
+  assert.equal(second!.revision, 2);
+
+  // An answer bound to the *first* revision's digest must be refused: the
+  // request changed, so the answer is stale whatever its id says.
+  await assert.rejects(
+    () =>
+      recordResponse({
+        runRoot: root,
+        response: {
+          requestId: second!.requestId,
+          answerText: "answer to the original briefing",
+          mode: "self_review",
+          provider: "pi",
+          displayedModel: "Atria-Dawn-Preview",
+          toolsUsed: [],
+          conversationRef: "",
+          humanContribution: "self-review",
+          requestDigest: first!.digest,
+          receivedAt: new Date().toISOString(),
+        },
+      }),
+    /digest differs/,
+  );
+
+  // The same answer bound to the active digest is admitted.
+  const ok = await recordResponse({
+    runRoot: root,
+    response: {
+      requestId: second!.requestId,
+      answerText: "answer to the sharpened briefing",
+      mode: "self_review",
+      provider: "pi",
+      displayedModel: "Atria-Dawn-Preview",
+      toolsUsed: [],
+      conversationRef: "",
+      humanContribution: "self-review",
+      requestDigest: second!.digest,
+      receivedAt: new Date().toISOString(),
+    },
+  });
+  assert.ok(ok.responseId);
+  await rm(root, { recursive: true, force: true });
+});
+
 void createHash;

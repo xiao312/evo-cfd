@@ -52,7 +52,7 @@ async function main(): Promise<void> {
   const answerFile = argv[3];
   if (!runRoot || !answerFile) {
     console.error(
-      "usage: import-consultation.ts <run-root> <answer-file> --mode <m> --provider <p> --model <m> [--conversation-ref <url>] [--human <h>]",
+      "usage: import-consultation.ts <run-root> <answer-file> --request-id <id> --request-digest <hex> --mode <m> --provider <p> --model <m> [--conversation-ref <url>] [--human <h>]",
     );
     exit(2);
   }
@@ -79,6 +79,32 @@ async function main(): Promise<void> {
     exit(1);
   }
 
+  // The request identity is supplied by the caller and verified, never
+  // manufactured from the destination. Without this the importer could attach an
+  // unrelated answer to the current request by filling in the expected identity
+  // itself: the digest check would then pass against a value the same caller
+  // supplied. An answer carried back from an external advisor must declare the
+  // identity it was prepared against.
+  const suppliedId = arg("--request-id");
+  const suppliedDigest = arg("--request-digest");
+  if (!suppliedId || !suppliedDigest) {
+    console.error(
+      "an imported answer must declare the request identity it was prepared against; pass --request-id and --request-digest with the values the export printed",
+    );
+    exit(2);
+  }
+  if (suppliedId !== request.requestId) {
+    console.error(
+      `the answer declares request id ${suppliedId} but the active request is ${request.requestId}; refusing to attach an answer to a request it was not prepared for`,
+    );
+    exit(1);
+  }
+  if (suppliedDigest !== active.digest) {
+    console.error(
+      `the answer declares request digest ${suppliedDigest.slice(0, 16)}... but the active request payload hashes to ${active.digest.slice(0, 16)}...; the request changed after this answer was prepared, so the answer is stale`,
+    );
+    exit(1);
+  }
   const mode = (arg("--mode") ?? "self_review") as AdvisorMode;
   const provider = arg("--provider") ?? "unknown";
   const displayedModel = arg("--model") ?? "unknown";
