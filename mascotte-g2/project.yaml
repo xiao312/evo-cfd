@@ -1,0 +1,49 @@
+schema_version: 1
+project:
+  id: mascotte-g2
+  name: MASCOTTE G2 supercritical LOX/CH4
+  solver_scope:
+    - realFluidFoam-8 (realFluidReactingFoam, pinned of8-realfluid profile)
+  role: EvoCFD layer 5 — case and evaluation
+  purpose: >-
+    Provide the immutable physical target and the digitized evaluation evidence that
+    EvoCFD's agentic loop works against. A change to the harness, the numerics or the
+    models is admitted only when it is shown on this case, through the controller's
+    job-lifecycle primitive, and assessed from the solver's own log.
+  status: target-ready, not validated-result-ready
+contract: case-lock.yaml
+solver_identity: ../cfd-baseline/baseline.json
+evaluation: evidence/
+variants:
+  full-200mm:
+    path: cases/full-200mm
+    cells: 200622
+    validation_claims_allowed: true
+  agile-80mm:
+    path: cases/agile-80mm
+    cells: 106782
+    validation_claims_allowed: false
+    intended_use: solver, thermophysics and coupling regression only
+mechanisms:
+  default:
+    name: modified Jones-Lindstedt JL9
+    species: 10
+    reactions: 6
+  ramec17:
+    path: mechanisms/ramec17
+    species: 18
+    reactions: 44
+    status: comparison branch; not default
+    activation_requires_new_child_case: true
+provenance: >-
+    Imported from an internal MASCOTTE investigation package on 2026-09-16 and
+    sanitized for EvoCFD: internal host names, scheduler job identifiers and internal
+    run paths were removed, and the Fluent-oriented top-level corpus was replaced by
+    the OpenFOAM-target documents in this directory. Curated facts, DOIs and hashes
+    are preserved unchanged in evidence/sources.yaml. After LF normalization 132 of
+    146 entries match the source package's own manifest byte for byte; 8 CSVs are
+    content-identical and differ only because the source hashed them with CRLF
+    terminators while this repository stores LF; the remaining entries are the five
+    documents edited for this project. The source manifest was internally
+    inconsistent about line-ending normalization; this one is not.
+manifest_normalization: hashes computed over LF-normalized text, matching what this repository stores

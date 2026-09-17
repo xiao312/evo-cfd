@@ -1,0 +1,35 @@
+schema_version: 1
+sources:
+  - id: experiment:candel-2006-cryogenic-flames
+    title: Structure and Dynamics of Cryogenic Flames at Supercritical Pressure
+    year: 2006
+    doi: 10.1080/00102200500292530
+    url: https://doi.org/10.1080/00102200500292530
+    sha256: f210060d5c3a87bd0669bc7d1d3ee4a66d7d8df6118cf0071c575f97fbb05573
+    access: team-authorized
+    redistribution: prohibited
+    use: primary G2 operating point and OH-star validation observable
+  - id: paper:cavalieri-2025-pseudoboiling
+    title: Characterization of turbulent pseudo-boiling in transcritical and doubly-transcritical oxygen-methane flames
+    year: 2025
+    doi: 10.1016/j.ijheatmasstransfer.2025.127284
+    url: https://doi.org/10.1016/j.ijheatmasstransfer.2025.127284
+    access: public
+    license: CC-BY-4.0
+    use: geometry thermophysics mesh and transient-statistics context
+  - id: paper:de-giorgi-2014-combustion-models
+    title: Application and Comparison of Different Combustion Models of High Pressure LOX/CH4 Jet Flames
+    year: 2014
+    doi: 10.3390/en7010477
+    url: https://doi.org/10.3390/en7010477
+    access: public
+    license: CC-BY-3.0
+    use: RANS combustion-model and flame-length comparison
+  - id: paper:muller-pfitzner-2015-transcritical-les
+    title: Large-Eddy Simulation of Transcritical LOX/CH4 Jet Flames
+    year: 2015
+    url: https://www.eucass.eu/component/docindexer/?id=3841&task=download
+    access: public
+    redistribution: license not asserted; only transformed relative field data retained
+    use: digitized Singla G2 experimental OH-star spatial distribution
+

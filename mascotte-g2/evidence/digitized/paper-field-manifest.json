@@ -1,0 +1,325 @@
+{
+  "schema_version": 1,
+  "generated_by": "digitize_reference_fields.py",
+  "records": [
+    {
+      "source_id": "paper:cavalieri-2025-pseudoboiling",
+      "figure": "Figure 12a",
+      "quantity": "displayed mean OH-star",
+      "value_unit": "mol/m3 as plotted; experimental absolute calibration remains uncertain",
+      "x_unit": "mm",
+      "y_unit": "mm",
+      "panel": "upper numerical SFM",
+      "file": "cavalieri-2025-fig12a-sfm-numerical-ohstar.csv",
+      "source_figure": "cavalieri-2025-fig12.png",
+      "source_sha256": "9e7059d09bde3e33726e562404453900d97eef35e07cee85a97e47208235d880",
+      "field_box_px": [
+        148,
+        58,
+        639,
+        198
+      ],
+      "colourbar_box_px": [
+        310,
+        40,
+        468,
+        51
+      ],
+      "declared_value_range": [
+        0.0,
+        8e-06
+      ],
+      "coordinate_ranges": {
+        "x": [
+          0.0,
+          70.0
+        ],
+        "y": [
+          20.0,
+          0.0
+        ]
+      },
+      "grid_shape_ny_nx": [
+        48,
+        112
+      ],
+      "maximum_accepted_rgb_distance": 35.0,
+      "finite_fraction": 0.9715401785714286,
+      "csv_sha256": "f41cf03cb0b43604d84307ea190c8b363e991dcc3ac3dab87a75968e6834d729",
+      "method": "nearest RGB on displayed colour bar after reviewed raster crop",
+      "quantitative_limit": "approximate figure-derived values; not raw author data"
+    },
+    {
+      "source_id": "paper:cavalieri-2025-pseudoboiling",
+      "figure": "Figure 12a",
+      "quantity": "displayed mean OH-star",
+      "value_unit": "mol/m3 as plotted; experimental absolute calibration remains uncertain",
+      "x_unit": "mm",
+      "y_unit": "mm",
+      "panel": "lower experimental Abel-transformed OH-star",
+      "file": "cavalieri-2025-fig12a-experimental-ohstar.csv",
+      "source_figure": "cavalieri-2025-fig12.png",
+      "source_sha256": "9e7059d09bde3e33726e562404453900d97eef35e07cee85a97e47208235d880",
+      "field_box_px": [
+        148,
+        199,
+        639,
+        339
+      ],
+      "colourbar_box_px": [
+        310,
+        40,
+        468,
+        51
+      ],
+      "declared_value_range": [
+        0.0,
+        8e-06
+      ],
+      "coordinate_ranges": {
+        "x": [
+          0.0,
+          70.0
+        ],
+        "y": [
+          0.0,
+          -20.0
+        ]
+      },
+      "grid_shape_ny_nx": [
+        48,
+        112
+      ],
+      "maximum_accepted_rgb_distance": 35.0,
+      "finite_fraction": 0.8459821428571429,
+      "csv_sha256": "da69c9c8db6a8fd68dc011cd3c5d680b6da4574238ca1cb67f89bd5980fd36f2",
+      "method": "nearest RGB on displayed colour bar after reviewed raster crop",
+      "quantitative_limit": "approximate figure-derived values; not raw author data"
+    },
+    {
+      "source_id": "paper:de-giorgi-2014-combustion-models",
+      "figure": "Figure 5a",
+      "panel": "case2",
+      "quantity": "oxygen mass fraction",
+      "value_unit": "mass fraction",
+      "x_unit": "oxygen-injector diameters",
+      "y_unit": "normalized raster height; no radial scale reported in panel",
+      "file": "de-giorgi-2014-fig5a-case2-o2.csv",
+      "source_figure": "de-giorgi-2014-page12.png",
+      "source_sha256": "dd99f71494e7662255f9f7ae5d1ef64dfae0fcf656c12fdb825638ddff41c033",
+      "field_box_px": [
+        80,
+        331,
+        336,
+        379
+      ],
+      "colourbar_box_px": [
+        269,
+        296,
+        363,
+        310
+      ],
+      "declared_value_range": [
+        0.0,
+        1.0
+      ],
+      "coordinate_ranges": {
+        "x": [
+          0.0,
+          18.0
+        ],
+        "y": [
+          1.0,
+          0.0
+        ]
+      },
+      "grid_shape_ny_nx": [
+        28,
+        108
+      ],
+      "maximum_accepted_rgb_distance": 35.0,
+      "finite_fraction": 0.833994708994709,
+      "csv_sha256": "071e3d396863f09e321e3b6aad0d650a94be914509c1b81a79e5824fdefa0a6e",
+      "method": "nearest RGB on displayed colour bar after reviewed raster crop",
+      "quantitative_limit": "approximate figure-derived values; not raw author data"
+    },
+    {
+      "source_id": "paper:de-giorgi-2014-combustion-models",
+      "figure": "Figure 5b",
+      "panel": "case2",
+      "quantity": "temperature",
+      "value_unit": "K",
+      "x_unit": "oxygen-injector diameters",
+      "y_unit": "normalized raster height; no radial scale reported in panel",
+      "file": "de-giorgi-2014-fig5b-case2-temperature.csv",
+      "source_figure": "de-giorgi-2014-page12.png",
+      "source_sha256": "dd99f71494e7662255f9f7ae5d1ef64dfae0fcf656c12fdb825638ddff41c033",
+      "field_box_px": [
+        412,
+        331,
+        668,
+        379
+      ],
+      "colourbar_box_px": [
+        494,
+        296,
+        606,
+        310
+      ],
+      "declared_value_range": [
+        0.0,
+        3600.0
+      ],
+      "coordinate_ranges": {
+        "x": [
+          0.0,
+          18.0
+        ],
+        "y": [
+          1.0,
+          0.0
+        ]
+      },
+      "grid_shape_ny_nx": [
+        28,
+        108
+      ],
+      "maximum_accepted_rgb_distance": 35.0,
+      "finite_fraction": 0.8687169312169312,
+      "csv_sha256": "0ce53291fe45c526a402f1233fd024034f52e05ea2bde82e43b212efaf2126d7",
+      "method": "nearest RGB on displayed colour bar after reviewed raster crop",
+      "quantitative_limit": "approximate figure-derived values; not raw author data"
+    },
+    {
+      "source_id": "paper:de-giorgi-2014-combustion-models",
+      "figure": "Figure 5a",
+      "panel": "case1",
+      "quantity": "oxygen mass fraction",
+      "value_unit": "mass fraction",
+      "x_unit": "oxygen-injector diameters",
+      "y_unit": "normalized raster height; no radial scale reported in panel",
+      "file": "de-giorgi-2014-fig5a-case1-o2.csv",
+      "source_figure": "de-giorgi-2014-page12.png",
+      "source_sha256": "dd99f71494e7662255f9f7ae5d1ef64dfae0fcf656c12fdb825638ddff41c033",
+      "field_box_px": [
+        80,
+        383,
+        336,
+        430
+      ],
+      "colourbar_box_px": [
+        269,
+        296,
+        363,
+        310
+      ],
+      "declared_value_range": [
+        0.0,
+        1.0
+      ],
+      "coordinate_ranges": {
+        "x": [
+          0.0,
+          18.0
+        ],
+        "y": [
+          1.0,
+          0.0
+        ]
+      },
+      "grid_shape_ny_nx": [
+        28,
+        108
+      ],
+      "maximum_accepted_rgb_distance": 35.0,
+      "finite_fraction": 0.8019179894179894,
+      "csv_sha256": "235ab4aa8667b0a7303b850deebd621d379f6947853e1424114d89352ec054d6",
+      "method": "nearest RGB on displayed colour bar after reviewed raster crop",
+      "quantitative_limit": "approximate figure-derived values; not raw author data"
+    },
+    {
+      "source_id": "paper:de-giorgi-2014-combustion-models",
+      "figure": "Figure 5b",
+      "panel": "case1",
+      "quantity": "temperature",
+      "value_unit": "K",
+      "x_unit": "oxygen-injector diameters",
+      "y_unit": "normalized raster height; no radial scale reported in panel",
+      "file": "de-giorgi-2014-fig5b-case1-temperature.csv",
+      "source_figure": "de-giorgi-2014-page12.png",
+      "source_sha256": "dd99f71494e7662255f9f7ae5d1ef64dfae0fcf656c12fdb825638ddff41c033",
+      "field_box_px": [
+        412,
+        383,
+        668,
+        430
+      ],
+      "colourbar_box_px": [
+        494,
+        296,
+        606,
+        310
+      ],
+      "declared_value_range": [
+        0.0,
+        3600.0
+      ],
+      "coordinate_ranges": {
+        "x": [
+          0.0,
+          18.0
+        ],
+        "y": [
+          1.0,
+          0.0
+        ]
+      },
+      "grid_shape_ny_nx": [
+        28,
+        108
+      ],
+      "maximum_accepted_rgb_distance": 35.0,
+      "finite_fraction": 0.6491402116402116,
+      "csv_sha256": "29e60089788a24dffb4083e3c38e2f0e0cb9b364162e7fd314926a9e46d23ee0",
+      "method": "nearest RGB on displayed colour bar after reviewed raster crop",
+      "quantitative_limit": "approximate figure-derived values; not raw author data"
+    },
+    {
+      "source_id": "paper:de-giorgi-2014-combustion-models",
+      "figure": "Figure 4b",
+      "quantity": "centerline temperature",
+      "file": "de-giorgi-2014-fig4b-centerline-temperature.csv",
+      "source_figure": "de-giorgi-2014-page11.png",
+      "source_sha256": "c72c3161c6fb1df478081a432712d666bd3948c0271675a0db1429718d7e4c6c",
+      "plot_box_px": [
+        446,
+        519,
+        691,
+        742
+      ],
+      "axis_calibration": {
+        "x_m": [
+          0.0,
+          0.09
+        ],
+        "temperature_K": [
+          0.0,
+          3500.0
+        ]
+      },
+      "experimental_peak_position_band_m_approx": [
+        0.053,
+        0.061
+      ],
+      "csv_sha256": "1e247d3749e4c7e1f9ae0520253d88620a8381bc5a7e1377db192d39c827e20b",
+      "method": "colour-threshold trace with median curve pixel per axial column",
+      "quantitative_limit": "approximate figure-derived curve; not raw author data"
+    }
+  ],
+  "review": [
+    "Use field topology and approximate extents; do not treat raster values as author data.",
+    "Blank CSV values failed the RGB-distance gate.",
+    "De Giorgi radial coordinate is normalized because Figure 5 does not plot a radial scale.",
+    "Cavalieri experimental OH-star is Abel transformed; its absolute scaling is less certain than spatial support."
+  ]
+}

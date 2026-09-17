@@ -1,0 +1,102 @@
+[
+  {
+    "species": "H2",
+    "origin": "PR Tc/Pc from supplied a/b; provisional LJ-derived Chung volume and additive Fuller diffusion volume; association parameter zero",
+    "source_temperature_range": [
+      200.0,
+      3500.0
+    ],
+    "cold_polynomial_extrapolation": true,
+    "thermo_source": "Cantera GRI30 NASA7; source range may be exceeded by retained 50\u20135000 K solver bounds"
+  },
+  {
+    "species": "H",
+    "origin": "PR Tc/Pc from supplied a/b; provisional LJ-derived Chung volume and additive Fuller diffusion volume; association parameter zero",
+    "source_temperature_range": [
+      200.0,
+      3500.0
+    ],
+    "cold_polynomial_extrapolation": true,
+    "thermo_source": "Cantera GRI30 NASA7; source range may be exceeded by retained 50\u20135000 K solver bounds"
+  },
+  {
+    "species": "O",
+    "origin": "PR Tc/Pc from supplied a/b; provisional LJ-derived Chung volume and additive Fuller diffusion volume; association parameter zero",
+    "source_temperature_range": [
+      200.0,
+      3500.0
+    ],
+    "cold_polynomial_extrapolation": true,
+    "thermo_source": "Cantera GRI30 NASA7; source range may be exceeded by retained 50\u20135000 K solver bounds"
+  },
+  {
+    "species": "O2",
+    "origin": "inherited major-species real-gas/transport data",
+    "source_temperature_range": [
+      200.0,
+      3500.0
+    ],
+    "cold_polynomial_extrapolation": true,
+    "thermo_source": "Cantera GRI30 NASA7; source range may be exceeded by retained 50\u20135000 K solver bounds"
+  },
+  {
+    "species": "OH",
+    "origin": "PR Tc/Pc from supplied a/b; provisional LJ-derived Chung volume and additive Fuller diffusion volume; association parameter zero",
+    "source_temperature_range": [
+      200.0,
+      3500.0
+    ],
+    "cold_polynomial_extrapolation": true,
+    "thermo_source": "Cantera GRI30 NASA7; source range may be exceeded by retained 50\u20135000 K solver bounds"
+  },
+  {
+    "species": "H2O",
+    "origin": "inherited major-species real-gas/transport data",
+    "source_temperature_range": [
+      200.0,
+      3500.0
+    ],
+    "cold_polynomial_extrapolation": true,
+    "thermo_source": "Cantera GRI30 NASA7; source range may be exceeded by retained 50\u20135000 K solver bounds"
+  },
+  {
+    "species": "CH4",
+    "origin": "inherited major-species real-gas/transport data",
+    "source_temperature_range": [
+      200.0,
+      3500.0
+    ],
+    "cold_polynomial_extrapolation": true,
+    "thermo_source": "Cantera GRI30 NASA7; source range may be exceeded by retained 50\u20135000 K solver bounds"
+  },
+  {
+    "species": "CO",
+    "origin": "PR Tc/Pc from supplied a/b; provisional LJ-derived Chung volume and additive Fuller diffusion volume; association parameter zero",
+    "source_temperature_range": [
+      200.0,
+      3500.0
+    ],
+    "cold_polynomial_extrapolation": true,
+    "thermo_source": "Cantera GRI30 NASA7; source range may be exceeded by retained 50\u20135000 K solver bounds"
+  },
+  {
+    "species": "CO2",
+    "origin": "inherited major-species real-gas/transport data",
+    "source_temperature_range": [
+      200.0,
+      3500.0
+    ],
+    "cold_polynomial_extrapolation": true,
+    "thermo_source": "Cantera GRI30 NASA7; source range may be exceeded by retained 50\u20135000 K solver bounds"
+  },
+  {
+    "species": "N2",
+    "origin": "inherited major-species real-gas/transport data",
+    "source_temperature_range": [
+      300.0,
+      5000.0
+    ],
+    "cold_polynomial_extrapolation": true,
+    "thermo_source": "Cantera GRI30 NASA7; source range may be exceeded by retained 50\u20135000 K solver bounds"
+  }
+]

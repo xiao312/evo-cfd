@@ -439,3 +439,65 @@ sampled comparison.
 **Unblocked.** CFD-001 and the reacting-case path no longer depend on a guess
 about which file to edit. The next consultation has a question that is genuinely
 open.
+
+## The MASCOTTE G2 target case joins the project
+
+The project's fifth layer — case and evaluation — was previously represented by the
+`1D_advection` reference case, which is a useful smoke case but has no reaction, no
+validation data, and no connection to the experiment. It is now backed by a real
+target: `mascotte-g2/`.
+
+The package was imported from an internal MASCOTTE investigation repository and
+sanitized. What was kept and what was changed is recorded explicitly, because an
+imported asset whose provenance is unclear is an asset that cannot be cited.
+
+**Kept unchanged** (132 of 146 entries byte-identical after LF normalization): both
+meshes and their `checkMesh` logs, all time-zero fields, every case dictionary, the
+JL9 and RAMEC17 mechanisms, all digitized evidence, and `evidence/sources.yaml`
+rights metadata.
+
+**Removed**: internal host names, scheduler job identifiers, and internal run paths
+from `docs/ATTEMPT-HISTORY.md` and the target README. None of the scientific content
+was altered — the attempt history's findings, failure modes and next attempts are
+preserved as written.
+
+**Replaced**: the source package's top-level documents were oriented to a Fluent-only
+workflow that explicitly forbade OpenFOAM execution. They were replaced by
+`README.md`, `AGENTS.md` and `project.yaml` written for this project: OpenFOAM, the
+pinned `realFluidReactingFoam` profile, and the controller's job-lifecycle primitive.
+
+**Not imported**: the source's 1.4 MB `corpus.json`, a Fluent-run ledger carrying
+over a hundred references to internal infrastructure. Its curated bibliographic
+subset is already present as `evidence/sources.yaml`.
+
+### A defect in the source's own manifest
+
+The source package ships a `SHA256SUMS` manifest that does not match its own bytes.
+The cause is line-ending normalization, and it is *inconsistent across entries*: the
+scripts were hashed as LF while the CSVs were hashed with CRLF terminators as
+committed. There is no single normalization that reproduces all of its hashes.
+
+This repository stores LF (`.gitattributes`, `* text=auto eol=lf`), so the imported
+tree was normalized to LF and the manifest was regenerated from the stored bytes. It
+now verifies cleanly — 146 entries, 0 failures. All 8 digitized CSVs were confirmed
+content-identical to the source after normalization, so the only real differences are
+the five documents edited for this project plus the two added.
+
+This is the same class of defect as the OF8 case-collision incident: a manifest that
+was correct when it was written no longer describes what is on disk, and the
+discrepancy is invisible until someone verifies. The lesson is recorded here rather
+than smoothed over — byte-level provenance is only as good as the last regeneration,
+and it must be regenerable from the stored bytes.
+
+### Connection to the existing work
+
+The case ships `application realFluidFoam` and its `fvSchemes` was written for that
+solver. Running it under the pinned `realFluidReactingFoam` needs the per-species
+`div(((hei_*rho)*YVi_*))` entries — one per species, ten of them here — which is the
+same gap proven in `target-solver-001`. The case lock classifies schemes as
+`tunable`, so the entries belong in a child attempt directory, never in this
+immutable target. The README and AGENTS.md say so.
+
+With this asset, the loop has a target that is worth improving against: an
+experimental operating point, digitized OH\* reference fields, a mesh that passes
+`checkMesh`, and an acceptance gate that a candidate must survive.

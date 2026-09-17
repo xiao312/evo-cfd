@@ -1,0 +1,181 @@
+[
+  {
+    "species": "H2",
+    "origin": "PR Tc/Pc from supplied a/b; provisional LJ-derived Chung volume and additive Fuller diffusion volume; association parameter zero",
+    "source_temperature_range": [
+      300.0,
+      1000.0,
+      5000.0
+    ],
+    "cold_polynomial_extrapolation": true
+  },
+  {
+    "species": "H",
+    "origin": "PR Tc/Pc from supplied a/b; provisional LJ-derived Chung volume and additive Fuller diffusion volume; association parameter zero",
+    "source_temperature_range": [
+      300.0,
+      5000.0
+    ],
+    "cold_polynomial_extrapolation": true
+  },
+  {
+    "species": "O",
+    "origin": "PR Tc/Pc from supplied a/b; provisional LJ-derived Chung volume and additive Fuller diffusion volume; association parameter zero",
+    "source_temperature_range": [
+      300.0,
+      1000.0,
+      5000.0
+    ],
+    "cold_polynomial_extrapolation": true
+  },
+  {
+    "species": "O2",
+    "origin": "inherited major-species real-gas/transport data",
+    "source_temperature_range": [
+      300.0,
+      1000.0,
+      5000.0
+    ],
+    "cold_polynomial_extrapolation": true
+  },
+  {
+    "species": "OH",
+    "origin": "PR Tc/Pc from supplied a/b; provisional LJ-derived Chung volume and additive Fuller diffusion volume; association parameter zero",
+    "source_temperature_range": [
+      300.0,
+      1710.0,
+      5000.0
+    ],
+    "cold_polynomial_extrapolation": true
+  },
+  {
+    "species": "H2O",
+    "origin": "inherited major-species real-gas/transport data",
+    "source_temperature_range": [
+      300.0,
+      1000.0,
+      5000.0
+    ],
+    "cold_polynomial_extrapolation": true
+  },
+  {
+    "species": "HO2",
+    "origin": "PR Tc/Pc from supplied a/b; provisional LJ-derived Chung volume and additive Fuller diffusion volume; association parameter zero",
+    "source_temperature_range": [
+      200.0,
+      1000.0,
+      3500.0
+    ],
+    "cold_polynomial_extrapolation": true
+  },
+  {
+    "species": "H2O2",
+    "origin": "PR Tc/Pc from supplied a/b; provisional LJ-derived Chung volume and additive Fuller diffusion volume; association parameter zero",
+    "source_temperature_range": [
+      300.0,
+      1000.0,
+      5000.0
+    ],
+    "cold_polynomial_extrapolation": true
+  },
+  {
+    "species": "CH3",
+    "origin": "PR Tc/Pc from supplied a/b; provisional LJ-derived Chung volume and additive Fuller diffusion volume; association parameter zero",
+    "source_temperature_range": [
+      300.0,
+      1000.0,
+      5000.0
+    ],
+    "cold_polynomial_extrapolation": true
+  },
+  {
+    "species": "CH4",
+    "origin": "inherited major-species real-gas/transport data",
+    "source_temperature_range": [
+      300.0,
+      1000.0,
+      5000.0
+    ],
+    "cold_polynomial_extrapolation": true
+  },
+  {
+    "species": "CO",
+    "origin": "PR Tc/Pc from supplied a/b; provisional LJ-derived Chung volume and additive Fuller diffusion volume; association parameter zero",
+    "source_temperature_range": [
+      300.0,
+      1000.0,
+      5000.0
+    ],
+    "cold_polynomial_extrapolation": true
+  },
+  {
+    "species": "CO2",
+    "origin": "inherited major-species real-gas/transport data",
+    "source_temperature_range": [
+      300.0,
+      1000.0,
+      5000.0
+    ],
+    "cold_polynomial_extrapolation": true
+  },
+  {
+    "species": "HCO",
+    "origin": "PR Tc/Pc from supplied a/b; provisional LJ-derived Chung volume and additive Fuller diffusion volume; association parameter zero",
+    "source_temperature_range": [
+      300.0,
+      1000.0,
+      5000.0
+    ],
+    "cold_polynomial_extrapolation": true
+  },
+  {
+    "species": "CH2O",
+    "origin": "PR Tc/Pc from supplied a/b; provisional LJ-derived Chung volume and additive Fuller diffusion volume; association parameter zero",
+    "source_temperature_range": [
+      300.0,
+      1000.0,
+      5000.0
+    ],
+    "cold_polynomial_extrapolation": true
+  },
+  {
+    "species": "CH3O",
+    "origin": "PR Tc/Pc from supplied a/b; provisional LJ-derived Chung volume and additive Fuller diffusion volume; association parameter zero",
+    "source_temperature_range": [
+      300.0,
+      1000.0,
+      3000.0
+    ],
+    "cold_polynomial_extrapolation": true
+  },
+  {
+    "species": "C2H6",
+    "origin": "PR Tc/Pc from supplied a/b; provisional LJ-derived Chung volume and additive Fuller diffusion volume; association parameter zero",
+    "source_temperature_range": [
+      300.0,
+      1384.0,
+      5000.0
+    ],
+    "cold_polynomial_extrapolation": true
+  },
+  {
+    "species": "CH3O2",
+    "origin": "PR Tc/Pc from supplied a/b; provisional LJ-derived Chung volume and additive Fuller diffusion volume; association parameter zero",
+    "source_temperature_range": [
+      300.0,
+      1385.0,
+      5000.0
+    ],
+    "cold_polynomial_extrapolation": true
+  },
+  {
+    "species": "N2",
+    "origin": "inherited major-species real-gas/transport data",
+    "source_temperature_range": [
+      300.0,
+      1000.0,
+      5000.0
+    ],
+    "cold_polynomial_extrapolation": true
+  }
+]

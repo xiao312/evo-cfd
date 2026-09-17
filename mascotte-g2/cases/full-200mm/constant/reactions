@@ -1,0 +1,9 @@
+reactions
+{
+ JL-R1 { type irreversibleArrhenius; reaction "CH4^0.5 + 0.5 O2^1.3 = CO + 2 H2"; A 30600000000; beta 0.0; Ta 15096.58600496297; }
+ JL-R2 { type irreversibleArrhenius; reaction "CH4^1.0 + H2O^1.0 = CO + 3 H2"; A 3840000000; beta 0.0; Ta 15096.58600496297; }
+ JL-R3 { type reversibleArrhenius; reaction "CO^1.0 + H2O^1.0 = CO2 + H2"; A 2010000000; beta 0.0; Ta 10064.39066997532; }
+ JL-R4 { type reversibleArrhenius; reaction "H2^0.3 + 0.5 O2^1.55 = H2O"; A 8.06e+16; beta -1.0; Ta 20128.78133995063; }
+ JL-R5 { type reversibleArrhenius; reaction "O2^1.0 = 2 O"; A 1500000000; beta 0.0; Ta 56863.80728536053; }
+ JL-R6 { type irreversibleArrhenius; reaction "H2O^1.0 = H + OH"; A 2.3e+22; beta -3.0; Ta 60386.34401985189; }
+}

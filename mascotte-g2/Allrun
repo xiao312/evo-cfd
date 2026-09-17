@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd "$(dirname "$0")" && pwd)
+case_dir="${CASE_DIR:-$root/cases/full-200mm}"
+
+if find "$case_dir" -maxdepth 1 -type d -name 'processor*' | grep -q .; then
+    echo "Refusing to run in a target containing processor directories." >&2
+    exit 1
+fi
+
+"$root/Allcheck"
+cd "$case_dir"
+decomposePar -force | tee log.decomposePar
+mpirun -np "${NP:-16}" realFluidFoam -parallel | tee log.realFluidFoam

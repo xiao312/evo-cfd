@@ -1,0 +1,27 @@
+{
+  "source": "../cantera/CNF_RAMEC_17S_44R.yaml",
+  "sha256": "d6ffacadde8a1cc8965798d113014a7e0f310099fc349f6e9cb16b55cbef14bf",
+  "species": [
+    "H2",
+    "H",
+    "O",
+    "O2",
+    "OH",
+    "H2O",
+    "HO2",
+    "H2O2",
+    "CH3",
+    "CH4",
+    "CO",
+    "CO2",
+    "HCO",
+    "CH2O",
+    "CH3O",
+    "C2H6",
+    "CH3O2",
+    "N2"
+  ],
+  "reactions": 44,
+  "cantera_version": "3.2.0",
+  "wrapper": "ideal-gas for file export only"
+}

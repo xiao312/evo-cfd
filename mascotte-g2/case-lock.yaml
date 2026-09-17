@@ -1,0 +1,67 @@
+schema_version: 1
+case_id: mascotte-g2-realfluidfoam-target
+created_at: 2026-09-16
+sector_angle_deg: 5
+
+immutable:
+  mesh:
+    path: cases/full-200mm/constant/polyMesh
+    cells: 200622
+    topology: 5-degree wedge with explicit LOX and GCH4 feed passages
+    patches: [geom, slipwalls, noslipwalls, ch4inlet, loxinlet, axisymmetric, outlet, planeMinus, planePlus]
+  operating_point:
+    pressure_Pa: 5590000
+    oxygen_mass_flow_full_kg_s: 0.0444
+    methane_mass_flow_full_kg_s: 0.1431
+    oxygen_mass_flow_sector_kg_s: 0.000616666666666667
+    methane_mass_flow_sector_kg_s: 0.0019875
+    oxygen_temperature_K: 85
+    methane_temperature_K: 288
+    inlet_oxygen_mass_fraction: 1
+    inlet_methane_mass_fraction: 1
+  evidence:
+    source_id: experiment:candel-2006-cryogenic-flames
+    location: Table 1, page 9
+    doi: 10.1080/00102200500292530
+
+baseline_models:
+  chemistry: modified Jones-Lindstedt JL9, 9 reactive species plus inert N2, 6 global reactions
+  equation_of_state: Peng-Robinson
+  calorics: rfJanaf sensible enthalpy
+  transport: Chung/Takahashi
+  turbulence: RAS k-epsilon
+  combustion: laminar finite-rate chemistry
+
+optional_model_profiles:
+  ramec17:
+    path: mechanisms/ramec17
+    species: 18
+    reactive_species: 17
+    reactions: 44
+    status: comparison branch; not default
+    activation_requires_new_child_case: true
+
+tunable:
+  - numerical schemes and linear solvers
+  - timestep and Courant policy
+  - pressure-velocity-species-energy coupling
+  - inlet ramp duration
+  - documented time-zero chamber fill
+  - turbulence and combustion closure
+  - ignition method and energy budget
+  - chemistry mechanism, EOS and transport on an explicitly named comparison branch
+
+prohibited_in_target:
+  - developed restart fields
+  - processor directories
+  - solver logs and scheduler output
+  - paper PDFs
+  - credentials
+
+variants:
+  agile_80mm:
+    path: cases/agile-80mm
+    cells: 106782
+    maximum_x_m: 0.08002697954728005
+    intended_use: solver and coupling regression only
+    validation_claims_allowed: false

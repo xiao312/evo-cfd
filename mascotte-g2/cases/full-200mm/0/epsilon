@@ -1,0 +1,51 @@
+FoamFile
+{
+    version 2.0;
+    format ascii;
+    class volScalarField;
+    location "0";
+    object epsilon;
+}
+dimensions [0 2 -3 0 0 0 0];
+internalField uniform 1;
+boundaryField
+{
+    geom
+    {
+        type epsilonWallFunction;
+        Cmu 0.09;
+        kappa 0.41;
+        E 9.8;
+        value uniform 1;
+    }
+    slipwalls { type zeroGradient; }
+    noslipwalls
+    {
+        type epsilonWallFunction;
+        Cmu 0.09;
+        kappa 0.41;
+        E 9.8;
+        value uniform 1;
+    }
+    ch4inlet
+    {
+        type turbulentMixingLengthDissipationRateInlet;
+        mixingLength 0.00028;
+        phi phi;
+        k k;
+        value uniform 3500;
+    }
+    loxinlet
+    {
+        type turbulentMixingLengthDissipationRateInlet;
+        mixingLength 0.00028;
+        phi phi;
+        k k;
+        value uniform 0.7;
+    }
+    axisymmetric { type symmetry; }
+    outlet { type zeroGradient; }
+    planePlus { type wedge; }
+    planeMinus { type wedge; }
+}
+

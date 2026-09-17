@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd "$(dirname "$0")" && pwd)
+cd "${CASE_DIR:-$root/cases/full-200mm}"
+
+for f in 0/U 0/p 0/T 0/CH4 0/O2 0/N2 \
+         0/CO 0/H2 0/H2O 0/O 0/H 0/OH 0/CO2 \
+         constant/thermophysicalProperties constant/thermo.inputData \
+         constant/chemistryProperties constant/reactions; do
+    test -s "$f" || { echo "missing required file: $f" >&2; exit 1; }
+done
+
+if [ -f MECHANISM ] && grep -q 'CNF-RAMEC-17S-44R' MECHANISM; then
+    for f in 0/HO2 0/H2O2 0/CH3 0/HCO 0/CH2O 0/CH3O 0/C2H6 0/CH3O2; do
+        test -s "$f" || { echo "missing RAMEC17 field: $f" >&2; exit 1; }
+    done
+    grep -q 'JL-R' constant/reactions && {
+        echo "RAMEC17 marker found but JL9 reactions remain active" >&2
+        exit 1
+    }
+fi
+
+checkMesh -constant -allGeometry -allTopology | tee checkMesh.current.log
+grep -q 'Mesh OK' checkMesh.current.log
+echo "Target structure and mesh checks passed."

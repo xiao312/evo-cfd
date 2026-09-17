@@ -1,0 +1,211 @@
+FoamFile {version 2; format ascii; class dictionary; object thermo.inputData;}
+species (H2 H O O2 OH H2O HO2 H2O2 CH3 CH4 CO CO2 HCO CH2O CH3O C2H6 CH3O2 N2);
+H2
+{
+ specie {molWeight 2.01588;}
+ dataForRealGas { Tc 33.2499999961811; Pc 1.29699999970207; Vc 47.0222048900053; omega -0.22; kappai 0; miui 0; sigmvi 3.96; }
+ thermodynamics { Tlow 50; Thigh 5000; Tcommon 1000; lowCpCoeffs (3.298124 0.0008249442 -8.143015e-07 -9.475434e-11 4.134872e-13 -1012.521 -3.294094); highCpCoeffs (2.991423 0.0007000644 -5.633829e-08 -9.231578e-12 1.582752e-15 -835.034 -1.35511); }
+ transport {As 1.67212e-6; Ts 170.672;}
+ dataForKineticTrans { epsilonOverKb 38; sigma 2.92; miui 0; alpha 0.79; }
+}
+H
+{
+ specie {molWeight 1.00794;}
+ dataForRealGas { Tc 33.2000000078302; Pc 1.3640000006434; Vc 16.2710664356814; omega 0; kappai 0; miui 0; sigmvi 1.98; }
+ thermodynamics { Tlow 50; Thigh 5000; Tcommon 1000; lowCpCoeffs (2.5 0 0 0 0 25471.63 -0.4601176); highCpCoeffs (2.5 0 0 0 0 25471.63 -0.4601176); }
+ transport {As 1.67212e-6; Ts 170.672;}
+ dataForKineticTrans { epsilonOverKb 145; sigma 2.05; miui 0; alpha 0; }
+}
+O
+{
+ specie {molWeight 15.9994;}
+ dataForRealGas { Tc 44.5000000043415; Pc 2.69000000052488; Vc 39.2782849673757; omega 0; kappai 0; miui 0; sigmvi 6.11; }
+ thermodynamics { Tlow 50; Thigh 5000; Tcommon 1000; lowCpCoeffs (2.946429 -0.001638166 2.421032e-06 -1.602843e-09 3.890696e-13 29147.64 2.963995); highCpCoeffs (2.54206 -2.755062e-05 -3.102803e-09 4.551067e-12 -4.368052e-16 29230.8 4.920308); }
+ transport {As 1.67212e-6; Ts 170.672;}
+ dataForKineticTrans { epsilonOverKb 80; sigma 2.75; miui 0; alpha 0; }
+}
+O2
+{
+ specie {molWeight 31.9988;}
+ dataForRealGas {
+        Tc              154.58;
+        Pc              5.043;
+        Vc              73.529;
+        omega           0.025;
+        kappai          0;
+        miui            0;
+        sigmvi          16.6;
+    }
+ thermodynamics { Tlow 50; Thigh 5000; Tcommon 1000; lowCpCoeffs (3.212936 0.001127486 -5.75615e-07 1.313877e-09 -8.768554e-13 -1005.249 6.034738); highCpCoeffs (3.697578 0.0006135197 -1.258842e-07 1.775281e-11 -1.136435e-15 -1233.93 3.189166); }
+ transport {As 1.67212e-6; Ts 170.672;}
+ dataForKineticTrans {
+        epsilonOverKb   107.4;
+        sigma           3.458;
+        miui            0;
+        alpha           1.6;
+    }
+}
+OH
+{
+ specie {molWeight 17.00734;}
+ dataForRealGas { Tc 400.00000004163; Pc 14.9000000031014; Vc 39.2782849673757; omega 0.1; kappai 0; miui 0; sigmvi 8.09; }
+ thermodynamics { Tlow 50; Thigh 5000; Tcommon 1710; lowCpCoeffs (3.41896226 0.000319255801 -3.08292717e-07 3.64407494e-10 -1.00195479e-13 3452.64448 2.54433372); highCpCoeffs (2.8537604 0.00102994334 -2.32666477e-07 1.93750704e-11 -3.15759847e-16 3699.4972 5.78756825); }
+ transport {As 1.67212e-6; Ts 170.672;}
+ dataForKineticTrans { epsilonOverKb 80; sigma 2.75; miui 0; alpha 0; }
+}
+H2O
+{
+ specie {molWeight 18.01528;}
+ dataForRealGas {
+        Tc              647;
+        Pc              22.064;
+        Vc              55.866;
+        omega           0.344;
+        kappai          0.076;
+        miui            1.844;
+        sigmvi          12.7;
+    }
+ thermodynamics { Tlow 50; Thigh 5000; Tcommon 1000; lowCpCoeffs (3.386842 0.003474982 -6.354696e-06 6.968581e-09 -2.506588e-12 -30208.11 2.590233); highCpCoeffs (2.672146 0.003056293 -8.73026e-07 1.200996e-10 -6.391618e-15 -29899.21 6.862817); }
+ transport {As 1.67212e-6; Ts 170.672;}
+ dataForKineticTrans {
+        epsilonOverKb   572.4;
+        sigma           2.605;
+        miui            1.844;
+        alpha           0;
+    }
+}
+HO2
+{
+ specie {molWeight 33.00674;}
+ dataForRealGas { Tc 400.00000006018; Pc 8.2000000024674; Vc 78.0961099912211; omega 0.2; kappai 0; miui 0; sigmvi 14.2; }
+ thermodynamics { Tlow 50; Thigh 5000; Tcommon 1000; lowCpCoeffs (4.30179801 -0.00474912051 2.11582891e-05 -2.42763894e-08 9.29225124e-12 294.80804 3.71666245); highCpCoeffs (4.0172109 0.00223982013 -6.3365815e-07 1.1424637e-10 -1.07908535e-14 111.856713 3.78510215); }
+ transport {As 1.67212e-6; Ts 170.672;}
+ dataForKineticTrans { epsilonOverKb 107.4; sigma 3.458; miui 0; alpha 0; }
+}
+H2O2
+{
+ specie {molWeight 34.01468;}
+ dataForRealGas { Tc 730.100000036119; Pc 2.16800000021451; Vc 78.0961099912211; omega 0.5; kappai 0; miui 0; sigmvi 16.18; }
+ thermodynamics { Tlow 50; Thigh 5000; Tcommon 1000; lowCpCoeffs (3.388754 0.006569226 -1.485013e-07 -4.625806e-09 2.471515e-12 -17663.15 6.785363); highCpCoeffs (4.573167 0.004336136 -1.474689e-06 2.348904e-10 -1.431654e-14 -18006.96 0.501137); }
+ transport {As 1.67212e-6; Ts 170.672;}
+ dataForKineticTrans { epsilonOverKb 107.4; sigma 3.458; miui 0; alpha 0; }
+}
+CH3
+{
+ specie {molWeight 15.03452;}
+ dataForRealGas { Tc 93.7600000018678; Pc 7.06800000028159; Vc 103.634707268753; omega 0.06; kappai 0; miui 0; sigmvi 21.84; }
+ thermodynamics { Tlow 50; Thigh 5000; Tcommon 1000; lowCpCoeffs (2.430443 0.0111241 -1.68022e-05 1.621829e-08 -5.864953e-12 16423.78 6.789794); highCpCoeffs (2.844052 0.006137974 -2.230345e-06 3.785161e-10 -2.452159e-14 16437.81 5.452697); }
+ transport {As 1.67212e-6; Ts 170.672;}
+ dataForKineticTrans { epsilonOverKb 144; sigma 3.8; miui 0; alpha 0; }
+}
+CH4
+{
+ specie {molWeight 16.04246;}
+ dataForRealGas {
+        Tc              190.6;
+        Pc              4.61;
+        Vc              98.6;
+        omega           0.011;
+        kappai          0;
+        miui            0;
+        sigmvi          24.42;
+    }
+ thermodynamics { Tlow 50; Thigh 5000; Tcommon 1000; lowCpCoeffs (0.7787415 0.01747668 -2.783409e-05 3.049708e-08 -1.223931e-11 -9825.229 13.72219); highCpCoeffs (1.683479 0.01023724 -3.875129e-06 6.785585e-10 -4.503423e-14 -10080.79 9.623395); }
+ transport {As 1.67212e-6; Ts 170.672;}
+ dataForKineticTrans {
+        epsilonOverKb   141.4;
+        sigma           3.746;
+        miui            0;
+        alpha           2.6;
+    }
+}
+CO
+{
+ specie {molWeight 28.0101;}
+ dataForRealGas { Tc 132.850000013396; Pc 3.49400000070461; Vc 91.8402439257916; omega 0.05; kappai 0; miui 0; sigmvi 22.01; }
+ thermodynamics { Tlow 50; Thigh 5000; Tcommon 1000; lowCpCoeffs (3.262452 0.001511941 -3.881755e-06 5.581944e-09 -2.474951e-12 -14310.54 4.848897); highCpCoeffs (3.025078 0.001442689 -5.630828e-07 1.018581e-10 -6.910952e-15 -14268.35 6.108218); }
+ transport {As 1.67212e-6; Ts 170.672;}
+ dataForKineticTrans { epsilonOverKb 98.1; sigma 3.65; miui 0; alpha 1.95; }
+}
+CO2
+{
+ specie {molWeight 44.0095;}
+ dataForRealGas {
+        Tc              304.18;
+        Pc              7.38;
+        Vc              91.9;
+        omega           0.239;
+        kappai          0;
+        miui            0;
+        sigmvi          26.9;
+    }
+ thermodynamics { Tlow 50; Thigh 5000; Tcommon 1000; lowCpCoeffs (2.275725 0.009922072 -1.040911e-05 6.866687e-09 -2.11728e-12 -48373.14 10.18849); highCpCoeffs (4.453623 0.003140169 -1.278411e-06 2.393997e-10 -1.669033e-14 -48966.96 -0.9553959); }
+ transport {As 1.67212e-6; Ts 170.672;}
+ dataForKineticTrans {
+        epsilonOverKb   244;
+        sigma           3.763;
+        miui            0;
+        alpha           2.65;
+    }
+}
+HCO
+{
+ specie {molWeight 29.01804;}
+ dataForRealGas { Tc 420.620000013843; Pc 7.78900000051268; Vc 87.3851791440802; omega 0.28; kappai 0; miui 0; sigmvi 23.99; }
+ thermodynamics { Tlow 50; Thigh 5000; Tcommon 1000; lowCpCoeffs (2.89833 0.006199147 -9.623084e-06 1.089825e-08 -4.574885e-12 4159.922 8.983614); highCpCoeffs (3.557271 0.003345573 -1.335006e-06 2.470573e-10 -1.713851e-14 3916.324 5.552299); }
+ transport {As 1.67212e-6; Ts 170.672;}
+ dataForKineticTrans { epsilonOverKb 498; sigma 3.59; miui 0; alpha 0; }
+}
+CH2O
+{
+ specie {molWeight 30.02598;}
+ dataForRealGas { Tc 407.999999960776; Pc 6.58599999873368; Vc 87.3851791440802; omega 0.25; kappai 0; miui 0; sigmvi 25.97; }
+ thermodynamics { Tlow 50; Thigh 5000; Tcommon 1000; lowCpCoeffs (1.652731 0.01263144 -1.888168e-05 2.050031e-08 -8.413237e-12 -14865.4 13.78482); highCpCoeffs (2.995606 0.006681321 -2.628955e-06 4.737153e-10 -3.212517e-14 -15320.37 6.912572); }
+ transport {As 1.67212e-6; Ts 170.672;}
+ dataForKineticTrans { epsilonOverKb 498; sigma 3.59; miui 0; alpha 0; }
+}
+CH3O
+{
+ specie {molWeight 31.03392;}
+ dataForRealGas { Tc 338.299999995691; Pc 7.00999999982142; Vc 94.8928594528942; omega 0.09; kappai 0; miui 1.7; sigmvi 27.95; }
+ thermodynamics { Tlow 50; Thigh 5000; Tcommon 1000; lowCpCoeffs (2.106204 0.007216595 5.338472e-06 -7.377636e-09 2.075611e-12 978.6011 13.15218); highCpCoeffs (3.7708 0.007871497 -2.656384e-06 3.944431e-10 -2.112616e-14 127.8325 2.929575); }
+ transport {As 1.67212e-6; Ts 170.672;}
+ dataForKineticTrans { epsilonOverKb 417; sigma 3.69; miui 1.7; alpha 0; }
+}
+C2H6
+{
+ specie {molWeight 30.06904;}
+ dataForRealGas { Tc 305.320000015552; Pc 4.87200000049632; Vc 155.461268134466; omega 0.1; kappai 0; miui 0; sigmvi 43.68; }
+ thermodynamics { Tlow 50; Thigh 5000; Tcommon 1384; lowCpCoeffs (-0.0252854344 0.0240764754 -1.11893472e-05 2.08340901e-09 -5.29868616e-14 -11234.5534 21.164875); highCpCoeffs (6.10683385 0.0129236361 -4.42527196e-06 6.87391726e-10 -3.98901732e-14 -13750.0014 -13.008125); }
+ transport {As 1.67212e-6; Ts 170.672;}
+ dataForKineticTrans { epsilonOverKb 247.5; sigma 4.35; miui 0; alpha 0; }
+}
+CH3O2
+{
+ specie {molWeight 47.03332;}
+ dataForRealGas { Tc 424.399999968141; Pc 5.88099999911704; Vc 90.0404868233197; omega 0.26; kappai 0; miui 1.7; sigmvi 34.06; }
+ thermodynamics { Tlow 50; Thigh 5000; Tcommon 1385; lowCpCoeffs (4.26146906 0.0100873599 -3.21506184e-06 2.09409267e-10 4.18339103e-14 -684.394259 5.1633032); highCpCoeffs (5.95787891 0.00790728626 -2.68246234e-06 4.13891337e-10 -2.3900733e-14 -1535.74838 -4.71963886); }
+ transport {As 1.67212e-6; Ts 170.672;}
+ dataForKineticTrans { epsilonOverKb 481.8; sigma 3.626; miui 1.7; alpha 0; }
+}
+N2
+{
+ specie {molWeight 28.0134;}
+ dataForRealGas {
+        Tc              126.19;
+        Pc              3.398;
+        Vc              89.445;
+        omega           0.039;
+        kappai          0;
+        miui            0;
+        sigmvi          17.9;
+    }
+ thermodynamics { Tlow 50; Thigh 5000; Tcommon 1000; lowCpCoeffs (3.298677 0.0014082404 -3.963222e-06 5.641515e-09 -2.444854e-12 -1020.8999 3.950372); highCpCoeffs (2.92664 0.0014879768 -5.68476e-07 1.0097038e-10 -6.753351e-15 -922.7977 5.980528); }
+ transport {As 1.67212e-6; Ts 170.672;}
+ dataForKineticTrans {
+        epsilonOverKb   97.53;
+        sigma           3.621;
+        miui            0;
+        alpha           1.76;
+    }
+}

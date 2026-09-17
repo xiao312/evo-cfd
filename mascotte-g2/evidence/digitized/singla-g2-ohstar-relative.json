@@ -1,0 +1,52 @@
+{
+  "files": {
+    "singla-g2-ohstar-relative.npz": {
+      "sha256": "0c1897910ac7d4a70c7d7d4501849ca6d5d72ac41acefc02a914e18979375fc2",
+      "size_bytes": 5928
+    },
+    "singla-g2-ohstar-relative.png": {
+      "sha256": "3884286fa5866ea105de7a7d777038516da189707ba7ea5662d426c9f17d2281",
+      "size_bytes": 53941
+    }
+  },
+  "five_percent_flame_extent_x_mm": [
+    0.35,
+    62.65
+  ],
+  "grid": {
+    "x_mm": [
+      0,
+      70
+    ],
+    "x_points": 201,
+    "y_mm": [
+      -20,
+      20
+    ],
+    "y_points": 81
+  },
+  "method": {
+    "description": "nearest-color inversion of the published jet colormap, gray/background rejection, block-maximum downsampling, and axisymmetric reflection",
+    "quantitative_limit": "relative spatial evidence only; not calibrated OH concentration",
+    "valid_source_pixel_fraction": 0.27694618532138604
+  },
+  "schema_version": 1,
+  "source": {
+    "authors": "M\u00fcller and Pfitzner",
+    "crop_px": [
+      869,
+      1662,
+      1318,
+      1791
+    ],
+    "expected_render_size_px": [
+      1489,
+      2105
+    ],
+    "figure": "Figure 7b, lower half (Singla et al. measured OH* radiation)",
+    "page_image_sha256": "a7ef063efe59ac88983b0402cfadcd2a51f4124db52d8eda0f3e17ab71f414e8",
+    "title": "Large-Eddy Simulation of Transcritical LOX/CH4 Jet Flames",
+    "url": "https://www.eucass.eu/component/docindexer/?id=3841&task=download",
+    "year": 2015
+  }
+}

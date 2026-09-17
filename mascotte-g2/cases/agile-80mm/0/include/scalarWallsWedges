@@ -1,0 +1,24 @@
+geom
+{
+    type zeroGradient;
+}
+slipwalls
+{
+    type zeroGradient;
+}
+noslipwalls
+{
+    type zeroGradient;
+}
+axisymmetric
+{
+    type symmetry;
+}
+planeMinus
+{
+    type wedge;
+}
+planePlus
+{
+    type wedge;
+}

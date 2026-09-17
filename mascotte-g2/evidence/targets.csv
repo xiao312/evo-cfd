@@ -1,0 +1,14 @@
+target_id,role,quantity,value,unit,source_id,location,nature,notes
+g2-pressure,boundary-contract,chamber pressure,5.59,MPa,experiment:candel-2006-cryogenic-flames,"page 9; Table 1",reported,locked
+g2-o2-mdot,boundary-contract,oxygen mass flow,44.4,g/s,experiment:candel-2006-cryogenic-flames,"page 9; Table 1",reported,locked full annulus
+g2-ch4-mdot,boundary-contract,methane mass flow,143.1,g/s,experiment:candel-2006-cryogenic-flames,"page 9; Table 1",reported,locked full annulus
+g2-o2-temperature,boundary-contract,oxygen inlet temperature,85,K,experiment:candel-2006-cryogenic-flames,"page 9; Table 1",reported,locked
+g2-ch4-temperature,boundary-contract,methane inlet temperature,288,K,experiment:candel-2006-cryogenic-flames,"page 9; Table 1",reported,locked
+g2-mixture-ratio,consistency-check,O/F mass ratio,0.31,,experiment:candel-2006-cryogenic-flames,"page 9; Table 1",reported,rounded reported value
+g2-ohstar,primary-observable,time-averaged OH* Abel transform,,,experiment:candel-2006-cryogenic-flames,"page 23; LOx/GCH4 flames",reported,OH field is not identical to OH-star emission
+degiorgi-flame-length,secondary-observable,flame length,11,oxygen injector diameters,paper:de-giorgi-2014-combustion-models,page 11,reported,threshold definition must be stated
+cavalieri-chamber,geometry-context,square chamber cross section,50 x 50,mm,paper:cavalieri-2025-pseudoboiling,"page 7; section 4",reported,current wedge does not reproduce square corners
+cavalieri-lip,mesh-guidance,injector lip cell width,75;100;150,um,paper:cavalieri-2025-pseudoboiling,page 8,reported,three investigated grids
+cavalieri-cfl,numerics-context,maximum CFL,0.4,,paper:cavalieri-2025-pseudoboiling,page 8,reported,not a mandatory setting for this solver
+cavalieri-statistics,validation-guidance,post-flush statistics duration,60,ms,paper:cavalieri-2025-pseudoboiling,page 8,reported,LES context
+

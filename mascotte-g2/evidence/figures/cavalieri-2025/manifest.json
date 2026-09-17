@@ -1,0 +1,250 @@
+{
+  "schema_version": 1,
+  "source": {
+    "source_id": "paper:cavalieri-2025-pseudoboiling",
+    "title": "Characterization of turbulent pseudo-boiling in transcritical and doubly-transcritical oxygen–methane flames",
+    "doi": "10.1016/j.ijheatmasstransfer.2025.127284",
+    "license": "CC BY 4.0",
+    "pdf_sha256": "25efaf2441ed3b66572f66915bdb76a4f5d28c11419621651f65c85345cc5626"
+  },
+  "figures": [
+    {
+      "file": "fig-01.png",
+      "artifact_id": "paper:cavalieri-2025-pseudoboiling:figure:0004:001",
+      "printed_label": "Fig. 1",
+      "page": 4,
+      "caption": "Fig. 1. Comparison of thermodynamic and transport properties evaluated with the SRK-EoS and Chung method for oxygen (solid lines) and methane (dashed lines) at 56 𝑏𝑎𝑟 with the NIST [63] database (dots), of: (a) density, (b) isobaric specific heat, (c) dynamic viscosity, and (d) thermal conductivity.",
+      "sha256": "9c4bcbc1eabf829d94bd76576c3c4996093a883a13e6ff9834524dccaa7e28e4",
+      "byte_size": 110250,
+      "extraction_method": "caption-linked full-page region rasterization",
+      "review_state": "unreviewed",
+      "comparability": [
+        "Automatically detected crop; review geometry, field definition, units, averaging, and color scale before comparison."
+      ]
+    },
+    {
+      "file": "fig-02.png",
+      "artifact_id": "paper:cavalieri-2025-pseudoboiling:figure:0006:001",
+      "printed_label": "Fig. 2",
+      "page": 6,
+      "caption": "Fig. 2. Comparison of a near-equilibrium laminar flame structure in terms of temperature and density using the SFM (blue-lines) and MFM (red-lines) model, for (a) transcritical flame and (b) doubly-transcritical flame.",
+      "sha256": "318ccbb030939a48092f5cd3e942998536900a375677585f86d0eddc3003b340",
+      "byte_size": 68472,
+      "extraction_method": "caption-linked full-page region rasterization",
+      "review_state": "unreviewed",
+      "comparability": [
+        "Automatically detected crop; review geometry, field definition, units, averaging, and color scale before comparison."
+      ]
+    },
+    {
+      "file": "fig-03.png",
+      "artifact_id": "paper:cavalieri-2025-pseudoboiling:figure:0006:002",
+      "printed_label": "Fig. 3",
+      "page": 6,
+      "caption": "Fig. 3. Comparison of a near-equilibrium laminar flame structure in terms of dynamic viscosity and thermal conductivity using the SFM (blue-lines) and MFM (red-lines) model, for (a) transcritical flame and (b) doubly-transcritical flame.",
+      "sha256": "27ede1e446446831503964f490cc5a6f13b51be034e62c148261467a5da196ce",
+      "byte_size": 58537,
+      "extraction_method": "caption-linked full-page region rasterization",
+      "review_state": "unreviewed",
+      "comparability": [
+        "Automatically detected crop; review geometry, field definition, units, averaging, and color scale before comparison."
+      ]
+    },
+    {
+      "file": "fig-04.png",
+      "artifact_id": "paper:cavalieri-2025-pseudoboiling:figure:0007:001",
+      "printed_label": "Fig. 4",
+      "page": 7,
+      "caption": "Fig. 4. Schematic representation of a turbulent non-premixed flame (lower panel) and its depiction in mixture fraction space (upper panel). The red solid line represents the stoichiometric surface ̃𝑍𝑠𝑡, while the dashed blue and green lines denote the hypothetical pseudo-boiling mixture fraction surfaces ̃𝑍𝑝𝑏. (For interpretation of the references to color in this figure legend, the reader is referred to the web version of this article.)",
+      "sha256": "73756346e1b7ab37f31813ba89c6f83fa4d382598f75e8c3906c2f8d7461d11b",
+      "byte_size": 73448,
+      "extraction_method": "caption-linked full-page region rasterization",
+      "review_state": "unreviewed",
+      "comparability": [
+        "Automatically detected crop; review geometry, field definition, units, averaging, and color scale before comparison."
+      ]
+    },
+    {
+      "file": "fig-05.png",
+      "artifact_id": "paper:cavalieri-2025-pseudoboiling:figure:0009:001",
+      "printed_label": "Fig. 5",
+      "page": 9,
+      "caption": "Fig. 5. Sketch representation of the entire computational domain (upper panel), inlets and injector (bottom panel).",
+      "sha256": "07f490d8c5b39e85d15544a74d5eab8e361ac737a03ac19f02ef5bae6e6893ad",
+      "byte_size": 471511,
+      "extraction_method": "caption-linked full-page region rasterization",
+      "review_state": "unreviewed",
+      "comparability": [
+        "Automatically detected crop; review geometry, field definition, units, averaging, and color scale before comparison."
+      ]
+    },
+    {
+      "file": "fig-06.png",
+      "artifact_id": "paper:cavalieri-2025-pseudoboiling:figure:0009:002",
+      "printed_label": "Fig. 6",
+      "page": 9,
+      "caption": "Fig. 6. Grid sensitivity analysis for the TF case. Radial temporal mean (first row) and root mean square (second row) temperature profiles at 𝑥= 15 mm, 𝑥= 45 mm, and 𝑥= 70 mm from the injector.",
+      "sha256": "029b7d84e529862bc8f354cd7f9feedcf9425b27155c081f0c33539a2bd3390a",
+      "byte_size": 92270,
+      "extraction_method": "caption-linked full-page region rasterization",
+      "review_state": "unreviewed",
+      "comparability": [
+        "Automatically detected crop; review geometry, field definition, units, averaging, and color scale before comparison."
+      ]
+    },
+    {
+      "file": "fig-07.png",
+      "artifact_id": "paper:cavalieri-2025-pseudoboiling:figure:0010:001",
+      "printed_label": "Fig. 7",
+      "page": 10,
+      "caption": "Fig. 7. Contour maps of mean LESIQ quality index by Celik [104] (upper half), and the local filter size 𝛥 (lower half). Top panel: TF case. Bottom panel: DTF case.",
+      "sha256": "cd84be2d6979cb79ed4eade77708ba5865114ff7d00fe78d2c4fcc654844b395",
+      "byte_size": 505159,
+      "extraction_method": "caption-linked full-page region rasterization",
+      "review_state": "unreviewed",
+      "comparability": [
+        "Automatically detected crop; review geometry, field definition, units, averaging, and color scale before comparison."
+      ]
+    },
+    {
+      "file": "fig-08.png",
+      "artifact_id": "paper:cavalieri-2025-pseudoboiling:figure:0011:001",
+      "printed_label": "Fig. 8",
+      "page": 11,
+      "caption": "Fig. 8. Laminar pseudo-boiling analysis. Isobaric specific heat profiles (left-panel) and thermal diffusivity (right-panel) as a function of the mixture fraction 𝑍 with 𝜒𝑠𝑡= 1 s−1",
+      "sha256": "f82d8c515cb21fc5c8779353eb7427dd9bb5529450a1fe80d22d2f1ccf8bf232",
+      "byte_size": 118706,
+      "extraction_method": "caption-linked full-page region rasterization",
+      "review_state": "unreviewed",
+      "comparability": [
+        "Automatically detected crop; review geometry, field definition, units, averaging, and color scale before comparison."
+      ]
+    },
+    {
+      "file": "fig-09.png",
+      "artifact_id": "paper:cavalieri-2025-pseudoboiling:figure:0012:001",
+      "printed_label": "Fig. 9",
+      "page": 12,
+      "caption": "Fig. 9. Turbulent pseudo-boiling analysis. Instantaneous 𝑐𝑝(̃𝑍,̃ 𝑍",
+      "sha256": "6ee4b5b6514dd62a8ba8e1ea0f68928e630dce492636166b492fbf3dfe606490",
+      "byte_size": 447972,
+      "extraction_method": "caption-linked full-page region rasterization",
+      "review_state": "unreviewed",
+      "comparability": [
+        "Automatically detected crop; review geometry, field definition, units, averaging, and color scale before comparison."
+      ]
+    },
+    {
+      "file": "fig-10.png",
+      "artifact_id": "paper:cavalieri-2025-pseudoboiling:figure:0013:001",
+      "printed_label": "Fig. 10",
+      "page": 13,
+      "caption": "Fig. 10. Comparison between transcritical (top-panel) and doubly-transcritical (bottom-panel) flames with the SFM model. Longitudinal slices of instantaneous (a) temperature, (b) density, (c) axial velocity, and (d) isobaric-specific heat. The white solid isoline in (b) denotes the stoichiometric mixture fraction ̃𝑍𝑠𝑡= 0.2 and in (b) ̃𝑢𝑥= 0 m∕s. The white solid and dashed isolines in (d) enclosed the pseudo-boiling region.",
+      "sha256": "6bd5ee201d385a441807b63670a5456599ab0c0bb56b5f192088b4bbdec20bc3",
+      "byte_size": 1252685,
+      "extraction_method": "caption-linked full-page region rasterization",
+      "review_state": "unreviewed",
+      "comparability": [
+        "Automatically detected crop; review geometry, field definition, units, averaging, and color scale before comparison."
+      ]
+    },
+    {
+      "file": "fig-11.png",
+      "artifact_id": "paper:cavalieri-2025-pseudoboiling:figure:0014:001",
+      "printed_label": "Fig. 11",
+      "page": 14,
+      "caption": "Fig. 11. Comparison between transcritical (top-panel) and doubly-transcritical (bottom-panel) flames with the SFM and MFM mixing model. Longitudinal slices of time-averaged (a) temperature and (b) axial velocity. The black dashed isoline in (a) denotes the stoichiometric mixture fraction ⟨̃𝑍𝑠𝑡⟩= 0.2. The white dashed isoline in (b) denotes average null velocity ⟨̃𝑢𝑥⟩= 0 m∕s.",
+      "sha256": "9801b4b9daec1282edd7e734dc80e1ff33262298a5d309ff619a21c6b1eb7f25",
+      "byte_size": 478993,
+      "extraction_method": "caption-linked full-page region rasterization",
+      "review_state": "unreviewed",
+      "comparability": [
+        "Automatically detected crop; review geometry, field definition, units, averaging, and color scale before comparison."
+      ]
+    },
+    {
+      "file": "fig-12.png",
+      "artifact_id": "paper:cavalieri-2025-pseudoboiling:figure:0014:002",
+      "printed_label": "Fig. 12",
+      "page": 14,
+      "caption": "Fig. 12. Comparison with experimental visualizations of the TF case. Time-averaged numerical ⟨̃OH∗⟩ concentration (upper half), and experimental [36] Abel-transformed OH∗",
+      "sha256": "9e7059d09bde3e33726e562404453900d97eef35e07cee85a97e47208235d880",
+      "byte_size": 286402,
+      "extraction_method": "caption-linked full-page region rasterization",
+      "review_state": "unreviewed",
+      "comparability": [
+        "Automatically detected crop; review geometry, field definition, units, averaging, and color scale before comparison."
+      ]
+    },
+    {
+      "file": "fig-13.png",
+      "artifact_id": "paper:cavalieri-2025-pseudoboiling:figure:0015:001",
+      "printed_label": "Fig. 13",
+      "page": 15,
+      "caption": "Fig. 13. Statistical features of the turbulent pseudo-boiling rate. Probability density function of 𝑝𝑏 (left-column), 𝐶𝑅𝑉",
+      "sha256": "34cb89f0f2f215a5f99c3c074479595d6d0ca4947dcb0416ee3f197bfb6d9574",
+      "byte_size": 159282,
+      "extraction_method": "caption-linked full-page region rasterization",
+      "review_state": "unreviewed",
+      "comparability": [
+        "Automatically detected crop; review geometry, field definition, units, averaging, and color scale before comparison."
+      ]
+    },
+    {
+      "file": "fig-14.png",
+      "artifact_id": "paper:cavalieri-2025-pseudoboiling:figure:0016:001",
+      "printed_label": "Fig. 14",
+      "page": 16,
+      "caption": "Fig. 14. Comparison of the mean resolved ⟨𝑙𝑎𝑚",
+      "sha256": "11002204493bd4bac2ea4ef5139d91fdf264aa81dd5f89853fec8ddc11c77738",
+      "byte_size": 138361,
+      "extraction_method": "caption-linked full-page region rasterization",
+      "review_state": "unreviewed",
+      "comparability": [
+        "Automatically detected crop; review geometry, field definition, units, averaging, and color scale before comparison."
+      ]
+    },
+    {
+      "file": "fig-15.png",
+      "artifact_id": "paper:cavalieri-2025-pseudoboiling:figure:0017:001",
+      "printed_label": "Fig. 15",
+      "page": 17,
+      "caption": "Fig. 15. Comparison of the mean ⟨𝑝𝑏⟩ pseudo-boiling rate and area 𝐴𝑝𝑏 using the SFM and MFM models as a function of the axial distance from the injector for (a) TF LOx-side, (b) DTF LCH4-side.",
+      "sha256": "732d022f9a009770a432be6f074fd7825fa4b789de76e35d525907c58196f351",
+      "byte_size": 227174,
+      "extraction_method": "caption-linked full-page region rasterization",
+      "review_state": "unreviewed",
+      "comparability": [
+        "Automatically detected crop; review geometry, field definition, units, averaging, and color scale before comparison."
+      ]
+    },
+    {
+      "file": "fig-16.png",
+      "artifact_id": "paper:cavalieri-2025-pseudoboiling:figure:0017:002",
+      "printed_label": "Fig. 16",
+      "page": 17,
+      "caption": "Fig. 16. Statistical features of the turbulent pseudo-boiling rate. Joint probability density function between 𝑝𝑏 and 𝑐𝑝, for (a) TF LOx-side and (b) DTF LCH4-side. The upper panel shows the respective ̃𝑍𝑝𝑏 iso-surfaces color-coded with the isobaric specific heat.",
+      "sha256": "6772d0694197cd39dcd104079ff468b1e3b3d38dbb2a5b17c7d8630d8acffe13",
+      "byte_size": 574973,
+      "extraction_method": "caption-linked full-page region rasterization",
+      "review_state": "unreviewed",
+      "comparability": [
+        "Automatically detected crop; review geometry, field definition, units, averaging, and color scale before comparison."
+      ]
+    },
+    {
+      "file": "fig-17.png",
+      "artifact_id": "paper:cavalieri-2025-pseudoboiling:figure:0018:001",
+      "printed_label": "Fig. 17",
+      "page": 18,
+      "caption": "Fig. 17. Interplay between turbulent flow field and pseudo-boiling mechanism for DTF LCH4-side. (a) Comparison between instantaneous scalar dissipation rate field ̃𝜒 (top half) and normalized mixture fraction variance ̃𝑍",
+      "sha256": "732babebccb7f3f91b8f56820ad2346aee259579927e2eab8a9fdd08d8dcfa3f",
+      "byte_size": 462475,
+      "extraction_method": "caption-linked full-page region rasterization",
+      "review_state": "unreviewed",
+      "comparability": [
+        "Automatically detected crop; review geometry, field definition, units, averaging, and color scale before comparison."
+      ]
+    }
+  ]
+}

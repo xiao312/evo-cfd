@@ -29,6 +29,7 @@ packages/controller/     Campaign and improvement machinery
 packages/rsih-adapter/   Narrow integration with RSI-Harness
 third_party/RSI-Harness/ Upstream runtime (local only, see THIRD_PARTY.md)
 cfd-baseline/            One baseline: harness + two solver profiles + task
+mascotte-g2/             The target case and its evaluation evidence (layer 5)
 fixtures/                 Reviewed, resettable investigation tasks
 genomes/                  Genome bundles: the seed, candidates, the proposer
 config/agent-seed/        Agent configuration (no credential in the repository copy)
