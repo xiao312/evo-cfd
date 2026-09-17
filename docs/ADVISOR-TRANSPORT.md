@@ -24,7 +24,32 @@ which file it actually read.
 
 The bridge inverts the direction. The operator pastes a short control message;
 the advisor pulls exactly the evidence it needs, by name, through a read-only
-connection. Every read is a request the bridge can log.
+connection. Every read is a request the bridge can log. Because the advisor
+reads rather than receives an upload, there is no byte budget, and a lean
+export is the wrong choice: the workspace should contain the full evidence set
+including the initial and boundary fields.
+
+## The return path is automated too
+
+ChatGPT web offers no push, but the operator's browser is local. Once it runs
+with a debug port, `scripts/receive-advisor.ts` attaches to the chat tab, waits
+until the last assistant message stops changing, and writes the answer as the
+file `import-consultation.ts` consumes. Completion is decided by stability, not
+by any single UI signal, so streaming, regeneration and a slow final token all
+converge on the same condition. Selection reports how many assistant turns it
+found and which strategy it used, so a DOM change is visible instead of
+silently empty.
+
+The advisor browser runs on a dedicated profile. The operator's personal Chrome
+holds a lock on the default profile, and any second instance on that profile
+hands off and exits without binding the debug port — which is why a debug port
+appears configured yet never listens. A dedicated profile also keeps the
+advisor session out of the operator's personal browsing.
+
+The importer requires the answer to declare the request id and digest, so an
+answer cannot be attached to the wrong request. In the first real round trip
+the answer did declare them, and the importer measured the evidence's freshness
+before recording the decision.
 
 ## Topology
 
@@ -69,15 +94,18 @@ the release decision is made.
 
 ## Operator checklist (repeatable)
 
-1. Refresh the frozen export into `consult-ws/` (the export policy decides what
-   is releasable).
-2. Start the bridge with the tunnel. Record the public URL.
-3. `c2c pair` — read the pairing code (5-minute TTL, one use).
-4. In the EvoCFD ChatGPT project, create or reuse the connector with the URL,
+1. Start the advisor browser (dedicated profile, debug port). Log into ChatGPT
+   once; the login and the EvoCFD project persist in that profile.
+2. Refresh the frozen export into `consult-ws/` — the **full** export, including
+   initial and boundary fields. The export policy decides what is releasable.
+3. Start the bridge with the tunnel. Record the public URL.
+4. `c2c pair` — read the pairing code (5-minute TTL, one use).
+5. In the EvoCFD ChatGPT project, create or reuse the connector with the URL,
    enter the pairing code once.
-5. Send a short control message naming the files to read. Never paste contents.
-6. Import the answer with `import-consultation.ts`, which requires the answer to
-   declare the request id and digest.
+6. Send a short control message naming the files to read. Never paste contents.
+7. Run `receive-advisor.ts` to collect the completed answer.
+8. Import the answer with `import-consultation.ts`, which requires it to declare
+   the request id and digest.
 
 ## Rules
 
