@@ -50,6 +50,7 @@
  */
 
 import { cp, lstat, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 
 import { digestTree } from "./snapshot.ts";
@@ -698,6 +699,76 @@ export async function digestPath(path: string): Promise<string> {
   const tree = await digestTree(path);
   return tree.digest;
 }
+
+/**
+ * The identity of a prepared attempt's case inputs.
+ *
+ * This exists because preparation and measurement previously used two
+ * different definitions of "the case": the preparer hashed the attempt record,
+ * and the importer hashed the whole attempt directory. Those identify
+ * different objects, so an unchanged case could be reported stale purely
+ * because the two ends of the loop disagreed on what they were comparing.
+ *
+ * There is exactly one definition now, and both ends use it. It covers the
+ * files the prepared attempt declares as its inputs, which is the set whose
+ * contents determine what the solver will do. It deliberately excludes the
+ * execution outputs and the attempt record itself, because a directory that
+ * has been run legitimately contains files the preparer never saw, and an
+ * identity that changed after every run could never be measured as fresh.
+ *
+ * The input set is read from the attempt record's declared inputs when
+ * present, so the preparer and the measurer cannot disagree about scope.
+ */
+export async function attemptInputDigest(
+  attemptDir: string,
+  declaredInputs?: readonly string[],
+): Promise<string> {
+  const inputs = declaredInputs ?? (await readDeclaredInputs(attemptDir));
+  const hash = createHash("sha256");
+  hash.update("evocfd-attempt-inputs/v1\n");
+  for (const rel of [...inputs].sort()) {
+    let digest: string;
+    try {
+      const raw = await readFile(join(attemptDir, ...rel.split("/")));
+      digest = createHash("sha256").update(raw).digest("hex");
+    } catch {
+      // A declared input that has gone missing is a change, not an absence.
+      // Recording it explicitly keeps the digest from silently coinciding with
+      // one computed when the file was present.
+      digest = "absent:" + rel;
+    }
+    hash.update(rel + "\0" + digest + "\n");
+  }
+  return hash.digest("hex");
+}
+
+/** Read the input file list an attempt record declares, if it declares one. */
+async function readDeclaredInputs(attemptDir: string): Promise<string[]> {
+  try {
+    const raw = await readFile(join(attemptDir, "attempt-record.json"), "utf8");
+    const record = JSON.parse(raw) as { inputs?: unknown };
+    if (Array.isArray(record.inputs)) {
+      const rels = record.inputs
+        .map((e) => (typeof e === "string" ? e : (e as { path?: string })?.path))
+        .filter((p): p is string => typeof p === "string");
+      if (rels.length > 0) return rels;
+    }
+  } catch {
+    // No readable record: fall back to the conventional OpenFOAM input files
+    // rather than failing the measurement.
+  }
+  return DEFAULT_INPUT_FILES;
+}
+
+/** Conventional OpenFOAM case inputs, used when an attempt declares none. */
+const DEFAULT_INPUT_FILES = [
+  "system/controlDict",
+  "system/fvSchemes",
+  "system/fvSolution",
+  "system/decomposeParDict",
+  "constant/thermophysicalProperties",
+  "constant/chemistryProperties",
+];
 
 export class ConsultationError extends Error {
   readonly code = "ECONSULT";

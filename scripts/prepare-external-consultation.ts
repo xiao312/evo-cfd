@@ -26,6 +26,7 @@ import { argv, exit } from "node:process";
 
 import {
   prepareConsultation,
+  attemptInputDigest,
   type ConsultationRequest,
   type ConsultationState,
   type ProblemContract,
@@ -89,7 +90,11 @@ async function main(): Promise<void> {
   }
 
   const solverDigest = await sha256(SOLVER);
-  const caseDigest = await sha256(join(attemptDir, "attempt-record.json"));
+  // The case identity is the prepared attempt's declared inputs, measured the
+  // same way at import time. Hashing the attempt record here and the case tree
+  // there identified different objects, so an unchanged case could be reported
+  // stale purely because the two ends disagreed on what they were comparing.
+  const caseDigest = await attemptInputDigest(attemptDir);
   const libraryFiles = [];
   for (const rel of PROFILE_LIBRARIES) {
     const abs = join(PROFILE, "lib", rel);
@@ -165,14 +170,14 @@ async function main(): Promise<void> {
       {
         id: "O4",
         label: "observation",
-        text: "The last sampled temperature extrema are the two inlet values, 85 K and 288.26 K, which is what chemistry-off flow at this operating point should show; the maximum drifts slowly upward across the sampled window.",
-        source: "temperature-samples.txt, attached; sampled values, not a time history",
+        text: "Every temperature extremum printed in the attached solver log is one of the two inlet values, 85 K and 288 K. No other temperature measurement is attached to this request, so no temperature trend is claimed.",
+        source: "the solver log, attached; no separate sampling series is attached",
       },
       {
         id: "O5",
         label: "observation",
-        text: "The adjustable time step grows during the run, from about 1.2e-8 to about 1.0e-7, so the solver is responding to the flow rather than stuck at the initial step.",
-        source: "deltat-history.txt, attached",
+        text: "The adjustable time step grows from about 1.2e-8 s to about 3.0e-8 s, and the largest printed Courant number is far below the configured maximum. This is consistent with the standard per-step growth cap during startup; it does not by itself show that the LOX/CH4 interface sets the step size.",
+        source: "the solver log, attached",
       },
       {
         id: "H1",

@@ -11,6 +11,7 @@ import {
   ConsultationError,
   activeRequestDir,
   digestPath,
+  attemptInputDigest,
   listResponses,
   prepareConsultation,
   readRequest,
@@ -756,3 +757,46 @@ test("recordResponse binds to the active revision, not merely to the request id"
 });
 
 void createHash;
+
+// The case identity used to be defined twice: the preparer hashed the attempt
+// record and the importer hashed the whole attempt directory. Those are
+// different objects, so the same unchanged case measured as stale. There is one
+// definition now, and this pins it: a change to a declared input moves the
+// digest, and a change to an execution output or the record itself does not.
+test("attemptInputDigest: one identity for preparation and measurement", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "evocfd-identity-"));
+  await mkdir(join(dir, "system"), { recursive: true });
+  await mkdir(join(dir, "constant"), { recursive: true });
+  await writeFile(join(dir, "system", "controlDict"), "endTime 1;\n", "utf8");
+  await writeFile(join(dir, "constant", "chemistryProperties"), "chemistry on;\n", "utf8");
+  await writeFile(
+    join(dir, "attempt-record.json"),
+    JSON.stringify({ inputs: ["system/controlDict", "constant/chemistryProperties"] }),
+    "utf8",
+  );
+
+  const baseline = await attemptInputDigest(dir);
+  assert.ok(typeof baseline === "string" && baseline.length === 64);
+
+  // A change to a declared input is a change to the case.
+  await writeFile(join(dir, "constant", "chemistryProperties"), "chemistry off;\n", "utf8");
+  assert.notEqual(await attemptInputDigest(dir), baseline);
+
+  // Execution outputs and the record itself are not part of the case identity.
+  // A run legitimately writes these; including them would make every executed
+  // attempt measure as stale against its own request.
+  await writeFile(join(dir, "log.solver"), "Time = 1\nEnd\n", "utf8");
+  await mkdir(join(dir, "0.001"), { recursive: true });
+  await writeFile(join(dir, "attempt-record.json"), JSON.stringify({ inputs: [], rerun: true }), "utf8");
+  assert.equal(await attemptInputDigest(dir), (await attemptInputDigest(dir)));
+  const afterOutputs = await attemptInputDigest(dir);
+  await writeFile(join(dir, "constant", "chemistryProperties"), "chemistry off;\n", "utf8");
+  assert.equal(await attemptInputDigest(dir), afterOutputs);
+
+  // A declared input that disappears is recorded as absent, not silently
+  // equal to a digest computed when the file was present.
+  await rm(join(dir, "constant", "chemistryProperties"));
+  assert.notEqual(await attemptInputDigest(dir), afterOutputs);
+
+  await rm(dir, { recursive: true, force: true });
+});

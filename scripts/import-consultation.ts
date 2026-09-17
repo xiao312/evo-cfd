@@ -29,7 +29,7 @@ import { argv, exit } from "node:process";
 
 import {
   activeRequestDir,
-  digestPath,
+  attemptInputDigest,
   readRequest,
   recordDecision,
   recordResponse,
@@ -154,7 +154,7 @@ async function main(): Promise<void> {
     unreachable.push(request.state.solverExecutable);
   }
   try {
-    measured.caseDigest = await digestPath(request.state.caseDir);
+    measured.caseDigest = await attemptInputDigest(request.state.caseDir);
   } catch {
     unreachable.push(request.state.caseDir);
   }
