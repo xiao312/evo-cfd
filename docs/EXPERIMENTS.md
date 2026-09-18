@@ -1018,3 +1018,81 @@ The dossier's own self-consistency test caught a real defect during development:
 `turbulence-transport` listed `momentum (next iteration)` in `used_by`, which is
 not a stage id. The cross-reference check refused it. That is the check earning
 its place, and it is why the cross-references are validated rather than assumed.
+
+## The feedback handoff, demonstrated with a live model
+
+The third deliverable is the proof: hand an assembled context to an independent
+LLM and see whether it can reconstruct the investigation, identify the missing
+evidence, and propose a bounded hypothesis — with no human supplying the
+narrative.
+
+`scripts/probe-context.mjs` takes the assembled briefing for a run, presents it
+to the model through the relay, and asks the reviewer's eight questions in order:
+what is optimized and fixed, how the computation works, what changed and why, what
+the evaluation measured, what attempts ruled out or failed to test, what is
+missing, and why a proposal should transfer. It then asks for one bounded
+intervention that cites its evidence and names the measurement it would request
+first. The probe deliberately does not coach toward the answer.
+
+This ran for real against the `mascotte-agile-002` context, with
+`Atria-Dawn-Preview`. The prompt was 3,145 tokens; the answer 13,792 characters in
+the content channel, 265 s wall clock.
+
+### What the model did, as observed
+
+- It reconstructed the objective, the fixed scope and the permitted scope, and
+  quoted the quality constraints back, including the requirement that the
+  real-fluid property path stay active.
+- It reproduced all eight algorithm stages with their advance/lag/recompute
+  distinctions and the anchors, and it picked up the mechanistic entry the
+  dossier exists to carry: properties are recovered once per time step, after
+  the outer loop, so they lag the outer iterations.
+- It identified the weakest part of the record itself: the investigation records
+  `actual changes: *not linked*`. It reconstructed only what the record
+  establishes as changed, and said explicitly that the diff was unavailable
+  rather than inferring one.
+- It separated measured from unmeasured, and named the dominant feature of the
+  record: *the quantity being optimized — cost per unit physical time — has
+  never been measured.* It observed that the number of completed timesteps and
+  the physical time reached in the 240 s budget are not in the record.
+- It characterised the attempt correctly as a harness-verification experiment
+  rather than a solver-performance experiment.
+- Its proposal was a single change at the time-step-control stage: relax the
+  constant-factor deltaT ramp so the Courant control participates sooner, with
+  `maxCo` unchanged. It cited two measured facts for the mechanism, named three
+  measurements it would request first — two from the retained log at negligible
+  cost — and stated five regimes in which the proposal may fail. It concluded
+  that it would not commit before those measurements, because the record
+  contains no cost attribution at all.
+
+### What this establishes, and what it does not
+
+It establishes that the information interface works: a model given only the
+assembled context reconstructed the scientific situation, found the gap, and
+formed a mechanism-level hypothesis tied to a specific stage of the
+implementation. That is the interface the milestone asked for.
+
+It does **not** establish a scientific improvement. No experiment was run and no
+cost was measured. The proposal is a hypothesis the model itself declined to
+commit to, which is the correct behaviour for a record with no cost attribution.
+A single good answer is also not sufficient proof of improved reasoning; the
+reviewer's own test calls for repeated blind handoffs and controlled context
+comparisons, which remain to be done.
+
+Two operational notes. The model is a reasoning model and its first attempt
+returned `content: null` with the entire budget consumed by the thinking channel;
+the probe now budgets 16,384 output tokens and preserves the reasoning channel as
+a labelled fallback rather than discarding it. And the probe's answer is a
+machine record subject to the usual caveat: it reflects the briefing it was
+given, so a future run after a context change is a different measurement, not a
+repetition.
+
+### An ambiguity the model caught that the record had left open
+
+The proposal depends on whether the deltaT ramp is part of the locked ignition
+baseline — a tunable, not permitted without re-locking the case — or a solver-side
+numerical setting, which the algorithm-design scope permits. The briefing does
+not state which, and the model correctly refused to assume. This is a real gap in
+`mascotte-g2/ignition-baseline.yaml`: the ramp's status should be recorded
+explicitly as either a case-locked prescription or a solver-side default, so that
+a future proposer does not have to guess. It is added to the open items.
