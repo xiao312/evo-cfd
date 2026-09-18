@@ -107,7 +107,10 @@ async function callModel() {
         { role: "user", content: prompt },
       ],
       temperature: 0.2,
-      max_tokens: 4096,
+      // A reasoning model spends its budget on the thinking channel first; a
+      // small ceiling truncates the final answer outright and leaves content
+      // null. This has to be large enough for both the reasoning and the answer.
+      max_tokens: 16384,
     }),
   });
   const elapsed = Date.now() - started;
@@ -116,23 +119,36 @@ async function callModel() {
     throw new Error(`the relay returned ${res.status} after ${elapsed}ms: ${body.slice(0, 300)}`);
   }
   const json = await res.json();
-  const text = json?.choices?.[0]?.message?.content;
-  if (typeof text !== "string" || text.length === 0) {
-    throw new Error(`the relay returned no content: ${JSON.stringify(json).slice(0, 300)}`);
+  const message = json?.choices?.[0]?.message;
+  const text = message?.content;
+  // A truncated reasoning trace leaves content null. The reasoning channel is
+  // still a real response and is preserved rather than discarded, but it is
+  // labelled for what it is: thinking, not a finished answer.
+  if (typeof text === "string" && text.length > 0) {
+    return { text, elapsed, usage: json.usage ?? null, channel: "content" };
   }
-  return { text, elapsed, usage: json.usage ?? null };
+  const reasoning = message?.reasoning_content;
+  if (typeof reasoning === "string" && reasoning.length > 0) {
+    return {
+      text: reasoning,
+      elapsed,
+      usage: json.usage ?? null,
+      channel: "reasoning (final answer was truncated; this is the thinking trace)",
+    };
+  }
+  throw new Error(`the relay returned no content: ${JSON.stringify(json).slice(0, 300)}`);
 }
 
 console.error(`probe     ${contextPath}`);
 console.error(`briefing  ${briefing.length} chars`);
 console.error(`model     ${model} via ${relay.replace(/:[^:@]+@/, ':***@')}`);
 try {
-  const { text, elapsed, usage } = await callModel();
+  const { text, elapsed, usage, channel } = await callModel();
   const outDir = join(runRoot, "context");
   await mkdir(outDir, { recursive: true });
   const outPath = join(outDir, "probe-answer.md");
   await writeFile(outPath, text, "utf8");
-  console.error(`answer    ${text.length} chars in ${elapsed}ms`);
+  console.error(`answer    ${text.length} chars in ${elapsed}ms (${channel})`);
   if (usage) console.error(`tokens    ${JSON.stringify(usage)}`);
   console.error(`saved     ${outPath}`);
   // Print the answer so the operator can evaluate it against the acceptance
