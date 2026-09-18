@@ -941,3 +941,80 @@ At `9487f45` on the compute host: controller 280/280, egress 29/29,
 rsih-adapter 38/38. Zero failures. The 21 new transport tests each break exactly
 one fail-closed rule, so a rule that silently stops being enforced shows up as a
 failing test rather than as a run that imported the wrong answer.
+
+## The information interface: making the science legible
+
+A redirection arrived from the review, and it was correct. I had been hardening
+the ledger while the actual product — a legible scientific situation — was
+barely sketched. A perfectly recorded sequence of poorly informed decisions
+would not achieve EvoCFD's goal. Recording, interpretation, decision support and
+evolution are four different capabilities, and the first does not provide the
+other three.
+
+So the milestone changed, from "more modules repaired" to: *an independent LLM
+can reconstruct the investigation, identify missing evidence, propose a bounded
+hypothesis, and revise it from the resulting experiment — without the operator
+supplying the narrative.*
+
+### The solver dossier
+
+`dossiers/realfluid-reacting-001.json` is a map of the realFluidReactingFoam
+algorithm: which variables are advanced and which recovered, what each stage
+lags and recomputes, which terms are implicit or explicit, where clipping can
+occur, and what the property, chemistry and transport interfaces consume and
+produce.
+
+It is **anchored**, not authored. Every entry names a file and a witness fragment
+that must appear in the pinned source, and `scripts/verify-dossier.ts` fails on
+drift. This is the property that keeps the dossier from silently diverging into
+a story about a solver that no longer exists. A line number is recorded for
+opening, but the witness is what is checked, because a line number breaks on any
+edit while a witness survives reformatting.
+
+**The dossier now verifies against the real pinned source: 10 of 10 anchors
+resolve.** This was run on the compute host after adding a read-only mount of
+the pinned tree at `/of8`. The mount is read-only deliberately: reasoning about
+the implementation and activating a change are separate permissions. A candidate
+is materialised in the workspace; the pin is never edited.
+
+The most mechanistically useful entry is `property-recovery`: every transported
+property — rho, mu, Cp, Cv, kappa, Wmix, the per-species Dimix and hei — is
+recomputed **once per time step, after the PIMPLE loop closes** (lines 112–122).
+The properties therefore lag the outer iterations within a step. That is a
+checkable fact read directly off the loop structure, and it is the kind of thing
+a caching or reuse hypothesis has to engage with.
+
+Explicit unknowns are first-class. The dossier records that nothing has ever been
+profiled, that per-stage cost and per-iteration convergence are unrecorded, and
+that domain-integrated conservation is asserted by construction rather than
+measured. An inferred hotspot is not presented as a profile result.
+
+### The decision-context assembler
+
+`packages/controller/src/context.ts` composes one shared record into
+role-specific views for the execution agent, scientific advisor, harness
+proposer and human reviewer. The views differ; the record does not. It states the
+objective, what is fixed, what is permitted, and what is not automatically
+permitted. It carries interventions as interventions — intent, planned change,
+actual change, what was measured, what remains open, and competing
+interpretations with a status — rather than as summaries.
+
+What it cannot find goes into `missing`, reported rather than inferred. A gap the
+model can see is a gap it can ask about.
+
+One earlier design choice was **repealed**: the workspace diff is no longer
+withheld from every role on principle. Access follows the reasoning task. A
+proposer may need the worker's changes to tell a misunderstood interface from a
+bad idea; overfitting is prevented by fresh evaluation and transfer tests, not by
+withholding the evidence. The evaluator's internals and held-out answers remain
+protected in every view.
+
+### Verification, and a defect the test caught
+
+305/305 controller tests on the compute host (280 + 25), egress 29/29,
+rsih-adapter 38/38.
+
+The dossier's own self-consistency test caught a real defect during development:
+`turbulence-transport` listed `momentum (next iteration)` in `used_by`, which is
+not a stage id. The cross-reference check refused it. That is the check earning
+its place, and it is why the cross-references are validated rather than assumed.
