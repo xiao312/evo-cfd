@@ -20,15 +20,83 @@
 import { readDossier, verifyDossier } from "../packages/controller/src/dossier.ts";
 import { readInvestigation } from "../packages/controller/src/investigation.ts";
 import { assembleDecisionContext } from "../packages/controller/src/context.ts";
-import { activeRequestDir, readRequest } from "../packages/controller/src/consultation.ts";
+import {
+  activeRequestDir,
+  readRequest,
+  attemptInputDigest,
+  type ConsultationState,
+} from "../packages/controller/src/consultation.ts";
 import { join } from "node:path";
-import { access } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 
 const argv = process.argv.slice(2);
 const arg = (n: string): string | undefined => {
   const i = argv.indexOf(n);
   return i > -1 && i + 1 < argv.length ? argv[i + 1] : undefined;
 };
+
+/**
+ * sha256 of a file that exists, or null. Used to measure identity rather than
+ * assert it: a fallback state is still a measured state, or it is reported as
+ * unmeasured.
+ */
+async function digestOf(path: string): Promise<string | null> {
+  try {
+    return createHash("sha256").update(await readFile(path)).digest("hex");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Build a consultation state from the recorded baseline and the attempt.
+ *
+ * The assembler needs the solver and case identity; a full consultation request
+ * is not required to supply them, because the baseline already records the
+ * profile and the attempt already records the prepared case. Anything that
+ * cannot be hashed is left empty rather than guessed, and the assembler's own
+ * `missing` field is where the gap becomes visible.
+ */
+async function stateFromBaseline(
+  attemptDir: string,
+  baselinePath = "cfd-baseline/baseline.json",
+): Promise<ConsultationState | null> {
+  let baseline: {
+    solver_profiles?: Record<string, {
+      executable?: string;
+      package?: {
+        output_appbin?: string;
+        source_root?: string;
+        source_archive_sha256?: string;
+      };
+    }>;
+  };
+  try {
+    baseline = JSON.parse(await readFile(baselinePath, "utf8"));
+  } catch {
+    return null;
+  }
+  const profile = baseline.solver_profiles?.["of8-realfluid"];
+  if (!profile?.package) return null;
+  const solverExecutable = join(profile.package.output_appbin ?? "", profile.executable ?? "");
+  const solverDigest = (await digestOf(solverExecutable)) ?? "";
+  let caseDigest = "";
+  try {
+    caseDigest = await attemptInputDigest(attemptDir);
+  } catch {
+    caseDigest = "";
+  }
+  return {
+    solverExecutable,
+    solverDigest,
+    caseDir: attemptDir,
+    caseDigest,
+    profileId: "of8-realfluid",
+    libraryFiles: [],
+    relatedRunIds: [],
+  };
+}
 
 async function main(): Promise<void> {
   const runRoot = arg("--run");
@@ -72,9 +140,16 @@ async function main(): Promise<void> {
 
   const request = await readRequest(runRoot);
   const active = await activeRequestDir(runRoot);
-  const state = request?.state;
+  // The state comes from the consultation when one exists, and otherwise from the
+  // recorded baseline and the attempt's own prepared-case identity. Either way it
+  // is measured rather than asserted; what cannot be measured stays empty and the
+  // assembler reports it as missing.
+  let state = request?.state;
+  if (!state) state = await stateFromBaseline(attemptArg);
   if (!state) {
-    console.error(`no consultation state at ${runRoot}; prepare a consultation first`);
+    console.error(
+      `no consultation state at ${runRoot} and no readable baseline; one of the two is required`,
+    );
     process.exit(1);
   }
 
