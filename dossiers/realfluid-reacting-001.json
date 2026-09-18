@@ -1,0 +1,358 @@
+{
+  "schema_version": 1,
+  "dossier_id": "realfluid-reacting-001",
+  "solver_profile_id": "of8-realfluid-reacting",
+  "source_package": "realFluidFoam-8 @ 48506de",
+  "source_digest": "see cfd-baseline/baseline.json; package cross-verified byte-identical via independent git archive",
+  "generated_at": "2026-09-17T00:00:00Z",
+  "primary_variables": [
+    { "name": "p", "advanced": true, "recovered_from": "" },
+    { "name": "U", "advanced": true, "recovered_from": "" },
+    { "name": "Y (species mass fractions)", "advanced": true, "recovered_from": "" },
+    { "name": "he (sensible enthalpy or internal energy)", "advanced": true, "recovered_from": "" },
+    { "name": "rho", "advanced": false, "recovered_from": "thermo.rho(), recomputed from the equation of state at p and the energy/composition state" },
+    { "name": "T", "advanced": false, "recovered_from": "the energy equation's variable he, inverted through the property package" },
+    { "name": "mu, Cp, Cv, kappa, Wmix", "advanced": false, "recovered_from": "thermo.* accessors, recomputed once per time step after the PIMPLE loop" },
+    { "name": "Dimix, hei (per-species diffusion and enthalpies)", "advanced": false, "recovered_from": "thermo.Dimix(i) and thermo.hei(i), recomputed once per time step" }
+  ],
+  "stages": [
+    {
+      "id": "time-step-control",
+      "name": "Adaptive time step from the Courant number",
+      "role": "Computes the Courant number and adjusts deltaT before the time step, so the advective stability bound is enforced by construction rather than by the operator's choice of a fixed step.",
+      "anchor": {
+        "file": "applications/solvers/realFluidReactingFoam/realFluidReactingFoam.C",
+        "witness": "#include \"compressibleCourantNo.H\"",
+        "line": 63,
+        "symbol": "compressibleCourantNo.H"
+      },
+      "advances": ["deltaT"],
+      "lags": ["Co (from the previous step's field state)"],
+      "implicit_terms": [],
+      "explicit_terms": ["maxCo from system/controlDict"],
+      "recomputes": ["Courant number over the current flux and velocity"],
+      "convergence_check": null,
+      "clipping_or_fallback": "deltaT growth is a multiplicative ramp per step, bounded by maxCo; a step that would exceed the bound is shrunk rather than rejected",
+      "used_by": ["density-continuity", "momentum", "species", "energy", "pressure-correction"],
+      "known_evidence": [
+        {
+          "claim": "deltaT grows by a roughly constant factor per step, not by a solver-adaptive schedule tied to convergence",
+          "source": "runs/mascotte/mascotte-agile-002 log, measured by the advisor",
+          "basis": "measured"
+        },
+        {
+          "claim": "max Courant observed was ~2.4e-5 against maxCo 0.3, so the step is far from the stability bound in this regime",
+          "source": "runs/mascotte/mascotte-agile-002 log, measured by the advisor",
+          "basis": "measured"
+        }
+      ],
+      "unknown": [
+        "whether the time-step schedule is ever limited by the maxCo bound rather than by the ramp, in any regime we have run",
+        "the cost of recomputing the Courant number itself, which is never separated in the log"
+      ]
+    },
+    {
+      "id": "density-continuity",
+      "name": "Density from the continuity equation",
+      "role": "Solves the continuity equation to update rho before the outer iteration begins, so the PIMPLE loop starts from a mass-consistent density.",
+      "anchor": {
+        "file": "applications/solvers/realFluidReactingFoam/realFluidReactingFoam.C",
+        "witness": "#include \"rhoEqn.H\"",
+        "line": 89,
+        "symbol": "rhoEqn.H"
+      },
+      "advances": ["rho"],
+      "lags": ["phi (the mass flux from the previous step)"],
+      "implicit_terms": ["fvm::ddt(rho)"],
+      "explicit_terms": ["fvc::div(phi)"],
+      "recomputes": ["rho"],
+      "convergence_check": "solver residual for the continuity equation, reported in the log as the time-step continuity error",
+      "clipping_or_fallback": null,
+      "used_by": ["momentum", "species", "energy", "pressure-correction"],
+      "known_evidence": [
+        {
+          "claim": "the log reports a continuity error per time step, which is the linear solver's residual and not a conservation measure over the domain",
+          "source": "reviewer correction recorded in docs/EXPERIMENTS.md",
+          "basis": "operator_directive"
+        }
+      ],
+      "unknown": [
+        "the domain-integrated mass balance, which has never been measured",
+        "whether the continuity residual is ever the binding constraint on convergence"
+      ]
+    },
+    {
+      "id": "momentum",
+      "name": "Momentum predictor",
+      "role": "Assembles and solves the momentum equation for U, producing the matrix coefficients the pressure corrector needs.",
+      "anchor": {
+        "file": "applications/solvers/realFluidReactingFoam/realFluidReactingFoam.C",
+        "witness": "#include \"UEqn.H\"",
+        "line": 93,
+        "symbol": "UEqn.H"
+      },
+      "advances": ["U", "UEqn coefficients (A, H)"],
+      "lags": ["rho, mu, and the flux phi from the current outer iteration"],
+      "implicit_terms": ["fvm::ddt(rho, U)", "fvm::div(phi, U)", "turbulence->divDevRhoReff(U)"],
+      "explicit_terms": ["fvc::ddt(rho, U) if the scheme requires it", "gravity and other source terms"],
+      "recomputes": [],
+      "convergence_check": "solver residual for U, reported per outer iteration",
+      "clipping_or_fallback": null,
+      "used_by": ["pressure-correction"],
+      "known_evidence": [],
+      "unknown": [
+        "the per-iteration nonlinear convergence behaviour of U, which is not extracted from the log",
+        "whether the momentum solve is a dominant cost in this workload"
+      ]
+    },
+    {
+      "id": "species",
+      "name": "Species transport with the reaction source",
+      "role": "Solves a transport equation per species with the chemistry source, and accumulates the correction terms the energy equation needs.",
+      "anchor": {
+        "file": "applications/solvers/realFluidReactingFoam/YEqn.H",
+        "witness": "reaction->correct();",
+        "line": 18,
+        "symbol": "YEqn.H"
+      },
+      "advances": ["Y (per species)"],
+      "lags": ["Dimix (diffusion coefficients, from the previous time step)", "Wmix", "rho, phi"],
+      "implicit_terms": ["fvm::ddt(rho, Yi)", "the diffusion term and its corrections"],
+      "explicit_terms": ["reaction->correct() chemistry source", "sumDiffusionCorrections1 and 2, accumulated per species pair"],
+      "recomputes": ["YVi, the species-volume flux terms reset to zero and rebuilt each call"],
+      "convergence_check": "solver residual per species equation",
+      "clipping_or_fallback": "species sums are normalised so that the composition remains admissible; the normalisation is the reason sum(Y)=1 cannot by itself demonstrate conservation",
+      "used_by": ["energy"],
+      "known_evidence": [
+        {
+          "claim": "the mechanism in use is ramec17 with finite-rate chemistry and no turbulence-chemistry interaction, from the first step of the prescribed ignition baseline",
+          "source": "mascotte-g2/ignition-baseline.yaml",
+          "basis": "operator_directive"
+        }
+      ],
+      "unknown": [
+        "the per-species inventory over the domain, never measured",
+        "whether the diffusion correction terms materially affect the solution or only the residual"
+      ]
+    },
+    {
+      "id": "energy",
+      "name": "Energy equation with real-fluid heat-diffusion terms",
+      "role": "Solves the energy equation in he, including the custom enthalpy-diffusion terms that a real-fluid mixture requires and that a standard solver omits.",
+      "anchor": {
+        "file": "applications/solvers/realFluidReactingFoam/EEqn.H",
+        "witness": "fvm::ddt(rho, he) + mvConvection->fvmDiv(phi, he)",
+        "line": 17,
+        "symbol": "EEqn.H"
+      },
+      "advances": ["he"],
+      "lags": ["rho, phi, kappa/Cp, and the per-species hei from the previous time step"],
+      "implicit_terms": ["fvm::ddt(rho, he)", "the convection term", "the laplacian of the diffusion term"],
+      "explicit_terms": ["fvc::ddt(rho, K)", "fvc::div(phi, K)", "sumHeatDiffusion and sumHeatDiffusion2, the enthalpy-diffusion sums"],
+      "recomputes": ["sumHeatDiffusion, sumHeatDiffusion2 (reset to zero then accumulated per species each call)"],
+      "convergence_check": "solver residual for the energy equation",
+      "clipping_or_fallback": null,
+      "used_by": ["property-recovery"],
+      "known_evidence": [
+        {
+          "claim": "the scheme entry div(((hei_O2*rho)*YVi_O2)) must be present in fvSchemes for this solver, unlike reactingFoam; its absence is a startup failure with a specific keyword in the log",
+          "source": "docs/reviews/target-solver-001, and the upstream gap recorded in docs/EXPERIMENTS.md",
+          "basis": "measured"
+        }
+      ],
+      "unknown": [
+        "whether wallHeatFlux as reported by the log equals the flux represented by these custom terms (it does not, because the equation's own fluxes are not the standard ones)",
+        "the relative magnitude of sumHeatDiffusion versus sumHeatDiffusion2 in any regime"
+      ]
+    },
+    {
+      "id": "pressure-correction",
+      "name": "Pressure correction inside the PIMPLE outer loop",
+      "role": "Solves the pressure equation and corrects U and phi, using the momentum matrix coefficients so the corrected flux is consistent with the momentum equation.",
+      "anchor": {
+        "file": "applications/solvers/realFluidReactingFoam/pEqn.H",
+        "witness": "const volScalarField rAU(1.0/UEqn.A());",
+        "line": 3,
+        "symbol": "pEqn.H"
+      },
+      "advances": ["p", "U", "phi"],
+      "lags": ["rho, evaluated at the start of the corrector from thermo.rho()"],
+      "implicit_terms": ["fvm::laplacian(rhorAUf, p)", "the non-orthogonal correction loop"],
+      "explicit_terms": ["fvc::ddtCorr(rho, U, phi)", "HbyA, constrained by the boundary conditions"],
+      "recomputes": ["rho (once per corrector entry)", "rAU, rhorAUf, and the consistent formulation rAtU when pimple.consistent() is set"],
+      "convergence_check": "pimple.correct() iterations, bounded by nCorrectors in controlDict; the residual is the pressure equation's linear residual",
+      "clipping_or_fallback": "p.storePrevIter is used so a divergence in the corrector degrades the previous iteration's field rather than an arbitrary state",
+      "used_by": ["property-recovery"],
+      "known_evidence": [],
+      "unknown": [
+        "how many outer iterations are actually taken per time step in our runs",
+        "whether the pressure equation's residual or the species/energy residuals bound the step"
+      ]
+    },
+    {
+      "id": "turbulence-transport",
+      "name": "Turbulence and thermophysical transport correction",
+      "role": "Corrects the turbulence model and the thermophysical transport model at the end of the outer loop, so the effective transport properties reflect the current state. The correction applies at the end of the loop, so the properties it sets are consumed by the next iteration rather than the current one.",
+      "anchor": {
+        "file": "applications/solvers/realFluidReactingFoam/realFluidReactingFoam.C",
+        "witness": "thermophysicalTransport->correct();",
+        "line": 106,
+        "symbol": "thermophysicalTransport"
+      },
+      "advances": ["turbulence model fields", "the effective Lewis-number / mass-transfer description"],
+      "lags": ["the mean flow state from the outer iteration just completed"],
+      "implicit_terms": [],
+      "explicit_terms": ["turbulence->correct()", "thermophysicalTransport->correct()"],
+      "recomputes": ["turbulent viscosity or equivalent", "the transport closure used by the diffusion terms"],
+      "convergence_check": null,
+      "clipping_or_fallback": null,
+      "used_by": ["momentum", "species", "energy"],
+      "known_evidence": [],
+      "unknown": [
+        "which thermophysical transport model is in force for the MASCOTTE case, and therefore which Lewis-number assumption the diffusion terms carry",
+        "the sensitivity of the flame position to that assumption"
+      ]
+    },
+    {
+      "id": "property-recovery",
+      "name": "Property recovery once per time step",
+      "role": "After the PIMPLE loop closes, recomputes every transported thermodynamic property from the converged state. This is the single property evaluation per time step, and it is the reason the properties lag the outer iterations within the step.",
+      "anchor": {
+        "file": "applications/solvers/realFluidReactingFoam/realFluidReactingFoam.C",
+        "witness": "rho = thermo.rho();",
+        "line": 112,
+        "symbol": "thermo.rho"
+      },
+      "advances": [],
+      "lags": [],
+      "implicit_terms": [],
+      "explicit_terms": [],
+      "recomputes": ["rho", "mu", "Cp", "Cv", "kappa", "Wmix", "HE", "Dimix (per species)", "hei (per species)"],
+      "convergence_check": null,
+      "clipping_or_fallback": null,
+      "used_by": ["time-step-control", "density-continuity", "momentum", "species", "energy", "pressure-correction"],
+      "known_evidence": [
+        {
+          "claim": "properties are recomputed once per time step, after the outer loop, not once per outer iteration",
+          "source": "derived from the loop structure at lines 91-122 of realFluidReactingFoam.C",
+          "basis": "measured"
+        },
+        {
+          "claim": "the Peng-Robinson equation of state is active, as opposed to the perfect-gas path, in the runs we have made",
+          "source": "docs/reviews/realfluid-baseline-001 and runs/mascotte/mascotte-agile-002 log",
+          "basis": "measured"
+        }
+      ],
+      "unknown": [
+        "whether this property evaluation is a dominant cost in the current workload; it has never been profiled",
+        "how much of the evaluation is redundant across the outer iterations, since the properties are only refreshed here",
+        "the sensitivity of the recovered properties to the convergence state at which the step is closed"
+      ]
+    }
+  ],
+  "interfaces": [
+    {
+      "id": "thermo-realfluid",
+      "name": "Multi-component real-fluid thermodynamics (Peng-Robinson)",
+      "role": "Recovers thermodynamic state from the solver's pressure, energy and composition variables through a cubic equation of state rather than the perfect-gas relation.",
+      "anchor": {
+        "file": "src/thermophysicalModels/specie/equationOfState/PengRobinson/PengRobinson.H",
+        "witness": "PengRobinson",
+        "symbol": "PengRobinson"
+      },
+      "inputs": ["p", "he or T (the energy variable actually solved)", "Y (composition)"],
+      "outputs": ["rho", "T", "mu", "Cp", "Cv", "kappa", "Wmix", "he", "per-species Dimix and hei"],
+      "used_by": ["property-recovery", "density-continuity", "pressure-correction"],
+      "known_evidence": [
+        {
+          "claim": "the property package named in the attempt record is PRchungTakaMixture for the run actually examined, not PRchungKinetic as an earlier request stated",
+          "source": "the advisor's correction of the frozen consultation, recorded in docs/EXPERIMENTS.md",
+          "basis": "measured"
+        }
+      ],
+      "unknown": [
+        "the cost of a single property evaluation, and therefore whether the per-step recovery is cheap or expensive",
+        "which state variables each accessor depends on, in the implementation actually in force (the dependency structure determines what caching would be safe)"
+      ]
+    },
+    {
+      "id": "reaction",
+      "name": "Finite-rate chemistry",
+      "role": "Evaluates the chemical source terms for the species equations.",
+      "anchor": {
+        "file": "applications/solvers/realFluidReactingFoam/YEqn.H",
+        "witness": "reaction->correct();",
+        "line": 18,
+        "symbol": "reaction"
+      },
+      "inputs": ["T", "p", "Y"],
+      "outputs": ["the per-species chemistry source"],
+      "used_by": ["species"],
+      "known_evidence": [
+        {
+          "claim": "the mechanism is ramec17 with finite-rate chemistry and no turbulence-chemistry interaction, per the prescribed ignition baseline",
+          "source": "mascotte-g2/ignition-baseline.yaml",
+          "basis": "operator_directive"
+        }
+      ],
+      "unknown": [
+        "whether the chemistry evaluation is a dominant cost in this workload",
+        "whether the no-TCI assumption is adequate for the flame regime the case actually reaches"
+      ]
+    }
+  ],
+  "diagnostics": [
+    {
+      "id": "checkmesh",
+      "name": "Mesh quality check",
+      "measures": "mesh validity: point presence, cell closure, and the quality metrics the checker reports.",
+      "does_not_measure": [
+        "any property of the solution",
+        "whether the mesh is fine enough where the flame is"
+      ],
+      "how": "run Allcheck in the prepared case directory; the result is a pass or fail with metrics, recorded in the attempt's evidence directory",
+      "known_evidence": [
+        {
+          "claim": "the imported MASCOTTE G2 mesh passes Allcheck on the pinned build",
+          "source": "docs/EXPERIMENTS.md, mascotte-startup-001",
+          "basis": "measured"
+        }
+      ]
+    },
+    {
+      "id": "courant-log",
+      "name": "Courant number from the log",
+      "measures": "the maximum Courant number as computed by the solver each step.",
+      "does_not_measure": [
+        "the distribution of the Courant number over the domain",
+        "any conservation property"
+      ],
+      "how": "read from the solver log; note that log values are first-and-last sampled, not a time history, unless the sampling is recorded separately",
+      "known_evidence": [
+        {
+          "claim": "smoke numbers quoted from logs are sampled values at the boundaries of the run, not bounds over the whole run",
+          "source": "reviewer correction recorded in docs/EXPERIMENTS.md",
+          "basis": "operator_directive"
+        }
+      ]
+    },
+    {
+      "id": "continuity-residual-log",
+      "name": "Time-step continuity errors from the log",
+      "measures": "the linear solver's residual for the continuity equation, per time step.",
+      "does_not_measure": [
+        "the domain-integrated mass balance",
+        "whether mass is actually conserved, since the inert species is algebraically closed"
+      ],
+      "how": "read from the solver log; keep the solver's own term 'time step continuity errors' rather than reading it as a residual or as a conservation measure",
+      "known_evidence": []
+    }
+  ],
+  "unknown": [
+    "no profiling has ever been done on this solver in our workload, so no component can be named as a cost centre",
+    "the per-stage CPU breakdown is not available from the log and has never been measured by instrumentation",
+    "the nonlinear convergence history per outer iteration is not extracted, so the number of outer iterations actually taken is unrecorded",
+    "the domain-integrated mass, species and energy inventories have never been computed, so conservation is asserted by construction rather than measured",
+    "the sensitivity of the recovered properties to the state at which the step is closed is unknown, which is what makes any property-reuse proposal a hypothesis rather than a finding"
+  ]
+}
