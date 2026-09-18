@@ -623,14 +623,80 @@ read campaign state
 2. **Two-attempt investigation loop.** Attempt A's evidence, advice, decision
    and selected experience visibly reach attempt B. Restart from disk does not
    duplicate a solver job or an advisor request.
-3. **Advisor efficiency and numerical-R&D contract.** Versioned solver dossier
-   plus a small decision delta; measured retrieval and interaction overhead; an
-   algorithm-design request type with explicit transfer criteria.
+3. **The information interface — the current priority.** A versioned,
+   anchor-verified solver dossier; a decision-context assembler that produces
+   role-specific views of one shared record; and a demonstrated feedback
+   handoff where the next model receives the evidence *and its limitations* and
+   responds to them. See "The information interface" below.
 4. **Incremental refactor.** Behaviour and recorded identities stay valid; old
    commands keep tested migration paths.
 5. **Development conventions.** Type checking over packages and entry points,
    test discovery that cannot silently shrink, commit/PR conventions,
    `CONTRIBUTING.md`.
+
+## The information interface
+
+The central design question is *not* whether all the records and transport
+steps are reliable — that is supporting infrastructure, and a perfectly recorded
+sequence of poorly informed decisions would not achieve the goal. The question
+is whether the system gives a model enough understanding of the computational
+problem, the previous interventions and their consequences to propose a useful
+improvement.
+
+Recording, interpretation, decision support and evolution are four different
+capabilities, and the first does not provide the other three.
+
+Three deliverables, in dependency order:
+
+- **The solver dossier** (`dossiers/realfluid-reacting-001.json`,
+  `packages/controller/src/dossier.ts`). A map of the algorithm — which
+  variables are advanced and which recovered, what each stage lags and
+  recomputes, which terms are implicit or explicit, where clipping can occur —
+  anchored to witness fragments that must appear in the pinned source. Verify
+  with `scripts/verify-dossier.ts`; **10/10 anchors currently verify against the
+  real pinned package**.
+- **The decision-context assembler** (`packages/controller/src/context.ts`).
+  Composes one shared record into views for the execution agent, scientific
+  advisor, harness proposer and human reviewer. States the objective, what is
+  fixed, what is permitted and what is not automatically permitted, so reasoning
+  about a change and activating it are separate permissions. Reports what it
+  cannot supply as `missing` rather than inferring it.
+- **The demonstrated feedback handoff** (`scripts/probe-context.mjs`). Hand the
+  assembled context to a live model and ask the eight acceptance questions. This
+  has been run for real; see `docs/EXPERIMENTS.md`.
+
+One earlier design choice is repealed here: the workspace diff is no longer
+withheld from every role. **Access follows the reasoning task.** A proposer may
+need the worker's changes to tell a misunderstood interface from a bad idea;
+overfitting is prevented by fresh evaluation and transfer tests, not by
+withholding evidence. The evaluator's internals and held-out answers remain
+protected in every view.
+
+### The acceptance questions
+
+| The model must be able to answer… | …from what the system provides |
+|---|---|
+| What are we optimizing, and what is fixed? | Objective and contract |
+| How does the relevant computation work? | Algorithm map plus inspectable implementation |
+| What exactly changed between attempts? | Actual diff and effective configuration |
+| Why was that change made? | Pre-execution rationale and hypothesis |
+| What did the evaluation really measure? | Method, scope, thresholds and outputs |
+| What have failures ruled out — or failed to test? | Evidence-linked attempt history |
+| What information is still missing? | Explicit coverage and retrieval paths |
+| Why should a proposed improvement transfer? | Mechanism, assumptions, independent test plan |
+
+The interface itself must be tested, not just used: deliberately omit a
+ diagnostic, introduce a contradiction between a summary and its source, supply
+ an unsuccessful intervention, and check whether the model notices and asks
+ rather than confidently continuing. Repeated blind handoffs and controlled
+ context comparisons are the real evidence; one good answer is not proof.
+
+### What the interface deliberately does not do
+
+It does not manufacture interpretation deterministically — some of it belongs to
+the worker or the advisor. It does not present an inferred hotspot as a profile
+result. And it does not let an advisor activate a change: an imported response is
+a recorded input, never a command.
 
 ## The five known connection defects
 
