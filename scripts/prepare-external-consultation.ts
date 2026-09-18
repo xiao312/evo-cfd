@@ -31,6 +31,14 @@ import {
   type ConsultationState,
   type ProblemContract,
 } from "../packages/controller/src/consultation.ts";
+import { createTransportJob } from "../packages/controller/src/transport.ts";
+
+/**
+ * The one ChatGPT project every advisor request must live in. A standalone
+ * chat has no project memory binding, and a request outside the project cannot
+ * be attributed to the recorded context package. See docs/ADVISOR-TRANSPORT.md.
+ */
+const PROJECT_BINDING_URL = "https://chatgpt.com/g/g-p-6aabb5ed2e9c8191820aeb6a095bfab0-evocfd";
 
 const SOLVER_ROOT = "/data2/kexiao/of8";
 const PROFILE = join(SOLVER_ROOT, "rf-profile");
@@ -286,11 +294,26 @@ async function main(): Promise<void> {
     ],
   });
 
+  // The transport job is created here, at export time, so the identity the
+  // receiver checks against is fixed before any answer can exist to influence
+  // it. The receive and import steps read it rather than accepting identity
+  // from the command line.
+  const job = await createTransportJob({
+    runRoot,
+    requestId: request.requestId,
+    requestRevision: prepared.revision,
+    requestDigest: prepared.digest,
+    expectedProjectUrl: PROJECT_BINDING_URL,
+    expectedConversationUrl: "",
+    deadlineSeconds: 24 * 60 * 60,
+  });
+
   console.log(`ok external consultation prepared at ${runRoot}`);
   console.log(`   question ${request.requestId}, revision ${prepared.revision}`);
   console.log(`   evidence digest ${prepared.digest.slice(0, 16)}…`);
   console.log(`   briefing ${join(prepared.dir, "QUESTION.md")}`);
   console.log(`   manifest ${join(prepared.dir, "manifest.json")}`);
+  console.log(`   transport job ${job.transport_job_id} (status submitted)`);
   console.log(`   solver ${solverDigest.slice(0, 16)}…  attempt ${caseDigest.slice(0, 16)}…  libs ${libraryFiles.length}`);
   console.log("");
   console.log("export the package and submit it through an authenticated web session;");

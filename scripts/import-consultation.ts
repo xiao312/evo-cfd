@@ -37,6 +37,7 @@ import {
   type AdvisorResponse,
   type ConsultationState,
 } from "../packages/controller/src/consultation.ts";
+import { readTransportJob, recordImport } from "../packages/controller/src/transport.ts";
 
 function arg(name: string): string | undefined {
   const i = argv.indexOf(name);
@@ -52,7 +53,7 @@ async function main(): Promise<void> {
   const answerFile = argv[3];
   if (!runRoot || !answerFile) {
     console.error(
-      "usage: import-consultation.ts <run-root> <answer-file> --request-id <id> --request-digest <hex> --mode <m> --provider <p> --model <m> [--conversation-ref <url>] [--human <h>]",
+      "usage: import-consultation.ts <run-root> <answer-file> --mode <m> --provider <p> --model <m> [--conversation-ref <url>] [--human <h>]",
     );
     exit(2);
   }
@@ -64,6 +65,29 @@ async function main(): Promise<void> {
   const request = await readRequest(runRoot);
   if (!request) {
     console.error(`the active request at ${active.dir} has no readable request.json`);
+    exit(1);
+  }
+
+  // The transport job is the binding between the bytes the receiver captured and
+  // the identity this import verifies. It was created at export time and verified
+  // at capture, so the request identity is taken from the job rather than from
+  // the command line: without it the importer could attach an unrelated answer to
+  // the current request by supplying the expected identity itself.
+  const job = await readTransportJob(runRoot);
+  if (!job) {
+    console.error(
+      `no transport job at ${join(runRoot, "transport")}; run receive-advisor against this run first`,
+    );
+    exit(1);
+  }
+  if (job.status !== "verified") {
+    console.error(
+      `the transport job is ${job.status}; only a verified candidate may be imported. ` +
+        "A captured answer is not an accepted one, and a refused answer is preserved but not imported.",
+    );
+    if (job.verification) {
+      for (const f of job.verification.failures) console.error(`  failed rule: ${f}`);
+    }
     exit(1);
   }
 
@@ -79,29 +103,19 @@ async function main(): Promise<void> {
     exit(1);
   }
 
-  // The request identity is supplied by the caller and verified, never
-  // manufactured from the destination. Without this the importer could attach an
-  // unrelated answer to the current request by filling in the expected identity
-  // itself: the digest check would then pass against a value the same caller
-  // supplied. An answer carried back from an external advisor must declare the
-  // identity it was prepared against.
-  const suppliedId = arg("--request-id");
-  const suppliedDigest = arg("--request-digest");
-  if (!suppliedId || !suppliedDigest) {
+  // The request identity comes from the transport job, which was created at
+  // export time and verified against the answer's own declaration at capture.
+  // The command line no longer supplies it, because a caller-supplied identity
+  // is exactly how an unrelated answer gets attached to the current request.
+  if (job.request_id !== request.requestId) {
     console.error(
-      "an imported answer must declare the request identity it was prepared against; pass --request-id and --request-digest with the values the export printed",
-    );
-    exit(2);
-  }
-  if (suppliedId !== request.requestId) {
-    console.error(
-      `the answer declares request id ${suppliedId} but the active request is ${request.requestId}; refusing to attach an answer to a request it was not prepared for`,
+      `the transport job is for request ${job.request_id} but the active request is ${request.requestId}; refusing to attach an answer to a request it was not prepared for`,
     );
     exit(1);
   }
-  if (suppliedDigest !== active.digest) {
+  if (job.request_digest !== active.digest) {
     console.error(
-      `the answer declares request digest ${suppliedDigest.slice(0, 16)}... but the active request payload hashes to ${active.digest.slice(0, 16)}...; the request changed after this answer was prepared, so the answer is stale`,
+      `the transport job binds digest ${job.request_digest.slice(0, 16)}... but the active request payload hashes to ${active.digest.slice(0, 16)}...; the request changed after this answer was prepared, so the answer is stale`,
     );
     exit(1);
   }
@@ -193,6 +207,12 @@ async function main(): Promise<void> {
     },
     currentState,
   });
+
+  // Closing the transaction: the candidate that was verified at capture is now
+  // bound to the response the consultation layer assigned. Re-running the
+  // import on the same candidate is a no-op rather than a second response.
+  await recordImport(runRoot, responseId);
+
   console.log(`ok decision recorded as admitted-pending-review at ${runRoot}`);
   console.log("");
   console.log("The response is an input, not a command. Decide what to execute next,");
