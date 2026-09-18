@@ -128,7 +128,59 @@ test("the generated runner quotes rather than interpolating a shell expression",
   // No JSON heredoc: the receipt is line-based so it cannot be structurally
   // malformed by a misplaced comma.
   expect.equal(script.includes("<<JSON"), false);
-  expect.match(script, /<<RECEIPT/);
+  // The delimiter must be quoted. An unquoted delimiter expands the body no
+  // matter how the arguments inside it are quoted, so the receipt would
+  // describe a command that never ran.
+  expect.match(script, /<<'RECEIPT_STATIC'/);
+  expect.equal(script.includes("<<RECEIPT\n"), false);
+});
+
+test("the receipt records the executed argv verbatim, expanded by nothing", async () => {
+  // Each argument is one the shell would happily reinterpret. The receipt must
+  // record the literal text the process received, not what bash would turn it
+  // into. This is the execution boundary a generator-only test cannot see: the
+  // script has to run for the difference to matter.
+  const tricky = [
+    "-case",
+    "/tmp/a$(id -u)/b `pwd` $HOME",
+    "with spaces",
+    "",
+    "quote'inside",
+    "ünïcödé-arg",
+  ];
+  // The observer writes each argument it received, one per line, so an empty
+  // argument is a blank line rather than a missing one.
+  const solver = await writeSolver(
+    "observe.sh",
+    'for a in "$@"; do printf \'%s\\n\' "$a"; done\nexit 0',
+  );
+  const script = buildRunnerScript({
+    jobId: "j-argv",
+    planDigest: "d-argv",
+    argv: [solver, ...tricky],
+    envFile: "",
+    budgetSeconds: 30,
+    logFile: "log.solver",
+    executableName: "observe.sh",
+  });
+  const scriptPath = join(dir, "run.sh");
+  await writeFile(scriptPath, script, "utf8");
+
+  const { code, receipt } = await runRunner(scriptPath);
+  expect.equal(code, 0);
+  const parsed = parseReceipt(receipt as string);
+  expect.equal(parsed.status, "present");
+  if (parsed.status !== "present") return;
+
+  // The receipt's argv is the same vector the observer saw. The observer is
+  // the first element of that vector, so its own $@ is everything after it.
+  const observed = (await readFile(join(dir, "log.solver"), "utf8"))
+    .split("\n")
+    .filter((_, i, arr) => i < arr.length - 1);
+  expect.deepEqual(observed, tricky);
+  expect.deepEqual(parsed.receipt.argv, [solver, ...tricky]);
+  // And the command field is that vector joined, nothing more.
+  expect.equal(parsed.receipt.command, [solver, ...tricky].join(" "));
 });
 
 test("a successful dummy solver produces a valid receipt and exit 0", async () => {
