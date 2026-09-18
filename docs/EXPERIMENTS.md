@@ -879,3 +879,65 @@ host-side outage, not the egress tunnel, which carries no SSH. It recovered on
 its own after about ten minutes. No work was lost; the fix had already been
 proven locally and committed before the outage, and the server-side rerun
 confirmed it once connectivity returned.
+
+## The advisor transport is one transaction
+
+Receive and import used to be two separate manual steps joined only by the
+operator's care. The receiver wrote an answer file and *hard-coded* the request
+id and digest it looked for; the importer accepted those same two values on the
+command line and verified them against the request directory. Nothing bound the
+bytes the receiver captured to the identity the importer verified, so an answer
+captured against one request could be labelled as the answer to another simply
+by supplying the expected identity at import time. The receiver also only
+*warned* about a missing identity declaration, and had no deadline.
+
+A persisted transport job now closes that gap. It is created at export time,
+before the operator pastes anything, and it carries the request identity from
+then on. Both steps read it and neither supplies it.
+
+The state machine is
+
+    submitted -> waiting -> captured -> verified -> imported
+                         \-> incomplete          \-> refused
+
+and every transition is an append to a log that is never rewritten, so a crash
+between stages recovers deterministically by reading the record rather than
+reconstructing it.
+
+The important property is that **capturing is not accepting**. A candidate is
+stored with the identity its own text declares — parsed out, not trusted — and
+verification compares that declaration to the job. Six rules are enforced in the
+transport rather than in prose, each one a way this loop has been wrong or could
+plausibly be:
+
+1. an answer that declares no identity cannot be attributed to any request, and
+   is refused;
+2. a mismatch between the declared identity and the job is refused and
+   *preserved*, never imported;
+3. the digest is matched in full, not by prefix;
+4. a paused stream is not a completed answer — stable text is necessary but not
+   sufficient;
+5. an ambiguous page is reported rather than guessed at;
+6. a deadline makes a late answer incomplete rather than silently accepted.
+
+Re-capturing identical bytes is a no-op, so the receiver's polling loop does not
+flood the log; re-importing the same candidate is idempotent rather than a second
+response.
+
+No experiment id, request id or digest remains hard-coded in the receiver. The
+job is the only source.
+
+### What this does not establish
+
+The transaction binds the captured bytes to the request identity and to the
+project binding. It does not prove the backend that produced the answer is the
+model the metadata names — that remains operator-attested, recorded as such, and
+is why the response is always recorded as an input rather than an instruction.
+A verified transport job is evidence with a chain of custody, not an authority.
+
+### Verification
+
+At `9487f45` on the compute host: controller 280/280, egress 29/29,
+rsih-adapter 38/38. Zero failures. The 21 new transport tests each break exactly
+one fail-closed rule, so a rule that silently stops being enforced shows up as a
+failing test rather than as a run that imported the wrong answer.
