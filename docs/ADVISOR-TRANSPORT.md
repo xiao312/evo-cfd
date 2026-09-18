@@ -33,12 +33,25 @@ including the initial and boundary fields.
 
 ChatGPT web offers no push, but the operator's browser is local. Once it runs
 with a debug port, `scripts/receive-advisor.ts` attaches to the chat tab, waits
-until the last assistant message stops changing, and writes the answer as the
-file `import-consultation.ts` consumes. Completion is decided by stability, not
-by any single UI signal, so streaming, regeneration and a slow final token all
-converge on the same condition. Selection reports how many assistant turns it
-found and which strategy it used, so a DOM change is visible instead of
-silently empty.
+until the last assistant message stops changing, and writes the answer. Completion
+is decided by stability, not by any single UI signal, so streaming, regeneration
+and a slow final token all converge on the same condition. Selection reports how
+many assistant turns it found and which strategy it used, so a DOM change is
+visible instead of silently empty.
+
+Receive and import are now one transaction, not two steps joined by the
+operator's care. `prepare-external-consultation.ts` creates a persisted
+*transport job* at export time, before anything is pasted, and that job is the
+single source of the request identity both steps use — the receiver no longer
+hard-codes the request id and digest, and the importer no longer accepts them on
+the command line. A captured answer is recorded as a candidate and then
+*verified* against the job; only a verified candidate may be imported. Six
+fail-closed rules are enforced in the transport layer (`packages/controller/src/transport.ts`):
+no declared identity, an identity mismatch, a prefix-only digest match, a
+still-generating stream, an ambiguous page, and a missed deadline are each
+refused and preserved rather than imported. Re-importing the same candidate is
+idempotent, and the transition log is append-only so a crash between stages
+recovers deterministically.
 
 The advisor browser runs on a dedicated profile. The operator's personal Chrome
 holds a lock on the default profile, and any second instance on that profile
@@ -46,8 +59,8 @@ hands off and exits without binding the debug port — which is why a debug port
 appears configured yet never listens. A dedicated profile also keeps the
 advisor session out of the operator's personal browsing.
 
-The importer requires the answer to declare the request id and digest, so an
-answer cannot be attached to the wrong request. In the first real round trip
+The importer requires the answer to have declared the request id and digest, so
+an answer cannot be attached to the wrong request. In the first real round trip
 the answer did declare them, and the importer measured the evidence's freshness
 before recording the decision.
 
@@ -103,9 +116,12 @@ the release decision is made.
 5. In the EvoCFD ChatGPT project, create or reuse the connector with the URL,
    enter the pairing code once.
 6. Send a short control message naming the files to read. Never paste contents.
-7. Run `receive-advisor.ts` to collect the completed answer.
-8. Import the answer with `import-consultation.ts`, which requires it to declare
-   the request id and digest.
+7. Run `receive-advisor.ts --run <run-root>` to collect the completed answer. It
+   records the candidate against the transport job and verifies it; a refusal
+   exits nonzero but keeps the bytes on record.
+8. Import the answer with `import-consultation.ts`. It refuses to run unless the
+   transport job is verified, and records the import back into the job, closing
+   the transaction.
 
 ## Rules
 
