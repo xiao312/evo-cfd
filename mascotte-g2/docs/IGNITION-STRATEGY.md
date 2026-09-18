@@ -135,6 +135,21 @@ not been measured cannot be distinguished from a conservative-but-inconsistent
 one by temperature or OH alone — the advisor was explicit that a species sum
 near one is partly algebraically enforced by the inert-species closure.
 
+**4. The deltaT ramp's status is not recorded.** The solver grows the time step
+by a roughly constant factor per step, bounded by `maxCo`, rather than following
+a schedule tied to convergence (measured in the `mascotte-agile-002` log). What
+is not recorded anywhere is whether that ramp is **part of this prescribed
+baseline** — a tunable under the case lock, changeable only by re-locking the
+case — or a **solver-side default** of `setDeltaT.H`, which the numerical
+algorithm scope permits a candidate to change.
+
+The distinction is load-bearing. A proposer asked to reduce cost per unit
+physical time will look at the measured Courant margin (max Co ~2.4e-5 against
+`maxCo` 0.3) and form exactly the hypothesis that the ramp, not the stability
+bound, is limiting the step. Whether that hypothesis is even *admissible*
+depends on this field, and a model given the current record has to guess. It
+should be recorded explicitly, before any such proposal is entertained.
+
 ## Status
 
 This is a **prescribed next baseline, not a validated result.** No reacting

@@ -31,3 +31,21 @@ regions edited on Windows, mixed with the surrounding LF. They were normalized
 to LF before hashing, so the manifest now describes the LF text as stored.
 
 Entry count after this regeneration: 148.
+
+## Regeneration 2026-09-18 — IGNITION-STRATEGY.md
+
+Recomputed one entry: `./docs/IGNITION-STRATEGY.md`.
+
+A fourth unresolved tension was added, recording that the **deltaT ramp's status
+is not stated anywhere**: it is unknown whether the solver's per-step step growth
+is part of this prescribed baseline — a tunable under the case lock, changeable
+only by re-locking the case — or a solver-side default of `setDeltaT.H`, which
+the numerical-algorithm scope permits a candidate to change.
+
+This was surfaced by the information-interface probe: a model given the assembled
+decision context formed a cost hypothesis that depends on that distinction, and
+correctly refused to assume which side of it the ramp falls. The record now says
+the gap exists, so a future proposer does not have to guess.
+
+No other entry changed. Verification was re-run on the compute host after this
+regeneration.

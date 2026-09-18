@@ -144,6 +144,6 @@ fa07bab28654e21520723edba605c2d20e174443fe311ea78d18e7d3795e8f41 *./mechanisms/r
 21e89fd9960fef5fd40c364248bd925afda4da3144aa841d857007deca5d3d36 *./mechanisms/ramec17/openfoam8/source.json
 55fe599bc2b6dc070e12d0cff594f27e9f68a3c910a95d9f6da803291e6086d3 *./mechanisms/ramec17/openfoam8/thermo.inputData
 362e12046141c8e5246cadace4b7226148638fe6fe19703797a539a8b7926a07 *./project.yaml
-da4370f4c5def4a29ed89c7f04d95f55c003f6cc3fa178f33765268c8b378bff *./docs/IGNITION-STRATEGY.md
+875fde9a9db76c4a3d52ab984ec65924bd3306d529de6ca0fcdb89ed9e671303 *./docs/IGNITION-STRATEGY.md
 96fc080161f81050cbbecd6c38b2da84f427c4988f04220df88475dcc2636ceb *./ignition-baseline.yaml
-b926b05bc1b240b4cd8d599812f255460d33dba945ef6afbef34cd4d2176f3ab *./docs/MANIFEST-CHANGELOG.md
+fc310b2bd0939c6add6e8a9528ebd28bcad90ce06bba0f50d8023c39bd1877c6 *./docs/MANIFEST-CHANGELOG.md
