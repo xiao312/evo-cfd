@@ -723,41 +723,109 @@ export async function attemptInputDigest(
   attemptDir: string,
   declaredInputs?: readonly string[],
 ): Promise<string> {
+  // The provenance of the input list matters as much as the list: a record that
+  // declares its inputs and one that falls back to the conventional set can
+  // describe different cases, so the coverage basis is part of the hash rather
+  // than an invisible assumption.
   const inputs = declaredInputs ?? (await readDeclaredInputs(attemptDir));
   const hash = createHash("sha256");
   hash.update("evocfd-attempt-inputs/v1\n");
-  for (const rel of [...inputs].sort()) {
+  hash.update("coverage:" + inputs.source + "\n");
+  for (const rel of [...inputs.paths].sort()) {
     let digest: string;
     try {
       const raw = await readFile(join(attemptDir, ...rel.split("/")));
       digest = createHash("sha256").update(raw).digest("hex");
-    } catch {
+    } catch (e) {
       // A declared input that has gone missing is a change, not an absence.
       // Recording it explicitly keeps the digest from silently coinciding with
-      // one computed when the file was present.
-      digest = "absent:" + rel;
+      // one computed when the file was present. An unreadable input is a
+      // different condition from a missing one, and is reported as such rather
+      // than being flattened into the same marker.
+      if ((e as NodeJS.ErrnoException).code === "ENOENT") {
+        digest = "absent:" + rel;
+      } else {
+        digest = "unreadable:" + rel;
+      }
     }
     hash.update(rel + "\0" + digest + "\n");
   }
   return hash.digest("hex");
 }
 
-/** Read the input file list an attempt record declares, if it declares one. */
-async function readDeclaredInputs(attemptDir: string): Promise<string[]> {
+/** The input paths an attempt depends on, and where the list itself came from. */
+type DeclaredInputs = {
+  paths: string[];
+  source: "declared" | "conventional" | "incomplete";
+};
+
+/**
+ * Read the input file list an attempt record declares.
+ *
+ * The canonical shape records each input as a case-relative `path` with the
+ * target-relative `source` kept beside it as provenance, because the identity
+ * is what the attempt depends on while the source is only where it came from.
+ * An earlier preparer emitted `source` alone, which is target-relative
+ * (`cases/<variant>/<rel>`), so those records are converted here rather than
+ * read as case-relative paths; a record that declares nothing at all is marked
+ * as conventional coverage instead of being silently read as complete.
+ */
+async function readDeclaredInputs(attemptDir: string): Promise<DeclaredInputs> {
+  let raw: string;
   try {
-    const raw = await readFile(join(attemptDir, "attempt-record.json"), "utf8");
-    const record = JSON.parse(raw) as { inputs?: unknown };
-    if (Array.isArray(record.inputs)) {
-      const rels = record.inputs
-        .map((e) => (typeof e === "string" ? e : (e as { path?: string })?.path))
-        .filter((p): p is string => typeof p === "string");
-      if (rels.length > 0) return rels;
-    }
+    raw = await readFile(join(attemptDir, "attempt-record.json"), "utf8");
   } catch {
-    // No readable record: fall back to the conventional OpenFOAM input files
-    // rather than failing the measurement.
+    // No readable record at all: the coverage is assumed, not declared.
+    return { paths: DEFAULT_INPUT_FILES, source: "incomplete" };
   }
-  return DEFAULT_INPUT_FILES;
+  let record: { inputs?: unknown };
+  try {
+    record = JSON.parse(raw) as { inputs?: unknown };
+  } catch {
+    return { paths: DEFAULT_INPUT_FILES, source: "incomplete" };
+  }
+  if (!Array.isArray(record.inputs) || record.inputs.length === 0) {
+    return { paths: DEFAULT_INPUT_FILES, source: "incomplete" };
+  }
+  const paths: string[] = [];
+  for (const entry of record.inputs) {
+    if (typeof entry === "string") {
+      paths.push(entry);
+      continue;
+    }
+    if (entry !== null && typeof entry === "object") {
+      const obj = entry as { path?: unknown; source?: unknown };
+      if (typeof obj.path === "string" && obj.path.length > 0) {
+        // Canonical: already case-relative.
+        paths.push(obj.path);
+        continue;
+      }
+      if (typeof obj.source === "string" && obj.source.length > 0) {
+        // Legacy preparer output: target-relative. Strip the cases/<variant>/
+        // prefix so the path resolves inside the attempt directory.
+        const rel = toCaseRelative(obj.source);
+        if (rel) paths.push(rel);
+        continue;
+      }
+    }
+  }
+  if (paths.length === 0) {
+    return { paths: DEFAULT_INPUT_FILES, source: "incomplete" };
+  }
+  return { paths, source: "declared" };
+}
+
+/**
+ * Convert a target-relative manifest path to a case-relative one.
+ *
+ * Returns null for a path that does not carry the `cases/<variant>/` prefix,
+ * because treating it as case-relative would silently point the measurement at
+ * the wrong file.
+ */
+function toCaseRelative(targetRelative: string): string | null {
+  const parts = targetRelative.split("/");
+  if (parts.length >= 3 && parts[0] === "cases") return parts.slice(2).join("/");
+  return null;
 }
 
 /** Conventional OpenFOAM case inputs, used when an attempt declares none. */

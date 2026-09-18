@@ -800,3 +800,78 @@ test("attemptInputDigest: one identity for preparation and measurement", async (
 
   await rm(dir, { recursive: true, force: true });
 });
+
+test("attemptInputDigest consumes the preparer's {path, source} schema", async () => {
+  // The preparer records each input with a case-relative `path` and a
+  // target-relative `source`. The digest must measure `path`; an earlier
+  // reader looked for `source`, which is not resolvable inside the attempt
+  // directory, and fell back to a conventional list that did not include the
+  // file that changed.
+  const dir = await mkdtemp(join(tmpdir(), "evocfd-schema-"));
+  await mkdir(join(dir, "0"), { recursive: true });
+  await writeFile(join(dir, "0", "T"), "value 300;\n", "utf8");
+  await writeFile(join(dir, "0", "U"), "value 0;\n", "utf8");
+  await writeFile(
+    join(dir, "attempt-record.json"),
+    JSON.stringify({
+      inputs: [
+        { path: "0/T", source: "cases/agile-80mm/0/T", sha256: "a".repeat(64) },
+        { path: "0/U", source: "cases/agile-80mm/0/U", sha256: "b".repeat(64) },
+      ],
+    }),
+    "utf8",
+  );
+
+  const baseline = await attemptInputDigest(dir);
+
+  // The reviewer's demonstration: a changed declared input must move the
+  // digest, which only happens if the reader resolved `0/T` at all.
+  await writeFile(join(dir, "0", "T"), "value 400;\n", "utf8");
+  assert.notEqual(await attemptInputDigest(dir), baseline);
+
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("attemptInputDigest converts legacy records that carry only source", async () => {
+  // Records written before the schema change carry target-relative `source`
+  // alone. They are converted rather than discarded, so an old attempt still
+  // measures against the files it actually depends on.
+  const dir = await mkdtemp(join(tmpdir(), "evocfd-legacy-"));
+  await mkdir(join(dir, "0"), { recursive: true });
+  await writeFile(join(dir, "0", "T"), "value 300;\n", "utf8");
+  await writeFile(
+    join(dir, "attempt-record.json"),
+    JSON.stringify({ inputs: [{ source: "cases/agile-80mm/0/T", sha256: "a".repeat(64) }] }),
+    "utf8",
+  );
+
+  const baseline = await attemptInputDigest(dir);
+  await writeFile(join(dir, "0", "T"), "value 400;\n", "utf8");
+  assert.notEqual(await attemptInputDigest(dir), baseline);
+
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("attemptInputDigest: a declared list and an assumed list never coincide", async () => {
+  // Two records describing the same files, one declaring them and one falling
+  // back to the conventional set, must not produce the same digest: the
+  // coverage basis is part of the hash, so an unrecorded scope cannot be
+  // mistaken for a recorded one.
+  const dir = await mkdtemp(join(tmpdir(), "evocfd-coverage-"));
+  await mkdir(join(dir, "system"), { recursive: true });
+  await writeFile(join(dir, "system", "controlDict"), "endTime 1;\n", "utf8");
+
+  await writeFile(
+    join(dir, "attempt-record.json"),
+    JSON.stringify({ inputs: [{ path: "system/controlDict", source: "cases/v/system/controlDict" }] }),
+    "utf8",
+  );
+  const declared = await attemptInputDigest(dir);
+
+  await writeFile(join(dir, "attempt-record.json"), "{}", "utf8");
+  const assumed = await attemptInputDigest(dir);
+
+  assert.notEqual(declared, assumed);
+
+  await rm(dir, { recursive: true, force: true });
+});

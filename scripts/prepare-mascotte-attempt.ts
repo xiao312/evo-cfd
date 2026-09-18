@@ -140,7 +140,7 @@ interface AttemptRecord {
     note: string;
   };
   species: string[];
-  inputs: { source: string; sha256: string }[];
+  inputs: { path: string; source: string; sha256: string }[];
   prepared_attempt?: {
     digest: string;
     measured_after: string;
@@ -292,7 +292,11 @@ async function main(): Promise<void> {
         if (!manifestNames.has(`./${manifestRel}`)) {
           throw new Error(`copied input ${relPath} is not listed in the target manifest`);
         }
-        copied.push({ source: manifestRel, sha256: digest });
+        // `path` is case-relative: it is the identity the attempt depends on,
+        // resolved inside the attempt directory. `source` is target-relative
+        // provenance, kept separately so the manifest can still be verified
+        // against the target without conflating the two notions of path.
+        copied.push({ path: relPath, source: manifestRel, sha256: digest });
       } else if (entry.isDirectory()) {
         if (skipDir(entry.name)) continue;
         await copyTree(join(fromDir, entry.name), relDir ? `${relDir}/${entry.name}` : entry.name);
