@@ -635,8 +635,27 @@ read campaign state
 ## The five known connection defects
 
 These are the initial hardening scope. Each is a real defect with a concrete
-failure mode, not a style preference.
+failure mode, not a style preference. Two are closed; the remaining three are
+the receiver-transaction work below.
 
+- **[CLOSED, `317699f` + `60554cf`] Execution receipts are not bound to a plan,**
+  and the receipt heredoc expanded what it recorded. `assessExecution` now takes
+  the expected job id and plan digest and reports a mismatch as a finding. The
+  receipt is written in two halves: a static half through a *quoted* heredoc
+  delimiter (job identity, budget, the argv — nothing evaluated) and a dynamic
+  half written by `echo` appends (timestamps, elapsed time, exit code). An
+  earlier test decoded the command line from the generated text without
+  executing the script, which is why an unquoted delimiter looked acceptable;
+  the replacement test runs the script and requires the observer's argv, the
+  receipt's argv and the joined command to agree.
+- **[CLOSED, `7979d46`] Consultation preparation embeds obsolete experiment facts**, and
+  the digest measured a conventional guess rather than the prepared inputs. The
+  attempt record now carries case-relative `path` as the identity with
+  target-relative `source` as provenance; the reader resolves `path`, converts
+  legacy `source`-only records, and folds the coverage basis into the hash so a
+  declared list can never coincide with an assumed one. The two corrected
+  observations the advisor returned were rewritten to state only what the
+  attached log supports.
 - **The receiver can accept an old answer or even a user message.** Text
   stability is not evidence of completion or identity. The receiver must bind
   capture to a recorded submission, validate a response envelope, keep a
@@ -648,20 +667,11 @@ failure mode, not a style preference.
   checking they were declared in the captured answer. A stale answer can be
   labelled as current by the caller. No experiment id or digest belongs in the
   receiver's source.
-- **Consultation preparation embeds obsolete experiment facts**, including ones
-  the external advisor already corrected. Preparation and import also define
-  `caseDigest` differently — the attempt record versus the case tree — so an
-  unchanged case can be reported stale. Measurable values must come from
-  records, not prose.
 - **The investigation layer is retrospective and drops actual changes.** The
   record is written only after the outcome is known, so the plan cannot be shown
   to precede execution, and `actual_changes` is hard-coded empty. The lifecycle
   must split into plan -> prepared change -> execution -> assessment ->
   interpretation, with the change bound to the preparer's own diff.
-- **Execution receipts are not bound to a plan.** `assessExecution` accepts a
-  receipt without comparing its job id or plan digest to the expected ones, and
-  the command is quoted for execution but written into the receipt heredoc
-  unquoted, so the shell can reinterpret it.
 
 ## Rules for this milestone
 
